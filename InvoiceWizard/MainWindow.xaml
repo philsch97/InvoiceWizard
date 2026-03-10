@@ -1,0 +1,38 @@
+<Window x:Class="InvoiceWizard.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="InvoiceWizard" Height="820" Width="1460" WindowStartupLocation="CenterScreen">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Style="{StaticResource CardStyle}" Padding="20" Margin="0,0,0,18">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="InvoiceWizard" Style="{StaticResource PageTitleStyle}" VerticalAlignment="Center"/>
+
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Button x:Name="ImportButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnungsimport" Click="Datenimport_Click"/>
+                    <Button x:Name="AllocationButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Positionen zuweisen" Click="Datenhandling_Click"/>
+                    <Button x:Name="CustomerButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kunden und Export" Click="CustomerHandling_Click"/>
+                    <Button x:Name="WorkTimeButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Arbeitszeit" Click="WorkTime_Click"/>
+                    <Button x:Name="NotesButton" Width="140" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Notizen" Click="Notes_Click"/>
+                    <Button x:Name="AnalyticsButton" Width="150" Height="42" Style="{StaticResource SecondaryButtonStyle}" Content="Auswertung" Click="Analytics_Click"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
+            <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden" Background="Transparent"/>
+        </Border>
+    </Grid>
+</Window>

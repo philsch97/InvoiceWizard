@@ -1,0 +1,155 @@
+﻿@page "/customers"
+@inject BackendApiClient Api
+
+<PageTitle>Kunden</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <div>
+            <h2>Kunden und Projekte</h2>
+            <p>Neue Kunden anlegen, Standard-Zuschlag pflegen und Projekte direkt mobil erfassen.</p>
+        </div>
+        <button class="action-button secondary" @onclick="LoadAsync">Neu laden</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <div class="inline-status">@StatusMessage</div>
+    }
+
+    <div class="split-grid two-columns">
+        <article class="feature-card">
+            <h3>Kunde speichern</h3>
+            <div class="form-grid">
+                <label><span>Name</span><input @bind="CustomerForm.Name" /></label>
+                <label><span>Standard-Zuschlag (%)</span><input type="number" step="0.01" @bind="CustomerForm.DefaultMarkupPercent" /></label>
+            </div>
+            <button class="action-button" @onclick="SaveCustomerAsync">Speichern</button>
+        </article>
+
+        <article class="feature-card">
+            <h3>Projekt speichern</h3>
+            <label>
+                <span>Kunde</span>
+                <select @bind="SelectedCustomerId">
+                    <option value="">Bitte waehlen</option>
+                    @foreach (var customer in CustomerItems)
+                    {
+                        <option value="@customer.CustomerId">@customer.Name</option>
+                    }
+                </select>
+            </label>
+            <label><span>Projektname</span><input @bind="ProjectForm.Name" /></label>
+            <button class="action-button" @onclick="SaveProjectAsync" disabled="@(!SelectedCustomerId.HasValue)">Projekt anlegen</button>
+        </article>
+    </div>
+
+    <div class="list-card">
+        <div class="table-header"><h3>Kunden</h3><span>@CustomerItems.Count Eintraege</span></div>
+        @foreach (var customer in CustomerItems)
+        {
+            <div class="list-row">
+                <div><strong>@customer.Name</strong><p>@customer.ProjectCount Projekt(e), @customer.OpenWorkItems offene Arbeitszeitposition(en)</p></div>
+                <div class="row-actions">
+                    <span class="pill">@customer.DefaultMarkupPercent.ToString("0.##") %</span>
+                    <button class="ghost-button" @onclick="() => SelectCustomer(customer)">Bearbeiten</button>
+                    <button class="ghost-button danger" @onclick="() => DeleteCustomerAsync(customer.CustomerId)">Loeschen</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="list-card">
+        <div class="table-header"><h3>Projekte</h3><span>@Projects.Count Eintraege</span></div>
+        @foreach (var project in Projects)
+        {
+            <div class="list-row">
+                <div><strong>@project.Name</strong><p>@project.CustomerName · @project.LoggedHours.ToString("0.##") h · @project.OpenWorkItems offene Position(en)</p></div>
+                <div class="row-actions"><button class="ghost-button danger" @onclick="() => DeleteProjectAsync(project.ProjectId)">Loeschen</button></div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<CustomerItem> CustomerItems { get; set; } = [];
+    private List<ProjectItem> Projects { get; set; } = [];
+    private SaveCustomerModel CustomerForm { get; set; } = new();
+    private SaveProjectModel ProjectForm { get; set; } = new();
+    private int? EditingCustomerId { get; set; }
+    private int? SelectedCustomerId { get; set; }
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        CustomerItems = (await Api.GetCustomersAsync()).ToList();
+        Projects = (await Api.GetProjectsAsync()).ToList();
+        if (!SelectedCustomerId.HasValue && CustomerItems.Count > 0)
+        {
+            SelectedCustomerId = CustomerItems[0].CustomerId;
+        }
+    }
+
+    private void SelectCustomer(CustomerItem customer)
+    {
+        EditingCustomerId = customer.CustomerId;
+        SelectedCustomerId = customer.CustomerId;
+        CustomerForm = new SaveCustomerModel { Name = customer.Name, DefaultMarkupPercent = customer.DefaultMarkupPercent };
+        StatusMessage = $"Kunde {customer.Name} zur Bearbeitung geladen.";
+    }
+
+    private async Task SaveCustomerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CustomerForm.Name))
+        {
+            StatusMessage = "Bitte einen Kundennamen eingeben.";
+            return;
+        }
+
+        var saved = await Api.SaveCustomerAsync(CustomerForm, EditingCustomerId);
+        EditingCustomerId = null;
+        CustomerForm = new SaveCustomerModel();
+        SelectedCustomerId = saved.CustomerId;
+        StatusMessage = $"Kunde {saved.Name} gespeichert.";
+        await LoadAsync();
+    }
+
+    private async Task SaveProjectAsync()
+    {
+        if (!SelectedCustomerId.HasValue || string.IsNullOrWhiteSpace(ProjectForm.Name))
+        {
+            StatusMessage = "Bitte Kunde und Projektname angeben.";
+            return;
+        }
+
+        var project = await Api.CreateProjectAsync(SelectedCustomerId.Value, ProjectForm);
+        ProjectForm = new SaveProjectModel();
+        StatusMessage = $"Projekt {project.Name} gespeichert.";
+        await LoadAsync();
+    }
+
+    private async Task DeleteCustomerAsync(int customerId)
+    {
+        await Api.DeleteCustomerAsync(customerId);
+        if (EditingCustomerId == customerId)
+        {
+            EditingCustomerId = null;
+            CustomerForm = new SaveCustomerModel();
+        }
+
+        StatusMessage = "Kunde geloescht.";
+        await LoadAsync();
+    }
+
+    private async Task DeleteProjectAsync(int projectId)
+    {
+        await Api.DeleteProjectAsync(projectId);
+        StatusMessage = "Projekt geloescht.";
+        await LoadAsync();
+    }
+}

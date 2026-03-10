@@ -1,0 +1,80 @@
+<Page x:Class="InvoiceWizard.DataHandling"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      d:DesignHeight="700" d:DesignWidth="1200"
+      Title="Datahandling">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="Positionen zuweisen" Style="{StaticResource PageTitleStyle}"/>
+                <TextBlock Text="Verteile importierte Rechnungspositionen auf Kunden und Projekte. Kleinmaterial kann separat gekennzeichnet und spaeter gesammelt exportiert werden." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <WrapPanel>
+                <StackPanel Width="220" Margin="0,0,14,10">
+                    <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                    <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged"/>
+                </StackPanel>
+                <StackPanel Width="220" Margin="0,0,14,10">
+                    <TextBlock Text="Projekt" Style="{StaticResource MutedLabelStyle}"/>
+                    <ComboBox x:Name="ProjectCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId"/>
+                </StackPanel>
+                <StackPanel Width="100" Margin="0,0,14,10">
+                    <TextBlock Text="Menge" Style="{StaticResource MutedLabelStyle}"/>
+                    <TextBox x:Name="AllocateQtyText" Text="1"/>
+                </StackPanel>
+                <StackPanel Width="140" Margin="0,0,14,10">
+                    <TextBlock Text="Preis/Stk (optional)" Style="{StaticResource MutedLabelStyle}"/>
+                    <TextBox x:Name="CustomerPriceText"/>
+                </StackPanel>
+                <CheckBox x:Name="IsSmallMaterialCheckBox" Margin="0,30,18,0" Content="Als Kleinmaterial zuweisen"/>
+                <Button Width="160" Height="40" Margin="0,24,10,0" Content="Position zuweisen" Click="AllocateQuantity_Click"/>
+                <Button Width="200" Height="40" Margin="0,24,10,0" Content="Markierte komplett zuweisen" Click="AllocateCompleteSelection_Click"/>
+                <Button Width="175" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte loeschen" Click="DeleteLine_Click"/>
+                <Button Width="110" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
+                <CheckBox x:Name="ShowCompletedCheckBox" Margin="0,32,0,0" Content="Vollstaendig zugewiesene anzeigen" Checked="ShowCompletedChanged" Unchecked="ShowCompletedChanged"/>
+            </WrapPanel>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Importierte Positionen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                <DataGrid x:Name="LinesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Rechnung" Binding="{Binding InvoiceNumber}" Width="120"/>
+                        <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
+                        <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
+                        <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
+                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="80"/>
+                        <DataGridTextColumn Header="Noch offen" Binding="{Binding RemainingQuantity}" Width="90"/>
+                        <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
+                        <DataGridTextColumn Header="EK/Stk" Binding="{Binding EffectivePurchaseUnitPrice}" Width="90"/>
+                        <DataGridTextColumn Header="Zugeordnet" Binding="{Binding AllocationSummary}" Width="280"/>
+                        <DataGridTextColumn Header="Bezahlt" Binding="{Binding PaidStatus}" Width="120"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <Border x:Name="StatusBorder" Grid.Row="3" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+        </Border>
+    </Grid>
+</Page>

@@ -1,0 +1,36 @@
+﻿# Beispiel fuer nginx als Reverse Proxy mit HTTPS.
+# Zertifikatspfade und Domain anpassen.
+
+server {
+    listen 80;
+    server_name invoicewizard.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name invoicewizard.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/invoicewizard.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/invoicewizard.example.com/privkey.pem;
+
+    client_max_body_size 50m;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8081/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

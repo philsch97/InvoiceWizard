@@ -1,0 +1,12 @@
+.vs/
+bin/
+obj/
+.dotnet-home/
+build-check/
+backend.log
+backend.err.log
+*.user
+*.suo
+*.cache
+*.pdb
+.config/

@@ -1,0 +1,217 @@
+@page "/worktime"
+@inject BackendApiClient Api
+
+<PageTitle>Arbeitszeit</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <div>
+            <h2>Arbeitszeit</h2>
+            <p>Zeiten mobil erfassen, nach Kunde oder Projekt filtern und Positionen als fakturiert oder bezahlt markieren.</p>
+        </div>
+        <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <div class="inline-status">@StatusMessage</div>
+    }
+
+    <div class="split-grid">
+        <article class="feature-card">
+            <h3>Neuer Eintrag</h3>
+            <div class="form-grid">
+                <label>
+                    <span>Kunde</span>
+                    <select @bind="Form.CustomerId" @bind:after="LoadProjectsForSelectedCustomerAsync">
+                        <option value="0">Bitte waehlen</option>
+                        @foreach (var customer in Customers)
+                        {
+                            <option value="@customer.CustomerId">@customer.Name</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Projekt</span>
+                    <select @bind="Form.ProjectId">
+                        <option value="">Ohne Projekt</option>
+                        @foreach (var project in AvailableProjects)
+                        {
+                            <option value="@project.ProjectId">@project.Name</option>
+                        }
+                    </select>
+                </label>
+                <label><span>Datum</span><input placeholder="yyyy-MM-dd" @bind="WorkDateText" /></label>
+                <label><span>Beginn</span><input placeholder="HH:mm" @bind="StartTimeText" /></label>
+                <label><span>Ende</span><input placeholder="HH:mm" @bind="EndTimeText" /></label>
+                <label><span>Pause (Min.)</span><input type="number" @bind="Form.BreakMinutes" /></label>
+                <label><span>Stundensatz</span><input type="number" step="0.01" @bind="Form.HourlyRate" /></label>
+                <label><span>Anfahrt (km)</span><input type="number" step="0.01" @bind="Form.TravelKilometers" /></label>
+                <label><span>Preis / km</span><input type="number" step="0.01" @bind="Form.TravelRatePerKilometer" /></label>
+                <label class="wide"><span>Beschreibung</span><input @bind="Form.Description" /></label>
+                <label class="wide"><span>Kommentar</span><textarea rows="3" @bind="Form.Comment"></textarea></label>
+            </div>
+            <button class="action-button" @onclick="SaveWorkTimeAsync">Speichern</button>
+        </article>
+
+        <article class="feature-card">
+            <h3>Filter</h3>
+            <label>
+                <span>Kunde</span>
+                <select @bind="FilterCustomerId" @bind:after="HandleFilterCustomerChangedAsync">
+                    <option value="">Alle Kunden</option>
+                    @foreach (var customer in Customers)
+                    {
+                        <option value="@customer.CustomerId">@customer.Name</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Projekt</span>
+                <select @bind="FilterProjectId" @bind:after="ReloadAsync">
+                    <option value="">Alle Projekte</option>
+                    @foreach (var project in FilterProjects)
+                    {
+                        <option value="@project.ProjectId">@project.Name</option>
+                    }
+                </select>
+            </label>
+            <div class="inline-metrics">
+                <div><span>Eintraege</span><strong>@Entries.Count</strong></div>
+                <div><span>Stunden</span><strong>@Entries.Sum(x => x.HoursWorked).ToString("0.##")</strong></div>
+                <div><span>Kilometer</span><strong>@Entries.Sum(x => x.TravelKilometers).ToString("0.##")</strong></div>
+            </div>
+        </article>
+    </div>
+
+    <div class="list-card">
+        <div class="table-header"><h3>Zeiteintraege</h3><span>@Entries.Count Eintraege</span></div>
+        @foreach (var entry in Entries)
+        {
+            <div class="entry-card">
+                <div class="entry-header">
+                    <div><strong>@entry.Description</strong><p>@entry.CustomerName · @(entry.ProjectName ?? "Ohne Projekt")</p></div>
+                    <span class="pill @(entry.IsPaid ? "success" : string.IsNullOrWhiteSpace(entry.CustomerInvoiceNumber) ? "" : "warning")">@(entry.IsPaid ? "Bezahlt" : string.IsNullOrWhiteSpace(entry.CustomerInvoiceNumber) ? "Offen" : "Fakturiert")</span>
+                </div>
+                <div class="entry-meta">
+                    <span>@entry.WorkDate.ToString("dd.MM.yyyy")</span>
+                    <span>@entry.StartTime.ToString(@"hh\:mm") - @entry.EndTime.ToString(@"hh\:mm")</span>
+                    <span>@entry.HoursWorked.ToString("0.##") h</span>
+                    <span>@entry.TravelKilometers.ToString("0.##") km</span>
+                    <span>@entry.LineTotal.ToString("0.00") EUR</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(entry.Comment))
+                {
+                    <p class="entry-comment">@entry.Comment</p>
+                }
+                <div class="status-update">
+                    <input placeholder="Rechnungsnr." @bind="InvoiceNumbers[entry.WorkTimeEntryId]" />
+                    <button class="ghost-button" @onclick="() => MarkInvoicedAsync(entry.WorkTimeEntryId)">Fakturiert</button>
+                    <button class="ghost-button" @onclick="() => MarkPaidAsync(entry.WorkTimeEntryId)">Bezahlt</button>
+                    <button class="ghost-button danger" @onclick="() => DeleteAsync(entry.WorkTimeEntryId)">Loeschen</button>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<CustomerItem> Customers { get; set; } = [];
+    private List<ProjectItem> AvailableProjects { get; set; } = [];
+    private List<ProjectItem> FilterProjects { get; set; } = [];
+    private List<WorkTimeItem> Entries { get; set; } = [];
+    private SaveWorkTimeModel Form { get; set; } = new();
+    private Dictionary<int, string?> InvoiceNumbers { get; set; } = new();
+    private int? FilterCustomerId { get; set; }
+    private int? FilterProjectId { get; set; }
+    private string? StatusMessage { get; set; }
+
+    private string WorkDateText
+    {
+        get => Form.WorkDate.ToString("yyyy-MM-dd");
+        set => Form.WorkDate = DateTime.TryParse(value, out var result) ? result.Date : DateTime.Today;
+    }
+
+    private string StartTimeText
+    {
+        get => Form.StartTime.ToString(@"hh\:mm");
+        set => Form.StartTime = TimeSpan.TryParse(value, out var result) ? result : new TimeSpan(8, 0, 0);
+    }
+
+    private string EndTimeText
+    {
+        get => Form.EndTime.ToString(@"hh\:mm");
+        set => Form.EndTime = TimeSpan.TryParse(value, out var result) ? result : new TimeSpan(16, 30, 0);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Customers = (await Api.GetCustomersAsync()).ToList();
+        if (Customers.Count > 0)
+        {
+            Form.CustomerId = Customers[0].CustomerId;
+            await LoadProjectsForSelectedCustomerAsync();
+            await HandleFilterCustomerChangedAsync();
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task LoadProjectsForSelectedCustomerAsync()
+    {
+        AvailableProjects = Form.CustomerId > 0 ? (await Api.GetProjectsAsync(Form.CustomerId)).ToList() : [];
+    }
+
+    private async Task HandleFilterCustomerChangedAsync()
+    {
+        FilterProjects = FilterCustomerId.HasValue ? (await Api.GetProjectsAsync(FilterCustomerId.Value)).ToList() : [];
+        if (FilterProjectId.HasValue && FilterProjects.All(x => x.ProjectId != FilterProjectId.Value))
+        {
+            FilterProjectId = null;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        Entries = (await Api.GetWorkTimesAsync(FilterCustomerId, FilterProjectId)).ToList();
+        InvoiceNumbers = Entries.ToDictionary(x => x.WorkTimeEntryId, x => x.CustomerInvoiceNumber);
+    }
+
+    private async Task SaveWorkTimeAsync()
+    {
+        if (Form.CustomerId <= 0)
+        {
+            StatusMessage = "Bitte einen Kunden auswaehlen.";
+            return;
+        }
+
+        await Api.CreateWorkTimeAsync(Form);
+        Form.Comment = "";
+        Form.Description = "Arbeitszeit";
+        StatusMessage = "Zeiteintrag gespeichert.";
+        await ReloadAsync();
+    }
+
+    private async Task MarkInvoicedAsync(int id)
+    {
+        await Api.UpdateWorkTimeStatusAsync(id, new UpdateWorkTimeStatusModel { CustomerInvoiceNumber = InvoiceNumbers.GetValueOrDefault(id), MarkInvoiced = true });
+        StatusMessage = "Eintrag als fakturiert markiert.";
+        await ReloadAsync();
+    }
+
+    private async Task MarkPaidAsync(int id)
+    {
+        await Api.UpdateWorkTimeStatusAsync(id, new UpdateWorkTimeStatusModel { CustomerInvoiceNumber = InvoiceNumbers.GetValueOrDefault(id), MarkPaid = true });
+        StatusMessage = "Eintrag als bezahlt markiert.";
+        await ReloadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await Api.DeleteWorkTimeAsync(id);
+        StatusMessage = "Eintrag geloescht.";
+        await ReloadAsync();
+    }
+}

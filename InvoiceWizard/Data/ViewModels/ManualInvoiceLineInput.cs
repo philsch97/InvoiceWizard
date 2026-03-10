@@ -1,0 +1,15 @@
+namespace InvoiceWizard.Data.ViewModels;
+
+public class ManualInvoiceLineInput
+{
+    public int Position { get; set; }
+    public string ArticleNumber { get; set; } = "";
+    public string Ean { get; set; } = "";
+    public string Description { get; set; } = "";
+    public decimal Quantity { get; set; }
+    public string Unit { get; set; } = "";
+    public decimal NetUnitPrice { get; set; }
+    public decimal GrossListPrice { get; set; }
+    public decimal PriceBasisQuantity { get; set; } = 1m;
+    public decimal LineTotal => Quantity * (NetUnitPrice / (PriceBasisQuantity <= 0m ? 1m : PriceBasisQuantity));
+}

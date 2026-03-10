@@ -1,0 +1,113 @@
+<Page x:Class="InvoiceWizard.WorkTimePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      d:DesignHeight="760" d:DesignWidth="1200"
+      Title="WorkTimePage">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="Arbeitszeit" Style="{StaticResource PageTitleStyle}"/>
+                <TextBlock Text="Erfasse Zeiten pro Kunde und Projekt mit genauer Leistungsbeschreibung und exportiere sie bei Bedarf als PDF." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <StackPanel>
+                <WrapPanel Margin="0,0,0,14">
+                    <StackPanel Width="220" Margin="0,0,14,12">
+                        <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                        <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged"/>
+                    </StackPanel>
+                    <StackPanel Width="220" Margin="0,0,14,12">
+                        <TextBlock Text="Projekt" Style="{StaticResource MutedLabelStyle}"/>
+                        <ComboBox x:Name="ProjectCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId" SelectionChanged="ProjectCombo_SelectionChanged"/>
+                    </StackPanel>
+                    <StackPanel Width="140" Margin="0,0,14,12">
+                        <TextBlock Text="Datum" Style="{StaticResource MutedLabelStyle}"/>
+                        <DatePicker x:Name="WorkDatePicker"/>
+                    </StackPanel>
+                    <StackPanel Width="90" Margin="0,0,14,12">
+                        <TextBlock Text="Beginn" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="StartTimeText" Text="08:00"/>
+                    </StackPanel>
+                    <StackPanel Width="90" Margin="0,0,14,12">
+                        <TextBlock Text="Ende" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="EndTimeText" Text="16:30"/>
+                    </StackPanel>
+                    <StackPanel Width="100" Margin="0,0,14,12">
+                        <TextBlock Text="Pause (Min.)" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="BreakMinutesText" Text="30"/>
+                    </StackPanel>
+                    <StackPanel Width="110" Margin="0,0,14,12">
+                        <TextBlock Text="Stundensatz" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="HourlyRateText" Text="65"/>
+                    </StackPanel>
+                    <StackPanel Width="110" Margin="0,0,14,12">
+                        <TextBlock Text="Anfahrt (km)" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="TravelKilometersText" Text="0"/>
+                    </StackPanel>
+                    <StackPanel Width="120" Margin="0,0,14,12">
+                        <TextBlock Text="Preis / km" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="TravelRateText" Text="0"/>
+                    </StackPanel>
+                    <StackPanel Width="220" Margin="0,0,14,12">
+                        <TextBlock Text="Beschreibung" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="DescriptionText" Text="Arbeitszeit"/>
+                    </StackPanel>
+                    <Button Width="170" Height="40" Margin="0,24,0,0" Content="Arbeitszeit speichern" Click="SaveWorkTime_Click"/>
+                </WrapPanel>
+
+                <TextBlock Text="Kommentar / Taetigkeit" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="CommentText" Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <WrapPanel>
+                <Button Width="170" Height="40" Margin="0,0,10,0" Content="Arbeitszeiten als PDF" Click="ExportPdf_Click"/>
+                <Button Width="170" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte loeschen" Click="DeleteSelected_Click"/>
+                <Button Width="110" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
+            </WrapPanel>
+        </Border>
+
+        <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Erfasste Arbeitszeiten" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                <DataGrid x:Name="WorkEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Datum" Binding="{Binding WorkDate, StringFormat=dd.MM.yyyy}" Width="120"/>
+                        <DataGridTextColumn Header="Projekt" Binding="{Binding Project.Name}" Width="160"/>
+                        <DataGridTextColumn Header="Zeit" Binding="{Binding TimeRange}" Width="120"/>
+                        <DataGridTextColumn Header="Pause" Binding="{Binding BreakMinutes}" Width="80"/>
+                        <DataGridTextColumn Header="Stunden" Binding="{Binding HoursWorked}" Width="90"/>
+                        <DataGridTextColumn Header="Stundensatz" Binding="{Binding HourlyRate}" Width="100"/>
+                        <DataGridTextColumn Header="Anfahrt km" Binding="{Binding TravelKilometers}" Width="95"/>
+                        <DataGridTextColumn Header="Preis/km" Binding="{Binding TravelRatePerKilometer}" Width="95"/>
+                        <DataGridTextColumn Header="Gesamt" Binding="{Binding CalculatedLineTotal}" Width="100"/>
+                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="180"/>
+                        <DataGridTextColumn Header="Kommentar" Binding="{Binding Comment}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+        </Border>
+    </Grid>
+</Page>

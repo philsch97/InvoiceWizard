@@ -1,0 +1,55 @@
+﻿@page "/"
+@inject BackendApiClient Api
+
+<PageTitle>Status</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <div>
+            <h2>Status</h2>
+            <p>Der mobile Einstieg zeigt offene Posten, aktive Kunden und die wichtigsten Kennzahlen fuer den aktuellen Monat.</p>
+        </div>
+        <button class="action-button secondary" @onclick="LoadAsync">Aktualisieren</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="alert-card">@ErrorMessage</div>
+    }
+
+    <div class="stats-grid">
+        <article class="stat-card sunrise"><span>Kunden</span><strong>@Summary.CustomerCount</strong></article>
+        <article class="stat-card tide"><span>Projekte</span><strong>@Summary.ProjectCount</strong></article>
+        <article class="stat-card meadow"><span>Offene Arbeitszeiten</span><strong>@Summary.OpenWorkItemCount</strong></article>
+        <article class="stat-card ember"><span>Offene Materialpositionen</span><strong>@Summary.OpenMaterialItemCount</strong></article>
+    </div>
+
+    <div class="split-grid">
+        <article class="feature-card"><h3>Monat bisher</h3><p class="feature-value">@Summary.LoggedHoursCurrentMonth.ToString("0.##") h</p><p>Erfasste Stunden seit Monatsbeginn.</p></article>
+        <article class="feature-card"><h3>Bezahlt</h3><p class="feature-value">@Summary.PaidRevenue.ToString("0.00") EUR</p><p>Bereits als bezahlt markierter Umsatz aus Material und Arbeitszeit.</p></article>
+        <article class="feature-card"><h3>Noch offen</h3><p class="feature-value">@Summary.OpenRevenue.ToString("0.00") EUR</p><p>Potenzial aus noch nicht bezahlten Positionen.</p></article>
+    </div>
+</section>
+
+@code {
+    private DashboardSummary Summary { get; set; } = new();
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            ErrorMessage = null;
+            Summary = await Api.GetDashboardSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Backend nicht erreichbar: {ex.Message}";
+        }
+    }
+}

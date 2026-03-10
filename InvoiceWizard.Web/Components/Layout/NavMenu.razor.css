@@ -1,0 +1,23 @@
+﻿.nav-menu {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.nav-menu ::deep .nav-pill {
+    text-decoration: none;
+    padding: 0.8rem 1rem;
+    border-radius: 999px;
+    color: var(--text-strong);
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(32, 52, 67, 0.08);
+    box-shadow: 0 10px 24px rgba(41, 68, 84, 0.08);
+    font-weight: 600;
+}
+
+.nav-menu ::deep .nav-pill.active {
+    background: var(--accent);
+    color: white;
+    border-color: transparent;
+}

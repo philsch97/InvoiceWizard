@@ -1,0 +1,15 @@
+﻿# Beispiel fuer Caddy als Reverse Proxy mit automatischem HTTPS.
+# Domain anpassen und Datei z. B. nach /etc/caddy/Caddyfile legen.
+
+invoicewizard.example.com {
+    encode gzip zstd
+
+    @api path /api/*
+    handle @api {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8081
+    }
+}

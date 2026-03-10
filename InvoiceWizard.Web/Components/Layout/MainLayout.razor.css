@@ -1,0 +1,50 @@
+﻿.shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+}
+
+.shell-header {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.eyebrow {
+    margin: 0 0 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.74rem;
+    color: var(--accent-strong);
+}
+
+h1 {
+    margin: 0;
+    font-size: clamp(1.9rem, 4vw, 3.3rem);
+    line-height: 0.98;
+}
+
+.shell-copy {
+    margin: 0;
+    max-width: 42rem;
+    color: var(--muted);
+}
+
+.shell-content {
+    margin-top: 1rem;
+}
+
+.panel {
+    padding: 1.1rem;
+}
+
+@media (min-width: 800px) {
+    .shell-header {
+        grid-template-columns: 1.5fr 1fr;
+        align-items: end;
+    }
+
+    .panel {
+        padding: 1.5rem;
+    }
+}
