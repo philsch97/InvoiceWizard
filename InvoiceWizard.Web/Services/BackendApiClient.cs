@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using InvoiceWizard.Web.Models;
 using Microsoft.AspNetCore.Components.Forms;
@@ -10,8 +10,8 @@ public class BackendApiClient(HttpClient httpClient)
     public async Task<DashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
         => await TryGetAsync("api/dashboard/summary", new DashboardSummary(), cancellationToken);
 
-    public async Task<IReadOnlyList<CustomerItem>> GetCustomersAsync(CancellationToken cancellationToken = default)
-        => await TryGetAsync<IReadOnlyList<CustomerItem>>("api/customers", [], cancellationToken);
+    public async Task<List<CustomerItem>> GetCustomersAsync(CancellationToken cancellationToken = default)
+        => await TryGetListAsync<CustomerItem>("api/customers", cancellationToken);
 
     public async Task<CustomerItem> SaveCustomerAsync(SaveCustomerModel model, int? customerId = null, CancellationToken cancellationToken = default)
     {
@@ -28,10 +28,10 @@ public class BackendApiClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<IReadOnlyList<ProjectItem>> GetProjectsAsync(int? customerId = null, CancellationToken cancellationToken = default)
+    public async Task<List<ProjectItem>> GetProjectsAsync(int? customerId = null, CancellationToken cancellationToken = default)
     {
         var url = customerId.HasValue ? $"api/projects?customerId={customerId.Value}" : "api/projects";
-        return await TryGetAsync<IReadOnlyList<ProjectItem>>(url, [], cancellationToken);
+        return await TryGetListAsync<ProjectItem>(url, cancellationToken);
     }
 
     public async Task<ProjectItem> CreateProjectAsync(int customerId, SaveProjectModel model, CancellationToken cancellationToken = default)
@@ -57,7 +57,7 @@ public class BackendApiClient(HttpClient httpClient)
         return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
     }
 
-    public async Task<IReadOnlyList<WorkTimeItem>> GetWorkTimesAsync(int? customerId = null, int? projectId = null, CancellationToken cancellationToken = default)
+    public async Task<List<WorkTimeItem>> GetWorkTimesAsync(int? customerId = null, int? projectId = null, CancellationToken cancellationToken = default)
     {
         var parts = new List<string>();
         if (customerId.HasValue)
@@ -71,7 +71,7 @@ public class BackendApiClient(HttpClient httpClient)
         }
 
         var url = parts.Count == 0 ? "api/worktimeentries" : $"api/worktimeentries?{string.Join("&", parts)}";
-        return await TryGetAsync<IReadOnlyList<WorkTimeItem>>(url, [], cancellationToken);
+        return await TryGetListAsync<WorkTimeItem>(url, cancellationToken);
     }
 
     public async Task<WorkTimeItem> CreateWorkTimeAsync(SaveWorkTimeModel model, CancellationToken cancellationToken = default)
@@ -94,12 +94,12 @@ public class BackendApiClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<IReadOnlyList<TodoListItem>> GetTodoListsAsync(int customerId, int? projectId = null, CancellationToken cancellationToken = default)
+    public async Task<List<TodoListItem>> GetTodoListsAsync(int customerId, int? projectId = null, CancellationToken cancellationToken = default)
     {
         var url = projectId.HasValue
             ? $"api/todolists?customerId={customerId}&projectId={projectId.Value}"
             : $"api/todolists?customerId={customerId}";
-        return await TryGetAsync<IReadOnlyList<TodoListItem>>(url, [], cancellationToken);
+        return await TryGetListAsync<TodoListItem>(url, cancellationToken);
     }
 
     public async Task<TodoListItem> CreateTodoListAsync(int customerId, int? projectId, string title, CancellationToken cancellationToken = default)
@@ -156,8 +156,8 @@ public class BackendApiClient(HttpClient httpClient)
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
     }
 
-    public async Task<IReadOnlyList<TenantUserModel>> GetTenantUsersAsync(CancellationToken cancellationToken = default)
-        => await TryGetAsync<IReadOnlyList<TenantUserModel>>("api/tenant-users", [], cancellationToken);
+    public async Task<List<TenantUserModel>> GetTenantUsersAsync(CancellationToken cancellationToken = default)
+        => await TryGetListAsync<TenantUserModel>("api/tenant-users", cancellationToken);
 
     public async Task<TenantUserModel> CreateTenantUserAsync(CreateTenantUserModel model, CancellationToken cancellationToken = default)
     {
@@ -182,6 +182,18 @@ public class BackendApiClient(HttpClient httpClient)
         catch
         {
             return fallback;
+        }
+    }
+
+    private async Task<List<T>> TryGetListAsync<T>(string url, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await httpClient.GetFromJsonAsync<List<T>>(url, cancellationToken) ?? [];
+        }
+        catch
+        {
+            return [];
         }
     }
 }
