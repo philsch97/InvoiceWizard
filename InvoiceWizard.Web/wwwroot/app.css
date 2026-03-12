@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --canvas: #f6f1e7;
     --panel: rgba(255, 253, 249, 0.88);
     --text-strong: #203443;
@@ -62,7 +62,46 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .entry-meta { justify-content: flex-start; flex-wrap: wrap; color: var(--muted); font-size: 0.92rem; }
 .status-update { flex-wrap: wrap; justify-content: flex-start; }
 .status-update input { max-width: 180px; }
+.compact { gap: 0.5rem; }
+.compact-grid { margin-top: 0.5rem; }
+.selector-grid { align-items: end; }
+.stacked-mobile { align-items: flex-start; }
+.wrap-mobile { flex-wrap: wrap; }
+.checkbox-line { display: inline-flex; align-items: center; gap: 0.55rem; color: var(--text-strong); }
+.checkbox-line input { width: auto; margin: 0; }
+.inline-editor { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+.inline-editor input { flex: 1 1 220px; }
+.empty-hint { margin: 0; color: var(--muted); }
+.selected-row, .selected-todo { border-radius: 18px; background: rgba(212, 111, 77, 0.12); padding: 0.85rem 1rem; }
+.todo-tree { display: grid; gap: 0.75rem; }
+.todo-item { display: grid; gap: 0.5rem; border-left: 2px solid rgba(32, 52, 67, 0.12); padding-left: 0.75rem; }
+.todo-item-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap; }
+.attachments-block { display: grid; gap: 0.85rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.link-button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
 @media (max-width: 720px) {
     .section-heading, .table-header, .entry-header, .list-row, .status-update { align-items: flex-start; flex-direction: column; }
     .row-actions, .inline-metrics { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+    .todo-item-row, .inline-editor { align-items: stretch; }
+}
+.auth-shell {
+    display: grid;
+    gap: 1rem;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.auth-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.shell-session {
+    display: grid;
+    gap: 0.65rem;
+    justify-items: start;
+}
+
+.compact-details {
+    display: grid;
+    gap: 0.25rem;
 }

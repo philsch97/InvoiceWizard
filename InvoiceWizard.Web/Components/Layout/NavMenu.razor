@@ -1,5 +1,14 @@
-﻿<nav class="nav-menu">
-    <NavLink class="nav-pill" href="" Match="NavLinkMatch.All">Status</NavLink>
-    <NavLink class="nav-pill" href="customers">Kunden & Projekte</NavLink>
-    <NavLink class="nav-pill" href="worktime">Arbeitszeit</NavLink>
+﻿@inject WebAuthSession Auth
+@inject NavigationManager Navigation
+
+<nav class="nav-menu">
+    <NavLink href="/" Match="NavLinkMatch.All" class="nav-pill-button" ActiveClass="active">Status</NavLink>
+    <NavLink href="/customers" class="nav-pill-button" ActiveClass="active">Kunden & Projekte</NavLink>
+    <NavLink href="/projectdata" class="nav-pill-button" ActiveClass="active">Projektdaten</NavLink>
+    <NavLink href="/worktime" class="nav-pill-button" ActiveClass="active">Arbeitszeit</NavLink>
+    <NavLink href="/notes" class="nav-pill-button" ActiveClass="active">Notizen & ToDos</NavLink>
+    @if (Auth.CanManageUsers)
+    {
+        <NavLink href="/team" class="nav-pill-button" ActiveClass="active">Benutzer</NavLink>
+    }
 </nav>

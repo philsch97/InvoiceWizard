@@ -3,7 +3,17 @@ namespace InvoiceWizard.Backend.Domain;
 public class Customer
 {
     public int CustomerId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public string Name { get; set; } = "";
+    public string FirstName { get; set; } = "";
+    public string LastName { get; set; } = "";
+    public string Street { get; set; } = "";
+    public string HouseNumber { get; set; } = "";
+    public string PostalCode { get; set; } = "";
+    public string City { get; set; } = "";
+    public string EmailAddress { get; set; } = "";
+    public string PhoneNumber { get; set; } = "";
     public decimal DefaultMarkupPercent { get; set; }
     public List<Project> Projects { get; set; } = new();
     public List<LineAllocation> Allocations { get; set; } = new();
@@ -14,9 +24,30 @@ public class Customer
 public class Project
 {
     public int ProjectId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
     public string Name { get; set; } = "";
+    public bool ConnectionUserSameAsCustomer { get; set; }
+    public string ConnectionUserFirstName { get; set; } = "";
+    public string ConnectionUserLastName { get; set; } = "";
+    public string ConnectionUserStreet { get; set; } = "";
+    public string ConnectionUserHouseNumber { get; set; } = "";
+    public string ConnectionUserPostalCode { get; set; } = "";
+    public string ConnectionUserCity { get; set; } = "";
+    public string ConnectionUserParcelNumber { get; set; } = "";
+    public string ConnectionUserEmailAddress { get; set; } = "";
+    public string ConnectionUserPhoneNumber { get; set; } = "";
+    public bool PropertyOwnerSameAsCustomer { get; set; }
+    public string PropertyOwnerFirstName { get; set; } = "";
+    public string PropertyOwnerLastName { get; set; } = "";
+    public string PropertyOwnerStreet { get; set; } = "";
+    public string PropertyOwnerHouseNumber { get; set; } = "";
+    public string PropertyOwnerPostalCode { get; set; } = "";
+    public string PropertyOwnerCity { get; set; } = "";
+    public string PropertyOwnerEmailAddress { get; set; } = "";
+    public string PropertyOwnerPhoneNumber { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<LineAllocation> Allocations { get; set; } = new();
     public List<WorkTimeEntry> WorkTimeEntries { get; set; } = new();
@@ -26,6 +57,8 @@ public class Project
 public class Invoice
 {
     public int InvoiceId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public string SupplierName { get; set; } = "Sonepar";
@@ -37,6 +70,8 @@ public class Invoice
 public class InvoiceLine
 {
     public int InvoiceLineId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int InvoiceId { get; set; }
     public Invoice Invoice { get; set; } = null!;
     public int Position { get; set; }
@@ -58,6 +93,8 @@ public class InvoiceLine
 public class LineAllocation
 {
     public int LineAllocationId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int InvoiceLineId { get; set; }
     public InvoiceLine InvoiceLine { get; set; } = null!;
     public int CustomerId { get; set; }
@@ -81,6 +118,8 @@ public class LineAllocation
 public class WorkTimeEntry
 {
     public int WorkTimeEntryId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
     public int? ProjectId { get; set; }
@@ -108,6 +147,8 @@ public class WorkTimeEntry
 public class TodoList
 {
     public int TodoListId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
     public int? ProjectId { get; set; }
@@ -122,6 +163,8 @@ public class TodoList
 public class TodoItem
 {
     public int TodoItemId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int TodoListId { get; set; }
     public TodoList TodoList { get; set; } = null!;
     public int? ParentTodoItemId { get; set; }
@@ -136,6 +179,8 @@ public class TodoItem
 public class TodoAttachment
 {
     public int TodoAttachmentId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
     public int TodoListId { get; set; }
     public TodoList TodoList { get; set; } = null!;
     public string FileName { get; set; } = "";

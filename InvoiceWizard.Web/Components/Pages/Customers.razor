@@ -1,13 +1,13 @@
-﻿@page "/customers"
+@page "/customers"
 @inject BackendApiClient Api
 
-<PageTitle>Kunden</PageTitle>
+<PageTitle>Kunden & Projekte</PageTitle>
 
 <section class="page-section">
     <div class="section-heading">
         <div>
-            <h2>Kunden und Projekte</h2>
-            <p>Neue Kunden anlegen, Standard-Zuschlag pflegen und Projekte direkt mobil erfassen.</p>
+            <h2>Kunden & Projekte</h2>
+            <p>Kundenstammdaten mobil pflegen, Projekte ansehen und bei Bedarf direkt neue Projekte anlegen.</p>
         </div>
         <button class="action-button secondary" @onclick="LoadAsync">Neu laden</button>
     </div>
@@ -19,16 +19,34 @@
 
     <div class="split-grid two-columns">
         <article class="feature-card">
-            <h3>Kunde speichern</h3>
+            <div class="table-header compact">
+                <h3>Kundendaten</h3>
+                @if (EditingCustomerId.HasValue)
+                {
+                    <span class="pill warning">Bearbeitung</span>
+                }
+            </div>
+
             <div class="form-grid">
-                <label><span>Name</span><input @bind="CustomerForm.Name" /></label>
+                <label><span>Vorname</span><input @bind="CustomerForm.FirstName" /></label>
+                <label><span>Nachname</span><input @bind="CustomerForm.LastName" /></label>
+                <label><span>Strasse</span><input @bind="CustomerForm.Street" /></label>
+                <label><span>Hausnummer</span><input @bind="CustomerForm.HouseNumber" /></label>
+                <label><span>Postleitzahl</span><input @bind="CustomerForm.PostalCode" /></label>
+                <label><span>Ort</span><input @bind="CustomerForm.City" /></label>
+                <label><span>E-Mail-Adresse</span><input @bind="CustomerForm.EmailAddress" /></label>
+                <label><span>Telefonnummer</span><input @bind="CustomerForm.PhoneNumber" /></label>
                 <label><span>Standard-Zuschlag (%)</span><input type="number" step="0.01" @bind="CustomerForm.DefaultMarkupPercent" /></label>
             </div>
-            <button class="action-button" @onclick="SaveCustomerAsync">Speichern</button>
+
+            <div class="status-update">
+                <button class="action-button" @onclick="SaveCustomerAsync">@(EditingCustomerId.HasValue ? "Kunde aktualisieren" : "Neuen Kunden speichern")</button>
+                <button class="ghost-button" @onclick="ClearCustomerForm">Formular leeren</button>
+            </div>
         </article>
 
         <article class="feature-card">
-            <h3>Projekt speichern</h3>
+            <h3>Projekt fuer Kunden anlegen</h3>
             <label>
                 <span>Kunde</span>
                 <select @bind="SelectedCustomerId">
@@ -40,7 +58,16 @@
                 </select>
             </label>
             <label><span>Projektname</span><input @bind="ProjectForm.Name" /></label>
-            <button class="action-button" @onclick="SaveProjectAsync" disabled="@(!SelectedCustomerId.HasValue)">Projekt anlegen</button>
+            <button class="action-button" @onclick="SaveProjectAsync" disabled="@(!SelectedCustomerId.HasValue)">Projekt speichern</button>
+
+            <div class="compact-details">
+                <h4>Kurzueberblick</h4>
+                <div class="inline-metrics">
+                    <div><span>Kunden</span><strong>@CustomerItems.Count</strong></div>
+                    <div><span>Projekte</span><strong>@Projects.Count</strong></div>
+                    <div><span>Offene Zeiten</span><strong>@CustomerItems.Sum(x => x.OpenWorkItems)</strong></div>
+                </div>
+            </div>
         </article>
     </div>
 
@@ -48,9 +75,21 @@
         <div class="table-header"><h3>Kunden</h3><span>@CustomerItems.Count Eintraege</span></div>
         @foreach (var customer in CustomerItems)
         {
-            <div class="list-row">
-                <div><strong>@customer.Name</strong><p>@customer.ProjectCount Projekt(e), @customer.OpenWorkItems offene Arbeitszeitposition(en)</p></div>
-                <div class="row-actions">
+            <div class="list-row stacked-mobile">
+                <div>
+                    <strong>@customer.Name</strong>
+                    <p>@BuildAddress(customer)</p>
+                    <p>@customer.ProjectCount Projekt(e), @customer.OpenWorkItems offene Arbeitszeitposition(en)</p>
+                </div>
+                <div class="row-actions wrap-mobile">
+                    @if (!string.IsNullOrWhiteSpace(customer.EmailAddress))
+                    {
+                        <span class="pill">@customer.EmailAddress</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(customer.PhoneNumber))
+                    {
+                        <span class="pill">@customer.PhoneNumber</span>
+                    }
                     <span class="pill">@customer.DefaultMarkupPercent.ToString("0.##") %</span>
                     <button class="ghost-button" @onclick="() => SelectCustomer(customer)">Bearbeiten</button>
                     <button class="ghost-button danger" @onclick="() => DeleteCustomerAsync(customer.CustomerId)">Loeschen</button>
@@ -63,9 +102,15 @@
         <div class="table-header"><h3>Projekte</h3><span>@Projects.Count Eintraege</span></div>
         @foreach (var project in Projects)
         {
-            <div class="list-row">
-                <div><strong>@project.Name</strong><p>@project.CustomerName · @project.LoggedHours.ToString("0.##") h · @project.OpenWorkItems offene Position(en)</p></div>
-                <div class="row-actions"><button class="ghost-button danger" @onclick="() => DeleteProjectAsync(project.ProjectId)">Loeschen</button></div>
+            <div class="list-row stacked-mobile">
+                <div>
+                    <strong>@project.Name</strong>
+                    <p>@project.CustomerName</p>
+                    <p>@project.LoggedHours.ToString("0.##") h erfasst � @project.OpenWorkItems offene Position(en)</p>
+                </div>
+                <div class="row-actions wrap-mobile">
+                    <button class="ghost-button danger" @onclick="() => DeleteProjectAsync(project.ProjectId)">Loeschen</button>
+                </div>
             </div>
         }
     </div>
@@ -87,8 +132,8 @@
 
     private async Task LoadAsync()
     {
-        CustomerItems = (await Api.GetCustomersAsync()).ToList();
-        Projects = (await Api.GetProjectsAsync()).ToList();
+        CustomerItems = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        Projects = (await Api.GetProjectsAsync()).OrderBy(x => x.CustomerName).ThenBy(x => x.Name).ToList();
         if (!SelectedCustomerId.HasValue && CustomerItems.Count > 0)
         {
             SelectedCustomerId = CustomerItems[0].CustomerId;
@@ -99,22 +144,36 @@
     {
         EditingCustomerId = customer.CustomerId;
         SelectedCustomerId = customer.CustomerId;
-        CustomerForm = new SaveCustomerModel { Name = customer.Name, DefaultMarkupPercent = customer.DefaultMarkupPercent };
+        CustomerForm = new SaveCustomerModel
+        {
+            Name = customer.Name,
+            FirstName = customer.FirstName,
+            LastName = customer.LastName,
+            Street = customer.Street,
+            HouseNumber = customer.HouseNumber,
+            PostalCode = customer.PostalCode,
+            City = customer.City,
+            EmailAddress = customer.EmailAddress,
+            PhoneNumber = customer.PhoneNumber,
+            DefaultMarkupPercent = customer.DefaultMarkupPercent
+        };
         StatusMessage = $"Kunde {customer.Name} zur Bearbeitung geladen.";
     }
 
     private async Task SaveCustomerAsync()
     {
-        if (string.IsNullOrWhiteSpace(CustomerForm.Name))
+        var displayName = BuildCustomerDisplayName();
+        if (string.IsNullOrWhiteSpace(displayName))
         {
-            StatusMessage = "Bitte einen Kundennamen eingeben.";
+            StatusMessage = "Bitte mindestens Vorname oder Nachname angeben.";
             return;
         }
 
+        CustomerForm.Name = displayName;
         var saved = await Api.SaveCustomerAsync(CustomerForm, EditingCustomerId);
         EditingCustomerId = null;
-        CustomerForm = new SaveCustomerModel();
         SelectedCustomerId = saved.CustomerId;
+        CustomerForm = new SaveCustomerModel();
         StatusMessage = $"Kunde {saved.Name} gespeichert.";
         await LoadAsync();
     }
@@ -138,8 +197,7 @@
         await Api.DeleteCustomerAsync(customerId);
         if (EditingCustomerId == customerId)
         {
-            EditingCustomerId = null;
-            CustomerForm = new SaveCustomerModel();
+            ClearCustomerForm();
         }
 
         StatusMessage = "Kunde geloescht.";
@@ -151,5 +209,26 @@
         await Api.DeleteProjectAsync(projectId);
         StatusMessage = "Projekt geloescht.";
         await LoadAsync();
+    }
+
+    private void ClearCustomerForm()
+    {
+        EditingCustomerId = null;
+        CustomerForm = new SaveCustomerModel();
+        StatusMessage = "Kundenformular geleert.";
+    }
+
+    private string BuildCustomerDisplayName()
+    {
+        var parts = new[] { CustomerForm.FirstName?.Trim(), CustomerForm.LastName?.Trim() }
+            .Where(x => !string.IsNullOrWhiteSpace(x));
+        return string.Join(" ", parts).Trim();
+    }
+
+    private static string BuildAddress(CustomerItem customer)
+    {
+        var left = string.Join(" ", new[] { customer.Street, customer.HouseNumber }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        var right = string.Join(" ", new[] { customer.PostalCode, customer.City }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        return string.Join(", ", new[] { left, right }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 }

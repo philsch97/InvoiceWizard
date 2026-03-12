@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="InvoiceWizard" Height="820" Width="1460" WindowStartupLocation="CenterScreen">
+        Title="InvoiceWizard" Height="820" Width="1540" WindowStartupLocation="CenterScreen">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -15,19 +15,31 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Text="InvoiceWizard" Style="{StaticResource PageTitleStyle}" VerticalAlignment="Center"/>
 
-                <WrapPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                <StackPanel Grid.Column="1" Margin="28,0,20,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="TenantInfoText" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="UserInfoText" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                </StackPanel>
+
+                <WrapPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0">
                     <Button x:Name="ImportButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnungsimport" Click="Datenimport_Click"/>
                     <Button x:Name="AllocationButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Positionen zuweisen" Click="Datenhandling_Click"/>
-                    <Button x:Name="CustomerButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kunden und Export" Click="CustomerHandling_Click"/>
+                    <Button x:Name="CustomerButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kundenpflege" Click="CustomerHandling_Click"/>
+                    <Button x:Name="BillingExportButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Abrechnung / Export" Click="BillingExport_Click"/>
+                    <Button x:Name="ProjectContactsButton" Width="160" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Projektdaten" Click="ProjectContacts_Click"/>
                     <Button x:Name="WorkTimeButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Arbeitszeit" Click="WorkTime_Click"/>
                     <Button x:Name="NotesButton" Width="140" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Notizen" Click="Notes_Click"/>
+                    <Button x:Name="TenantUsersButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Benutzer" Click="TenantUsers_Click" Visibility="Collapsed"/>
                     <Button x:Name="AnalyticsButton" Width="150" Height="42" Style="{StaticResource SecondaryButtonStyle}" Content="Auswertung" Click="Analytics_Click"/>
                 </WrapPanel>
+
+                <Button Grid.Column="3" Width="120" Height="42" Content="Abmelden" Style="{StaticResource SecondaryButtonStyle}" Click="Logout_Click"/>
             </Grid>
         </Border>
 
@@ -36,3 +48,4 @@
         </Border>
     </Grid>
 </Window>
+

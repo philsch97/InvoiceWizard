@@ -22,26 +22,117 @@ public class BackendApiClient
         _httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
     }
 
+    public void SetAccessToken(string? accessToken)
+    {
+        _httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(accessToken)
+            ? null
+            : new AuthenticationHeaderValue("Bearer", accessToken);
+    }
+
+    public async Task<AuthBootstrapStateViewModel> GetBootstrapStateAsync()
+    {
+        var state = await _httpClient.GetFromJsonAsync<BootstrapStateDto>("api/auth/bootstrap-state", _jsonOptions) ?? new BootstrapStateDto();
+        return new AuthBootstrapStateViewModel
+        {
+            HasUsers = state.HasUsers,
+            HasTenants = state.HasTenants
+        };
+    }
+
+    public async Task<AuthSessionViewModel> BootstrapAdminAsync(string tenantName, string displayName, string email, string password)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/auth/bootstrap-admin", new
+        {
+            tenantName,
+            displayName,
+            email,
+            password
+        });
+        response.EnsureSuccessStatusCode();
+        var session = await response.Content.ReadFromJsonAsync<AuthResponseDto>(_jsonOptions) ?? new AuthResponseDto();
+        return MapAuthSession(session);
+    }
+
+    public async Task<AuthSessionViewModel> LoginAsync(string email, string password)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/auth/login", new
+        {
+            email,
+            password
+        });
+        response.EnsureSuccessStatusCode();
+        var session = await response.Content.ReadFromJsonAsync<AuthResponseDto>(_jsonOptions) ?? new AuthResponseDto();
+        return MapAuthSession(session);
+    }
+
+    public async Task<AuthSessionViewModel> GetCurrentSessionAsync()
+    {
+        var session = await _httpClient.GetFromJsonAsync<AuthResponseDto>("api/auth/me", _jsonOptions) ?? new AuthResponseDto();
+        return MapAuthSession(session);
+    }
+
+    public async Task<List<TenantUserViewModel>> GetTenantUsersAsync()
+    {
+        var items = await _httpClient.GetFromJsonAsync<List<TenantUserDto>>("api/tenant-users", _jsonOptions) ?? [];
+        return items.Select(MapTenantUser).ToList();
+    }
+
+    public async Task<TenantUserViewModel> CreateTenantUserAsync(CreateTenantUserViewModel user)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/tenant-users", new
+        {
+            displayName = user.DisplayName,
+            email = user.Email,
+            password = user.Password,
+            role = user.Role
+        });
+        response.EnsureSuccessStatusCode();
+        var item = await response.Content.ReadFromJsonAsync<TenantUserDto>(_jsonOptions) ?? new TenantUserDto();
+        return MapTenantUser(item);
+    }
+
+    public async Task<TenantUserViewModel> UpdateTenantUserAsync(int appUserId, UpdateTenantUserViewModel user)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/tenant-users/{appUserId}", new
+        {
+            displayName = user.DisplayName,
+            role = user.Role,
+            isActive = user.IsActive,
+            password = string.IsNullOrWhiteSpace(user.Password) ? null : user.Password
+        });
+        response.EnsureSuccessStatusCode();
+        var item = await response.Content.ReadFromJsonAsync<TenantUserDto>(_jsonOptions) ?? new TenantUserDto();
+        return MapTenantUser(item);
+    }
+
     public async Task<List<CustomerEntity>> GetCustomersAsync()
     {
         var items = await _httpClient.GetFromJsonAsync<List<CustomerDto>>("api/customers", _jsonOptions) ?? [];
-        return items.Select(x => new CustomerEntity
-        {
-            CustomerId = x.CustomerId,
-            Name = x.Name,
-            DefaultMarkupPercent = x.DefaultMarkupPercent
-        }).OrderBy(x => x.Name).ToList();
+        return items.Select(MapCustomer).OrderBy(x => x.Name).ToList();
     }
 
-    public async Task<CustomerEntity> SaveCustomerAsync(string name, decimal defaultMarkupPercent, int? customerId = null)
+    public async Task<CustomerEntity> SaveCustomerAsync(CustomerEntity customer, int? customerId = null)
     {
-        var payload = new { name, defaultMarkupPercent };
+        var payload = new
+        {
+            name = customer.Name,
+            firstName = customer.FirstName,
+            lastName = customer.LastName,
+            street = customer.Street,
+            houseNumber = customer.HouseNumber,
+            postalCode = customer.PostalCode,
+            city = customer.City,
+            emailAddress = NormalizeOptionalEmail(customer.EmailAddress),
+            phoneNumber = customer.PhoneNumber,
+            defaultMarkupPercent = customer.DefaultMarkupPercent
+        };
+
         HttpResponseMessage response = customerId.HasValue
             ? await _httpClient.PutAsJsonAsync($"api/customers/{customerId.Value}", payload)
             : await _httpClient.PostAsJsonAsync("api/customers", payload);
         response.EnsureSuccessStatusCode();
         var item = await response.Content.ReadFromJsonAsync<CustomerDto>(_jsonOptions) ?? new CustomerDto();
-        return new CustomerEntity { CustomerId = item.CustomerId, Name = item.Name, DefaultMarkupPercent = item.DefaultMarkupPercent };
+        return MapCustomer(item);
     }
 
     public async Task DeleteCustomerAsync(int customerId)
@@ -68,6 +159,43 @@ public class BackendApiClient
         var response = await _httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", new { name });
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ProjectDto>(_jsonOptions) ?? new ProjectDto();
+    }
+
+    public async Task<ProjectEntity> GetProjectDetailsAsync(int projectId)
+    {
+        var item = await _httpClient.GetFromJsonAsync<ProjectDetailsDto>($"api/projects/{projectId}", _jsonOptions) ?? new ProjectDetailsDto();
+        return MapProjectDetails(item);
+    }
+
+    public async Task<ProjectEntity> UpdateProjectDetailsAsync(ProjectEntity project)
+    {
+        var payload = new
+        {
+            connectionUserSameAsCustomer = project.ConnectionUserSameAsCustomer,
+            connectionUserFirstName = project.ConnectionUserFirstName,
+            connectionUserLastName = project.ConnectionUserLastName,
+            connectionUserStreet = project.ConnectionUserStreet,
+            connectionUserHouseNumber = project.ConnectionUserHouseNumber,
+            connectionUserPostalCode = project.ConnectionUserPostalCode,
+            connectionUserCity = project.ConnectionUserCity,
+            connectionUserParcelNumber = project.ConnectionUserParcelNumber,
+            connectionUserEmailAddress = NormalizeOptionalEmail(project.ConnectionUserEmailAddress),
+            connectionUserPhoneNumber = project.ConnectionUserPhoneNumber,
+            propertyOwnerSameAsCustomer = project.PropertyOwnerSameAsCustomer,
+            propertyOwnerFirstName = project.PropertyOwnerFirstName,
+            propertyOwnerLastName = project.PropertyOwnerLastName,
+            propertyOwnerStreet = project.PropertyOwnerStreet,
+            propertyOwnerHouseNumber = project.PropertyOwnerHouseNumber,
+            propertyOwnerPostalCode = project.PropertyOwnerPostalCode,
+            propertyOwnerCity = project.PropertyOwnerCity,
+            propertyOwnerEmailAddress = NormalizeOptionalEmail(project.PropertyOwnerEmailAddress),
+            propertyOwnerPhoneNumber = project.PropertyOwnerPhoneNumber
+        };
+
+        var response = await _httpClient.PutAsJsonAsync($"api/projects/{project.ProjectId}/details", payload);
+        response.EnsureSuccessStatusCode();
+        var item = await response.Content.ReadFromJsonAsync<ProjectDetailsDto>(_jsonOptions) ?? new ProjectDetailsDto();
+        return MapProjectDetails(item);
     }
 
     public async Task DeleteProjectAsync(int projectId)
@@ -276,6 +404,103 @@ public class BackendApiClient
         return await _httpClient.GetFromJsonAsync<AnalyticsResponseDto>(url, _jsonOptions) ?? new AnalyticsResponseDto();
     }
 
+    private static AuthSessionViewModel MapAuthSession(AuthResponseDto item)
+    {
+        return new AuthSessionViewModel
+        {
+            AccessToken = item.AccessToken,
+            ExpiresAtUtc = item.ExpiresAtUtc,
+            User = new AuthUserViewModel
+            {
+                AppUserId = item.User.AppUserId,
+                Email = item.User.Email,
+                DisplayName = item.User.DisplayName,
+                Role = item.User.Role
+            },
+            Tenant = new AuthTenantViewModel
+            {
+                TenantId = item.Tenant.TenantId,
+                Name = item.Tenant.Name,
+                Slug = item.Tenant.Slug
+            },
+            License = item.License is null ? null : new AuthLicenseViewModel
+            {
+                TenantLicenseId = item.License.TenantLicenseId,
+                PlanCode = item.License.PlanCode,
+                PlanName = item.License.PlanName,
+                MaxUsers = item.License.MaxUsers,
+                MaxProjects = item.License.MaxProjects,
+                MaxCustomers = item.License.MaxCustomers,
+                IncludesMobileAccess = item.License.IncludesMobileAccess,
+                ValidFrom = item.License.ValidFrom,
+                ValidUntil = item.License.ValidUntil,
+                IsActive = item.License.IsActive
+            }
+        };
+    }
+    private static TenantUserViewModel MapTenantUser(TenantUserDto item)
+    {
+        return new TenantUserViewModel
+        {
+            AppUserId = item.AppUserId,
+            Email = item.Email,
+            DisplayName = item.DisplayName,
+            Role = item.Role,
+            IsActive = item.IsActive,
+            IsDefault = item.IsDefault,
+            CreatedAt = item.CreatedAt,
+            LastLoginAt = item.LastLoginAt
+        };
+    }
+
+    private static CustomerEntity MapCustomer(CustomerDto item)
+    {
+        return new CustomerEntity
+        {
+            CustomerId = item.CustomerId,
+            Name = item.Name,
+            FirstName = item.FirstName,
+            LastName = item.LastName,
+            Street = item.Street,
+            HouseNumber = item.HouseNumber,
+            PostalCode = item.PostalCode,
+            City = item.City,
+            EmailAddress = item.EmailAddress,
+            PhoneNumber = item.PhoneNumber,
+            DefaultMarkupPercent = item.DefaultMarkupPercent
+        };
+    }
+
+    private static ProjectEntity MapProjectDetails(ProjectDetailsDto item)
+    {
+        return new ProjectEntity
+        {
+            ProjectId = item.ProjectId,
+            CustomerId = item.CustomerId,
+            Customer = new CustomerEntity { CustomerId = item.CustomerId, Name = item.CustomerName },
+            Name = item.Name,
+            ConnectionUserSameAsCustomer = item.ConnectionUserSameAsCustomer,
+            ConnectionUserFirstName = item.ConnectionUserFirstName,
+            ConnectionUserLastName = item.ConnectionUserLastName,
+            ConnectionUserStreet = item.ConnectionUserStreet,
+            ConnectionUserHouseNumber = item.ConnectionUserHouseNumber,
+            ConnectionUserPostalCode = item.ConnectionUserPostalCode,
+            ConnectionUserCity = item.ConnectionUserCity,
+            ConnectionUserParcelNumber = item.ConnectionUserParcelNumber,
+            ConnectionUserEmailAddress = item.ConnectionUserEmailAddress,
+            ConnectionUserPhoneNumber = item.ConnectionUserPhoneNumber,
+            PropertyOwnerSameAsCustomer = item.PropertyOwnerSameAsCustomer,
+            PropertyOwnerFirstName = item.PropertyOwnerFirstName,
+            PropertyOwnerLastName = item.PropertyOwnerLastName,
+            PropertyOwnerStreet = item.PropertyOwnerStreet,
+            PropertyOwnerHouseNumber = item.PropertyOwnerHouseNumber,
+            PropertyOwnerPostalCode = item.PropertyOwnerPostalCode,
+            PropertyOwnerCity = item.PropertyOwnerCity,
+            PropertyOwnerEmailAddress = item.PropertyOwnerEmailAddress,
+            PropertyOwnerPhoneNumber = item.PropertyOwnerPhoneNumber
+        };
+    }
+
     private static WorkTimeEntryEntity MapWorkTime(WorkTimeDto item)
     {
         return new WorkTimeEntryEntity
@@ -425,8 +650,84 @@ public class BackendApiClient
         };
     }
 
-    private class CustomerDto { public int CustomerId { get; set; } public string Name { get; set; } = ""; public decimal DefaultMarkupPercent { get; set; } }
+    private static string? NormalizeOptionalEmail(string? emailAddress)
+    {
+        return string.IsNullOrWhiteSpace(emailAddress) ? null : emailAddress.Trim();
+    }
+
+    private class BootstrapStateDto
+    {
+        public bool HasUsers { get; set; }
+        public bool HasTenants { get; set; }
+    }
+
+    private class AuthResponseDto
+    {
+        public string AccessToken { get; set; } = "";
+        public DateTime ExpiresAtUtc { get; set; }
+        public AuthUserDto User { get; set; } = new();
+        public AuthTenantDto Tenant { get; set; } = new();
+        public AuthLicenseDto? License { get; set; }
+    }
+
+    private class AuthUserDto
+    {
+        public int AppUserId { get; set; }
+        public string Email { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Role { get; set; } = "";
+    }
+
+    private class AuthTenantDto
+    {
+        public int TenantId { get; set; }
+        public string Name { get; set; } = "";
+        public string Slug { get; set; } = "";
+    }
+
+    private class AuthLicenseDto
+    {
+        public int TenantLicenseId { get; set; }
+        public string PlanCode { get; set; } = "";
+        public string PlanName { get; set; } = "";
+        public int MaxUsers { get; set; }
+        public int MaxProjects { get; set; }
+        public int MaxCustomers { get; set; }
+        public bool IncludesMobileAccess { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime? ValidUntil { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private class TenantUserDto
+    {
+        public int AppUserId { get; set; }
+        public string Email { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Role { get; set; } = "";
+        public bool IsActive { get; set; }
+        public bool IsDefault { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? LastLoginAt { get; set; }
+    }
+
+    private class CustomerDto
+    {
+        public int CustomerId { get; set; }
+        public string Name { get; set; } = "";
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string Street { get; set; } = "";
+        public string HouseNumber { get; set; } = "";
+        public string PostalCode { get; set; } = "";
+        public string City { get; set; } = "";
+        public string EmailAddress { get; set; } = "";
+        public string PhoneNumber { get; set; } = "";
+        public decimal DefaultMarkupPercent { get; set; }
+    }
+
     public class ProjectDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public int OpenWorkItems { get; set; } public decimal LoggedHours { get; set; } }
+    private class ProjectDetailsDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public bool ConnectionUserSameAsCustomer { get; set; } public string ConnectionUserFirstName { get; set; } = ""; public string ConnectionUserLastName { get; set; } = ""; public string ConnectionUserStreet { get; set; } = ""; public string ConnectionUserHouseNumber { get; set; } = ""; public string ConnectionUserPostalCode { get; set; } = ""; public string ConnectionUserCity { get; set; } = ""; public string ConnectionUserParcelNumber { get; set; } = ""; public string ConnectionUserEmailAddress { get; set; } = ""; public string ConnectionUserPhoneNumber { get; set; } = ""; public bool PropertyOwnerSameAsCustomer { get; set; } public string PropertyOwnerFirstName { get; set; } = ""; public string PropertyOwnerLastName { get; set; } = ""; public string PropertyOwnerStreet { get; set; } = ""; public string PropertyOwnerHouseNumber { get; set; } = ""; public string PropertyOwnerPostalCode { get; set; } = ""; public string PropertyOwnerCity { get; set; } = ""; public string PropertyOwnerEmailAddress { get; set; } = ""; public string PropertyOwnerPhoneNumber { get; set; } = ""; }
     private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public decimal LineTotal { get; set; } }
     private class TodoListDto { public int TodoListId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public string Title { get; set; } = ""; public DateTime CreatedAt { get; set; } public DateTime UpdatedAt { get; set; } public int OpenItemCount { get; set; } public int CompletedItemCount { get; set; } public List<TodoItemDto> Items { get; set; } = []; public List<TodoAttachmentDto> Attachments { get; set; } = []; }
     private class TodoItemDto { public int TodoItemId { get; set; } public int TodoListId { get; set; } public int? ParentTodoItemId { get; set; } public string Text { get; set; } = ""; public bool IsCompleted { get; set; } public int SortOrder { get; set; } public List<TodoItemDto> Children { get; set; } = []; }
@@ -444,3 +745,16 @@ public class AnalyticsResponseDto
     public List<AnalyticsMonthViewModel> Monthly { get; set; } = new();
     public List<ProjectAnalyticsRow> Projects { get; set; } = new();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

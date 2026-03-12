@@ -4,7 +4,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       mc:Ignorable="d"
-      d:DesignHeight="820" d:DesignWidth="1200"
+      d:DesignHeight="900" d:DesignWidth="1320"
       Title="CustomerHandling">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="18">
@@ -12,165 +12,121 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                 <StackPanel>
-                    <TextBlock Text="Kunden und Export" Style="{StaticResource PageTitleStyle}"/>
-                    <TextBlock Text="Pflege Kunden und Projekte, bearbeite Zuweisungen und steuere jetzt auch den Umgang mit Kleinmaterial direkt beim Export." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="Kundenpflege" Style="{StaticResource PageTitleStyle}"/>
+                    <TextBlock Text="Hier pflegst du Kundenstamm und Projekte getrennt von der spaeteren Abrechnung." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.15*"/>
-                    <ColumnDefinition Width="1.85*"/>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="1.8*"/>
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,8,0">
                     <StackPanel>
-                        <TextBlock Text="Auswahl und Verwaltung" Style="{StaticResource SectionTitleStyle}"/>
-                        <TextBlock Text="Wichtige Auswahl bleibt sofort sichtbar, Pflegebereiche kannst du bei Bedarf aufklappen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                        <TextBlock Text="Kundenstamm" Style="{StaticResource SectionTitleStyle}"/>
+                        <TextBlock Text="Kunden koennen hier angelegt, nachtraeglich bearbeitet und geloescht werden." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
 
                         <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
                         <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged" Margin="0,0,0,14"/>
 
-                        <TextBlock Text="Projektfilter" Style="{StaticResource MutedLabelStyle}"/>
-                        <ComboBox x:Name="ProjectFilterCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId" SelectionChanged="ProjectFilterCombo_SelectionChanged" Margin="0,0,0,18"/>
+                        <TextBlock Text="Projekt" Style="{StaticResource MutedLabelStyle}"/>
+                        <ComboBox x:Name="ProjectFilterCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId" Margin="0,0,0,18"/>
 
-                        <Expander Header="Kundenpflege" IsExpanded="False" Margin="0,0,0,12">
-                            <StackPanel Margin="0,14,0,0">
-                                <TextBlock Text="Neuer Kunde" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="NewCustomerNameText" Margin="0,0,0,14"/>
+                        <TextBlock Text="Neues Projekt" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="NewProjectNameText" Margin="0,0,0,14"/>
 
-                                <TextBlock Text="Standard-Zuschlag %" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="DefaultMarkupText" Text="0" Margin="0,0,0,14"/>
-
-                                <WrapPanel>
-                                    <Button Width="160" Height="40" Margin="0,0,10,0" Content="Kunde speichern" Click="AddCustomer_Click"/>
-                                    <Button Width="150" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Kunde loeschen" Click="DeleteCustomer_Click"/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Expander>
-
-                        <Expander Header="Projektverwaltung" IsExpanded="False">
-                            <StackPanel Margin="0,14,0,0">
-                                <TextBlock Text="Neues Projekt" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="NewProjectNameText" Margin="0,0,0,14"/>
-
-                                <WrapPanel>
-                                    <Button Width="160" Height="40" Margin="0,0,10,0" Content="Projekt speichern" Click="AddProject_Click"/>
-                                    <Button Width="150" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Projekt loeschen" Click="DeleteProject_Click"/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Expander>
+                        <WrapPanel Margin="0,0,0,10">
+                            <Button Width="160" Height="40" Margin="0,0,10,10" Content="Projekt speichern" Click="AddProject_Click"/>
+                            <Button Width="150" Height="40" Margin="0,0,0,10" Style="{StaticResource SecondaryButtonStyle}" Content="Projekt loeschen" Click="DeleteProject_Click"/>
+                        </WrapPanel>
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0">
                     <StackPanel>
-                        <TextBlock Text="Abrechnung und Aktionen" Style="{StaticResource SectionTitleStyle}"/>
-                        <TextBlock Text="Rechnungsnummer, Mengenanpassung und Kleinmaterial-Logik sind hier zentral gebuendelt." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                        <TextBlock Text="Kundendaten" Style="{StaticResource SectionTitleStyle}"/>
+                        <TextBlock Text="Die Rechnungsadresse bleibt optional. Wenn Vor- und Nachname geaendert werden, wird der Anzeigename automatisch angepasst." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
 
-                        <Grid Margin="0,0,0,18">
+                        <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="180"/>
-                                <ColumnDefinition Width="110"/>
-                                <ColumnDefinition Width="110"/>
-                                <ColumnDefinition Width="180"/>
-                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Margin="0,0,14,0">
-                                <TextBlock Text="Kunden-Rechnungsnr." Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="CustomerInvoiceNumberText"/>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Vorname" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerFirstNameText"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="0,0,14,0">
-                                <TextBlock Text="Neue Menge" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="EditAllocationQtyText"/>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Nachname" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerLastNameText"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Margin="0,0,14,0">
-                                <TextBlock Text="Export-Zuschlag %" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="ExportMarkupText" Text="0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="3" Margin="0,0,14,0">
-                                <TextBlock Text="Kleinmaterial" Style="{StaticResource MutedLabelStyle}"/>
-                                <ComboBox x:Name="SmallMaterialModeCombo" SelectedIndex="1">
-                                    <ComboBoxItem Content="Einzeln berechnen"/>
-                                    <ComboBoxItem Content="Als Sammelposition"/>
-                                    <ComboBoxItem Content="Nicht berechnen"/>
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Grid.Column="4" Margin="0,0,14,0">
-                                <TextBlock Text="KM-Pauschale" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="SmallMaterialFlatFeeText" Text="0"/>
-                            </StackPanel>
-                            <Border Grid.Column="5" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
-                                <TextBlock Text="Wenn fuer Kleinmaterial eine Pauschale groesser 0 eingetragen ist, wird diese statt Einzel- oder Sammelwerten exportiert." Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
-                            </Border>
                         </Grid>
 
-                        <Expander Header="Aktionen anzeigen" IsExpanded="True">
-                            <WrapPanel Margin="0,14,0,0">
-                                <Button Width="160" Height="40" Margin="0,0,10,10" Content="Menge aendern" Click="UpdateSelectedAllocation_Click"/>
-                                <Button Width="190" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte als verrechnet" Click="MarkSelectedAsInvoiced_Click"/>
-                                <Button Width="150" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte bezahlt" Click="MarkSelectedAsPaid_Click"/>
-                                <Button Width="170" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Auswahl entfernen" Click="RemoveSelectedAllocations_Click"/>
-                                <Button Width="180" Height="40" Margin="0,0,10,10" Content="Offene Positionen exportieren" Click="ExportOpenItems_Click"/>
-                                <Button Width="110" Height="40" Margin="0,0,0,10" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
-                            </WrapPanel>
-                        </Expander>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Strasse" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerStreetText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Hausnummer" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerHouseNumberText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.4*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Postleitzahl" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerPostalCodeText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Ort" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerCityText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.4*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="E-Mail-Adresse" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerEmailText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Telefonnummer" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="CustomerPhoneText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Standard-Zuschlag %" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="DefaultMarkupText" Text="0" Margin="0,0,0,14"/>
+
+                        <WrapPanel>
+                            <Button Width="170" Height="40" Margin="0,0,10,10" Content="Neuen Kunden anlegen" Click="AddCustomer_Click"/>
+                            <Button Width="190" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Ausgewaehlten aktualisieren" Click="UpdateCustomer_Click"/>
+                            <Button Width="140" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Formular leeren" Click="ClearCustomerForm_Click"/>
+                            <Button Width="150" Height="40" Margin="0,0,0,10" Style="{StaticResource SecondaryButtonStyle}" Content="Kunde loeschen" Click="DeleteCustomer_Click"/>
+                        </WrapPanel>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
-                <Expander Header="Zugewiesene Materialpositionen" IsExpanded="True">
-                    <DataGrid x:Name="AllocationsGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended" SelectionChanged="AllocationsGrid_SelectionChanged" MinHeight="220">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Projekt" Binding="{Binding Project.Name}" Width="150"/>
-                            <DataGridCheckBoxColumn Header="KM" Binding="{Binding IsSmallMaterial}" Width="55"/>
-                            <DataGridTextColumn Header="Lieferanten-Rechnung" Binding="{Binding InvoiceLine.Invoice.InvoiceNumber}" Width="140"/>
-                            <DataGridTextColumn Header="Artikel" Binding="{Binding InvoiceLine.ArticleNumber}" Width="120"/>
-                            <DataGridTextColumn Header="EAN" Binding="{Binding InvoiceLine.Ean}" Width="140"/>
-                            <DataGridTextColumn Header="Beschreibung" Binding="{Binding InvoiceLine.Description}" Width="*"/>
-                            <DataGridTextColumn Header="Menge" Binding="{Binding AllocatedQuantity}" Width="90"/>
-                            <DataGridTextColumn Header="Einheit" Binding="{Binding InvoiceLine.Unit}" Width="80"/>
-                            <DataGridTextColumn Header="Preis/Stk" Binding="{Binding CustomerUnitPrice}" Width="90"/>
-                            <DataGridTextColumn Header="Kunden-Rechnung" Binding="{Binding CustomerInvoiceNumber}" Width="140"/>
-                            <DataGridTextColumn Header="Verrechnet am" Binding="{Binding CustomerInvoicedAt}" Width="130"/>
-                            <DataGridCheckBoxColumn Header="Bezahlt" Binding="{Binding IsPaid}" Width="80"/>
-                            <DataGridTextColumn Header="Bezahlt am" Binding="{Binding PaidAt}" Width="130"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Expander>
-            </Border>
-
-            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
-                <Expander Header="Arbeitszeit des Kunden" IsExpanded="False">
-                    <DataGrid x:Name="WorkEntriesGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended" SelectionChanged="WorkEntriesGrid_SelectionChanged" MinHeight="220">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Datum" Binding="{Binding WorkDate, StringFormat=dd.MM.yyyy}" Width="110"/>
-                            <DataGridTextColumn Header="Projekt" Binding="{Binding Project.Name}" Width="150"/>
-                            <DataGridTextColumn Header="Zeit" Binding="{Binding TimeRange}" Width="120"/>
-                            <DataGridTextColumn Header="Pause (Min)" Binding="{Binding BreakMinutes}" Width="95"/>
-                            <DataGridTextColumn Header="Stunden" Binding="{Binding HoursWorked}" Width="90"/>
-                            <DataGridTextColumn Header="Stundensatz" Binding="{Binding HourlyRate}" Width="110"/>
-                            <DataGridTextColumn Header="Gesamt" Binding="{Binding CalculatedLineTotal}" Width="110"/>
-                            <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
-                            <DataGridTextColumn Header="Kunden-Rechnung" Binding="{Binding CustomerInvoiceNumber}" Width="140"/>
-                            <DataGridTextColumn Header="Verrechnet am" Binding="{Binding CustomerInvoicedAt}" Width="130"/>
-                            <DataGridCheckBoxColumn Header="Bezahlt" Binding="{Binding IsPaid}" Width="80"/>
-                            <DataGridTextColumn Header="Bezahlt am" Binding="{Binding PaidAt}" Width="130"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Expander>
-            </Border>
-
-            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <Border x:Name="StatusBorder" Grid.Row="2" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12" Margin="0,16,0,0">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>

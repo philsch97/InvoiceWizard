@@ -1,11 +1,11 @@
-﻿.nav-menu {
+.nav-menu {
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
     margin-bottom: 1rem;
 }
 
-.nav-menu ::deep .nav-pill {
+.nav-pill-button {
     text-decoration: none;
     padding: 0.8rem 1rem;
     border-radius: 999px;
@@ -14,9 +14,10 @@
     border: 1px solid rgba(32, 52, 67, 0.08);
     box-shadow: 0 10px 24px rgba(41, 68, 84, 0.08);
     font-weight: 600;
+    cursor: pointer;
 }
 
-.nav-menu ::deep .nav-pill.active {
+.nav-pill-button.active {
     background: var(--accent);
     color: white;
     border-color: transparent;

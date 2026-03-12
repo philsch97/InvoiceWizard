@@ -1,0 +1,239 @@
+@page "/projectdata"
+@inject BackendApiClient Api
+
+<PageTitle>Projektdaten</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <div>
+            <h2>Projektdaten</h2>
+            <p>Anschlussnutzer und Grundstueckseigentuemer je Projekt mobil hinterlegen und aktualisieren.</p>
+        </div>
+        <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <div class="inline-status">@StatusMessage</div>
+    }
+
+    <article class="feature-card">
+        <div class="form-grid selector-grid">
+            <label>
+                <span>Kunde</span>
+                <select @bind="SelectedCustomerId" @bind:after="OnCustomerChangedAsync">
+                    <option value="">Bitte waehlen</option>
+                    @foreach (var customer in Customers)
+                    {
+                        <option value="@customer.CustomerId">@customer.Name</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Projekt</span>
+                <select @bind="SelectedProjectId" @bind:after="OnProjectChangedAsync" disabled="@(Projects.Count == 0)">
+                    <option value="">Bitte waehlen</option>
+                    @foreach (var project in Projects)
+                    {
+                        <option value="@project.ProjectId">@project.Name</option>
+                    }
+                </select>
+            </label>
+        </div>
+    </article>
+
+    @if (CurrentProject is not null)
+    {
+        <div class="split-grid two-columns">
+            <article class="feature-card">
+                <div class="table-header compact">
+                    <h3>Anschlussnutzer</h3>
+                    <label class="checkbox-line"><input type="checkbox" @bind="Details.ConnectionUserSameAsCustomer" @bind:after="ApplyConnectionUserSameAsCustomer" /> <span>Wie Kundendaten</span></label>
+                </div>
+                <div class="form-grid">
+                    <label><span>Vorname</span><input @bind="Details.ConnectionUserFirstName" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>Nachname</span><input @bind="Details.ConnectionUserLastName" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>Strasse</span><input @bind="Details.ConnectionUserStreet" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>Hausnummer</span><input @bind="Details.ConnectionUserHouseNumber" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>Postleitzahl</span><input @bind="Details.ConnectionUserPostalCode" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>Ort</span><input @bind="Details.ConnectionUserCity" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>Flurnummer</span><input @bind="Details.ConnectionUserParcelNumber" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label><span>E-Mail-Adresse</span><input @bind="Details.ConnectionUserEmailAddress" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                    <label class="wide"><span>Telefonnummer</span><input @bind="Details.ConnectionUserPhoneNumber" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+                </div>
+            </article>
+
+            <article class="feature-card">
+                <div class="table-header compact">
+                    <h3>Grundstueckseigentuemer</h3>
+                    <label class="checkbox-line"><input type="checkbox" @bind="Details.PropertyOwnerSameAsCustomer" @bind:after="ApplyPropertyOwnerSameAsCustomer" /> <span>Wie Kundendaten</span></label>
+                </div>
+                <div class="form-grid">
+                    <label><span>Vorname</span><input @bind="Details.PropertyOwnerFirstName" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label><span>Nachname</span><input @bind="Details.PropertyOwnerLastName" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label><span>Strasse</span><input @bind="Details.PropertyOwnerStreet" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label><span>Hausnummer</span><input @bind="Details.PropertyOwnerHouseNumber" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label><span>Postleitzahl</span><input @bind="Details.PropertyOwnerPostalCode" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label><span>Ort</span><input @bind="Details.PropertyOwnerCity" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label><span>E-Mail-Adresse</span><input @bind="Details.PropertyOwnerEmailAddress" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                    <label class="wide"><span>Telefonnummer</span><input @bind="Details.PropertyOwnerPhoneNumber" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+                </div>
+            </article>
+        </div>
+
+        <div class="status-update">
+            <button class="action-button" @onclick="SaveAsync">Projektdaten speichern</button>
+            <span class="pill">@CurrentProject.Name</span>
+        </div>
+    }
+</section>
+
+@code {
+    private List<CustomerItem> Customers { get; set; } = [];
+    private List<ProjectItem> Projects { get; set; } = [];
+    private ProjectItem? CurrentProject { get; set; }
+    private ProjectDetailsItem Details { get; set; } = new();
+    private int? SelectedCustomerId { get; set; }
+    private int? SelectedProjectId { get; set; }
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        if (!SelectedCustomerId.HasValue && Customers.Count > 0)
+        {
+            SelectedCustomerId = Customers[0].CustomerId;
+        }
+
+        await LoadProjectsAsync();
+        await LoadDetailsAsync();
+    }
+
+    private async Task OnCustomerChangedAsync()
+    {
+        await LoadProjectsAsync();
+        await LoadDetailsAsync();
+    }
+
+    private async Task OnProjectChangedAsync()
+    {
+        await LoadDetailsAsync();
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        Projects = SelectedCustomerId.HasValue ? (await Api.GetProjectsAsync(SelectedCustomerId.Value)).OrderBy(x => x.Name).ToList() : [];
+        if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
+        {
+            SelectedProjectId = null;
+        }
+        if (!SelectedProjectId.HasValue && Projects.Count > 0)
+        {
+            SelectedProjectId = Projects[0].ProjectId;
+        }
+        CurrentProject = SelectedProjectId.HasValue ? Projects.FirstOrDefault(x => x.ProjectId == SelectedProjectId.Value) : null;
+    }
+
+    private async Task LoadDetailsAsync()
+    {
+        CurrentProject = SelectedProjectId.HasValue ? Projects.FirstOrDefault(x => x.ProjectId == SelectedProjectId.Value) : null;
+        if (!SelectedProjectId.HasValue)
+        {
+            Details = new ProjectDetailsItem();
+            return;
+        }
+
+        Details = await Api.GetProjectDetailsAsync(SelectedProjectId.Value);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!SelectedProjectId.HasValue)
+        {
+            StatusMessage = "Bitte zuerst ein Projekt auswaehlen.";
+            return;
+        }
+
+        var payload = new SaveProjectDetailsModel
+        {
+            ConnectionUserSameAsCustomer = Details.ConnectionUserSameAsCustomer,
+            ConnectionUserFirstName = Details.ConnectionUserFirstName,
+            ConnectionUserLastName = Details.ConnectionUserLastName,
+            ConnectionUserStreet = Details.ConnectionUserStreet,
+            ConnectionUserHouseNumber = Details.ConnectionUserHouseNumber,
+            ConnectionUserPostalCode = Details.ConnectionUserPostalCode,
+            ConnectionUserCity = Details.ConnectionUserCity,
+            ConnectionUserParcelNumber = Details.ConnectionUserParcelNumber,
+            ConnectionUserEmailAddress = NormalizeOptional(Details.ConnectionUserEmailAddress),
+            ConnectionUserPhoneNumber = Details.ConnectionUserPhoneNumber,
+            PropertyOwnerSameAsCustomer = Details.PropertyOwnerSameAsCustomer,
+            PropertyOwnerFirstName = Details.PropertyOwnerFirstName,
+            PropertyOwnerLastName = Details.PropertyOwnerLastName,
+            PropertyOwnerStreet = Details.PropertyOwnerStreet,
+            PropertyOwnerHouseNumber = Details.PropertyOwnerHouseNumber,
+            PropertyOwnerPostalCode = Details.PropertyOwnerPostalCode,
+            PropertyOwnerCity = Details.PropertyOwnerCity,
+            PropertyOwnerEmailAddress = NormalizeOptional(Details.PropertyOwnerEmailAddress),
+            PropertyOwnerPhoneNumber = Details.PropertyOwnerPhoneNumber
+        };
+
+        Details = await Api.UpdateProjectDetailsAsync(SelectedProjectId.Value, payload);
+        StatusMessage = $"Projektdaten fuer {Details.Name} gespeichert.";
+    }
+
+    private void ApplyConnectionUserSameAsCustomer()
+    {
+        if (!Details.ConnectionUserSameAsCustomer || !SelectedCustomerId.HasValue)
+        {
+            return;
+        }
+
+        var customer = Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId.Value);
+        if (customer is null)
+        {
+            return;
+        }
+
+        Details.ConnectionUserFirstName = customer.FirstName;
+        Details.ConnectionUserLastName = customer.LastName;
+        Details.ConnectionUserStreet = customer.Street;
+        Details.ConnectionUserHouseNumber = customer.HouseNumber;
+        Details.ConnectionUserPostalCode = customer.PostalCode;
+        Details.ConnectionUserCity = customer.City;
+        Details.ConnectionUserParcelNumber = string.Empty;
+        Details.ConnectionUserEmailAddress = customer.EmailAddress;
+        Details.ConnectionUserPhoneNumber = customer.PhoneNumber;
+    }
+
+    private void ApplyPropertyOwnerSameAsCustomer()
+    {
+        if (!Details.PropertyOwnerSameAsCustomer || !SelectedCustomerId.HasValue)
+        {
+            return;
+        }
+
+        var customer = Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId.Value);
+        if (customer is null)
+        {
+            return;
+        }
+
+        Details.PropertyOwnerFirstName = customer.FirstName;
+        Details.PropertyOwnerLastName = customer.LastName;
+        Details.PropertyOwnerStreet = customer.Street;
+        Details.PropertyOwnerHouseNumber = customer.HouseNumber;
+        Details.PropertyOwnerPostalCode = customer.PostalCode;
+        Details.PropertyOwnerCity = customer.City;
+        Details.PropertyOwnerEmailAddress = customer.EmailAddress;
+        Details.PropertyOwnerPhoneNumber = customer.PhoneNumber;
+    }
+
+    private static string? NormalizeOptional(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
+

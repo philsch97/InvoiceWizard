@@ -1,24 +1,27 @@
 using InvoiceWizard.Backend.Contracts;
 using InvoiceWizard.Backend.Data;
 using InvoiceWizard.Backend.Domain;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace InvoiceWizard.Backend.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/todolists")]
-public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
+public class TodoListsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TodoListDto>>> GetTodoLists([FromQuery] int customerId, [FromQuery] int? projectId)
     {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var query = db.TodoLists
             .Include(x => x.Customer)
             .Include(x => x.Project)
             .Include(x => x.Items)
             .Include(x => x.Attachments)
-            .Where(x => x.CustomerId == customerId)
+            .Where(x => x.TenantId == tenantId && x.CustomerId == customerId)
             .AsSplitQuery()
             .AsQueryable();
 
@@ -38,7 +41,8 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TodoListDto>> CreateTodoList([FromBody] SaveTodoListRequest request)
     {
-        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == request.CustomerId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == request.CustomerId && x.TenantId == tenantId);
         if (customer is null)
         {
             return NotFound("Kunde nicht gefunden.");
@@ -46,7 +50,7 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
 
         if (request.ProjectId.HasValue)
         {
-            var projectExists = await db.Projects.AnyAsync(x => x.ProjectId == request.ProjectId.Value && x.CustomerId == request.CustomerId);
+            var projectExists = await db.Projects.AnyAsync(x => x.ProjectId == request.ProjectId.Value && x.CustomerId == request.CustomerId && x.TenantId == tenantId);
             if (!projectExists)
             {
                 return ValidationProblem("Das ausgewaehlte Projekt gehoert nicht zum Kunden.");
@@ -55,6 +59,7 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
 
         var list = new TodoList
         {
+            TenantId = tenantId,
             CustomerId = request.CustomerId,
             ProjectId = request.ProjectId,
             Title = request.Title.Trim(),
@@ -64,20 +69,21 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
 
         db.TodoLists.Add(list);
         await db.SaveChangesAsync();
-        return Ok(await LoadMappedTodoListAsync(list.TodoListId));
+        return Ok(await LoadMappedTodoListAsync(list.TodoListId, tenantId));
     }
 
     [HttpDelete("{todoListId:int}")]
     public async Task<IActionResult> DeleteTodoList(int todoListId)
     {
-        var list = await db.TodoLists.FirstOrDefaultAsync(x => x.TodoListId == todoListId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var list = await db.TodoLists.FirstOrDefaultAsync(x => x.TodoListId == todoListId && x.TenantId == tenantId);
         if (list is null)
         {
             return NotFound();
         }
 
-        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => x.TodoListId == todoListId).ToListAsync());
-        db.TodoAttachments.RemoveRange(await db.TodoAttachments.Where(x => x.TodoListId == todoListId).ToListAsync());
+        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => x.TodoListId == todoListId && x.TenantId == tenantId).ToListAsync());
+        db.TodoAttachments.RemoveRange(await db.TodoAttachments.Where(x => x.TodoListId == todoListId && x.TenantId == tenantId).ToListAsync());
         db.TodoLists.Remove(list);
         await db.SaveChangesAsync();
         return NoContent();
@@ -86,7 +92,8 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPost("{todoListId:int}/items")]
     public async Task<ActionResult<TodoListDto>> CreateTodoItem(int todoListId, [FromBody] SaveTodoItemRequest request)
     {
-        var list = await db.TodoLists.FirstOrDefaultAsync(x => x.TodoListId == todoListId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var list = await db.TodoLists.FirstOrDefaultAsync(x => x.TodoListId == todoListId && x.TenantId == tenantId);
         if (list is null)
         {
             return NotFound();
@@ -94,7 +101,7 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
 
         if (request.ParentTodoItemId.HasValue)
         {
-            var parent = await db.TodoItems.FirstOrDefaultAsync(x => x.TodoItemId == request.ParentTodoItemId.Value && x.TodoListId == todoListId);
+            var parent = await db.TodoItems.FirstOrDefaultAsync(x => x.TodoItemId == request.ParentTodoItemId.Value && x.TodoListId == todoListId && x.TenantId == tenantId);
             if (parent is null)
             {
                 return ValidationProblem("Der ausgewaehlte Oberpunkt wurde nicht gefunden.");
@@ -102,12 +109,13 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
         }
 
         var sortOrder = await db.TodoItems
-            .Where(x => x.TodoListId == todoListId && x.ParentTodoItemId == request.ParentTodoItemId)
+            .Where(x => x.TenantId == tenantId && x.TodoListId == todoListId && x.ParentTodoItemId == request.ParentTodoItemId)
             .Select(x => (int?)x.SortOrder)
             .MaxAsync() ?? 0;
 
         db.TodoItems.Add(new TodoItem
         {
+            TenantId = tenantId,
             TodoListId = todoListId,
             ParentTodoItemId = request.ParentTodoItemId,
             Text = request.Text.Trim(),
@@ -118,14 +126,15 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
 
         list.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-        return Ok(await LoadMappedTodoListAsync(todoListId));
+        return Ok(await LoadMappedTodoListAsync(todoListId, tenantId));
     }
 
     [HttpPost("{todoListId:int}/attachments")]
     [RequestSizeLimit(10_000_000)]
     public async Task<ActionResult<TodoListDto>> UploadAttachment(int todoListId, [FromForm] IFormFile file, [FromForm] string? caption)
     {
-        var list = await db.TodoLists.FirstOrDefaultAsync(x => x.TodoListId == todoListId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var list = await db.TodoLists.FirstOrDefaultAsync(x => x.TodoListId == todoListId && x.TenantId == tenantId);
         if (list is null)
         {
             return NotFound();
@@ -145,6 +154,7 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
         await file.CopyToAsync(stream);
         db.TodoAttachments.Add(new TodoAttachment
         {
+            TenantId = tenantId,
             TodoListId = todoListId,
             FileName = Path.GetFileName(file.FileName),
             ContentType = file.ContentType,
@@ -156,18 +166,18 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
 
         list.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-        return Ok(await LoadMappedTodoListAsync(todoListId));
+        return Ok(await LoadMappedTodoListAsync(todoListId, tenantId));
     }
 
-    internal async Task<TodoListDto> LoadMappedTodoListAsync(int todoListId)
+    internal async Task<TodoListDto> LoadMappedTodoListAsync(int todoListId, int tenantId)
     {
         var list = await db.TodoLists
             .Include(x => x.Customer)
             .Include(x => x.Project)
-            .Include(x => x.Items)
-            .Include(x => x.Attachments)
+            .Include(x => x.Items.Where(i => i.TenantId == tenantId))
+            .Include(x => x.Attachments.Where(a => a.TenantId == tenantId))
             .AsSplitQuery()
-            .FirstAsync(x => x.TodoListId == todoListId);
+            .FirstAsync(x => x.TodoListId == todoListId && x.TenantId == tenantId);
 
         return MapTodoList(list);
     }
@@ -223,56 +233,59 @@ public class TodoListsController(InvoiceWizardDbContext db) : ControllerBase
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/todoitems")]
-public class TodoItemsController(InvoiceWizardDbContext db) : ControllerBase
+public class TodoItemsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpPut("{todoItemId:int}/state")]
     public async Task<ActionResult<TodoListDto>> UpdateState(int todoItemId, [FromBody] UpdateTodoItemStateRequest request)
     {
-        var item = await db.TodoItems.Include(x => x.TodoList).FirstOrDefaultAsync(x => x.TodoItemId == todoItemId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var item = await db.TodoItems.Include(x => x.TodoList).FirstOrDefaultAsync(x => x.TodoItemId == todoItemId && x.TenantId == tenantId);
         if (item is null)
         {
             return NotFound();
         }
 
         item.IsCompleted = request.IsCompleted;
-        await ApplyStateToChildrenAsync(todoItemId, request.IsCompleted);
+        await ApplyStateToChildrenAsync(todoItemId, tenantId, request.IsCompleted);
         item.TodoList.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        var mapper = new TodoListsController(db);
-        return Ok(await mapper.LoadMappedTodoListAsync(item.TodoListId));
+        var mapper = new TodoListsController(db, tenantAccessor);
+        return Ok(await mapper.LoadMappedTodoListAsync(item.TodoListId, tenantId));
     }
 
     [HttpDelete("{todoItemId:int}")]
     public async Task<ActionResult<TodoListDto>> DeleteItem(int todoItemId)
     {
-        var item = await db.TodoItems.FirstOrDefaultAsync(x => x.TodoItemId == todoItemId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var item = await db.TodoItems.FirstOrDefaultAsync(x => x.TodoItemId == todoItemId && x.TenantId == tenantId);
         if (item is null)
         {
             return NotFound();
         }
 
         var todoListId = item.TodoListId;
-        var list = await db.TodoLists.FirstAsync(x => x.TodoListId == todoListId);
-        var idsToRemove = await GetDescendantIdsAsync(todoItemId);
+        var list = await db.TodoLists.FirstAsync(x => x.TodoListId == todoListId && x.TenantId == tenantId);
+        var idsToRemove = await GetDescendantIdsAsync(todoItemId, tenantId);
         idsToRemove.Add(todoItemId);
-        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => idsToRemove.Contains(x.TodoItemId)).ToListAsync());
+        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => x.TenantId == tenantId && idsToRemove.Contains(x.TodoItemId)).ToListAsync());
         list.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        var mapper = new TodoListsController(db);
-        return Ok(await mapper.LoadMappedTodoListAsync(todoListId));
+        var mapper = new TodoListsController(db, tenantAccessor);
+        return Ok(await mapper.LoadMappedTodoListAsync(todoListId, tenantId));
     }
 
-    private async Task ApplyStateToChildrenAsync(int parentId, bool isCompleted)
+    private async Task ApplyStateToChildrenAsync(int parentId, int tenantId, bool isCompleted)
     {
         var pendingParentIds = new List<int> { parentId };
         while (pendingParentIds.Count > 0)
         {
             var children = await db.TodoItems
-                .Where(x => x.ParentTodoItemId.HasValue && pendingParentIds.Contains(x.ParentTodoItemId.Value))
+                .Where(x => x.TenantId == tenantId && x.ParentTodoItemId.HasValue && pendingParentIds.Contains(x.ParentTodoItemId.Value))
                 .ToListAsync();
 
             if (children.Count == 0)
@@ -289,28 +302,30 @@ public class TodoItemsController(InvoiceWizardDbContext db) : ControllerBase
         }
     }
 
-    private async Task<List<int>> GetDescendantIdsAsync(int parentId)
+    private async Task<List<int>> GetDescendantIdsAsync(int parentId, int tenantId)
     {
-        var directChildren = await db.TodoItems.Where(x => x.ParentTodoItemId == parentId).Select(x => x.TodoItemId).ToListAsync();
+        var directChildren = await db.TodoItems.Where(x => x.TenantId == tenantId && x.ParentTodoItemId == parentId).Select(x => x.TodoItemId).ToListAsync();
         var all = new List<int>();
         foreach (var childId in directChildren)
         {
             all.Add(childId);
-            all.AddRange(await GetDescendantIdsAsync(childId));
+            all.AddRange(await GetDescendantIdsAsync(childId, tenantId));
         }
 
         return all;
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/todoattachments")]
-public class TodoAttachmentsController(InvoiceWizardDbContext db) : ControllerBase
+public class TodoAttachmentsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet("{todoAttachmentId:int}/content")]
     public async Task<IActionResult> GetContent(int todoAttachmentId)
     {
-        var attachment = await db.TodoAttachments.FirstOrDefaultAsync(x => x.TodoAttachmentId == todoAttachmentId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var attachment = await db.TodoAttachments.FirstOrDefaultAsync(x => x.TodoAttachmentId == todoAttachmentId && x.TenantId == tenantId);
         if (attachment is null)
         {
             return NotFound();
@@ -322,18 +337,20 @@ public class TodoAttachmentsController(InvoiceWizardDbContext db) : ControllerBa
     [HttpDelete("{todoAttachmentId:int}")]
     public async Task<ActionResult<TodoListDto>> DeleteAttachment(int todoAttachmentId)
     {
-        var attachment = await db.TodoAttachments.FirstOrDefaultAsync(x => x.TodoAttachmentId == todoAttachmentId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var attachment = await db.TodoAttachments.FirstOrDefaultAsync(x => x.TodoAttachmentId == todoAttachmentId && x.TenantId == tenantId);
         if (attachment is null)
         {
             return NotFound();
         }
 
-        var list = await db.TodoLists.FirstAsync(x => x.TodoListId == attachment.TodoListId);
+        var list = await db.TodoLists.FirstAsync(x => x.TodoListId == attachment.TodoListId && x.TenantId == tenantId);
         db.TodoAttachments.Remove(attachment);
         list.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        var mapper = new TodoListsController(db);
-        return Ok(await mapper.LoadMappedTodoListAsync(attachment.TodoListId));
+        var mapper = new TodoListsController(db, tenantAccessor);
+        return Ok(await mapper.LoadMappedTodoListAsync(attachment.TodoListId, tenantId));
     }
 }
+

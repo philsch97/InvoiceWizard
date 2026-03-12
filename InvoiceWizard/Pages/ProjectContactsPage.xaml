@@ -1,0 +1,118 @@
+<Page x:Class="InvoiceWizard.ProjectContactsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      d:DesignHeight="920" d:DesignWidth="1320"
+      Title="ProjectContactsPage">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Projektdaten" Style="{StaticResource PageTitleStyle}"/>
+                    <TextBlock Text="Pflege hier Anschlussnutzer und Grundstueckseigentuemer je Projekt." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Projekt auswaehlen" Style="{StaticResource SectionTitleStyle}"/>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.2*"/>
+                            <ColumnDefinition Width="1.2*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectionChanged="CustomerCombo_SelectionChanged"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                            <TextBlock Text="Projekt" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="ProjectCombo" DisplayMemberPath="Name" SelectionChanged="ProjectCombo_SelectionChanged"/>
+                        </StackPanel>
+                        <WrapPanel Grid.Column="2" VerticalAlignment="Bottom">
+                            <Button Width="130" Height="40" Margin="0,0,10,0" Content="Speichern" Click="SaveProjectDetails_Click"/>
+                            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
+                        </WrapPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,8,0">
+                    <StackPanel>
+                        <TextBlock Text="Anschlussnutzer" Style="{StaticResource SectionTitleStyle}"/>
+                        <CheckBox x:Name="ConnectionUserSameAsCustomerCheck" Content="Daten wie beim Kunden verwenden" Margin="0,14,0,12" Checked="ConnectionUserSameAsCustomerCheck_Changed" Unchecked="ConnectionUserSameAsCustomerCheck_Changed"/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock Text="Vorname" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="ConnectionUserFirstNameText"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Nachname" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="ConnectionUserLastNameText"/></StackPanel>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock Text="Strasse" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="ConnectionUserStreetText"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Hausnummer" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="ConnectionUserHouseNumberText"/></StackPanel>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1.4*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock Text="Postleitzahl" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="ConnectionUserPostalCodeText"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Ort" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="ConnectionUserCityText"/></StackPanel>
+                        </Grid>
+                        <TextBlock Text="Flurnummer" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="ConnectionUserParcelNumberText" Margin="0,0,0,12"/>
+                        <TextBlock Text="E-Mail-Adresse" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="ConnectionUserEmailText" Margin="0,0,0,12"/>
+                        <TextBlock Text="Telefonnummer" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="ConnectionUserPhoneText"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Grundstueckseigentuemer" Style="{StaticResource SectionTitleStyle}"/>
+                        <CheckBox x:Name="PropertyOwnerSameAsCustomerCheck" Content="Daten wie beim Kunden verwenden" Margin="0,14,0,12" Checked="PropertyOwnerSameAsCustomerCheck_Changed" Unchecked="PropertyOwnerSameAsCustomerCheck_Changed"/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock Text="Vorname" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="PropertyOwnerFirstNameText"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Nachname" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="PropertyOwnerLastNameText"/></StackPanel>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock Text="Strasse" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="PropertyOwnerStreetText"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Hausnummer" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="PropertyOwnerHouseNumberText"/></StackPanel>
+                        </Grid>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1.4*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0"><TextBlock Text="Postleitzahl" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="PropertyOwnerPostalCodeText"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0"><TextBlock Text="Ort" Style="{StaticResource MutedLabelStyle}"/><TextBox x:Name="PropertyOwnerCityText"/></StackPanel>
+                        </Grid>
+                        <TextBlock Text="E-Mail-Adresse" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="PropertyOwnerEmailText" Margin="0,0,0,12"/>
+                        <TextBlock Text="Telefonnummer" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="PropertyOwnerPhoneText"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border x:Name="StatusBorder" Grid.Row="3" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12" Margin="0,16,0,0">
+                <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

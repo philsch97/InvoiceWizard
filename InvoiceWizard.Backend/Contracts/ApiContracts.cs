@@ -17,6 +17,14 @@ public class CustomerListItemDto
 {
     public int CustomerId { get; set; }
     public string Name { get; set; } = "";
+    public string FirstName { get; set; } = "";
+    public string LastName { get; set; } = "";
+    public string Street { get; set; } = "";
+    public string HouseNumber { get; set; } = "";
+    public string PostalCode { get; set; } = "";
+    public string City { get; set; } = "";
+    public string? EmailAddress { get; set; }
+    public string PhoneNumber { get; set; } = "";
     public decimal DefaultMarkupPercent { get; set; }
     public int ProjectCount { get; set; }
     public int OpenWorkItems { get; set; }
@@ -24,9 +32,33 @@ public class CustomerListItemDto
 
 public class SaveCustomerRequest
 {
-    [Required]
     [MaxLength(200)]
     public string Name { get; set; } = "";
+
+    [MaxLength(100)]
+    public string FirstName { get; set; } = "";
+
+    [MaxLength(100)]
+    public string LastName { get; set; } = "";
+
+    [MaxLength(200)]
+    public string Street { get; set; } = "";
+
+    [MaxLength(50)]
+    public string HouseNumber { get; set; } = "";
+
+    [MaxLength(20)]
+    public string PostalCode { get; set; } = "";
+
+    [MaxLength(120)]
+    public string City { get; set; } = "";
+
+    [MaxLength(200)]
+    [EmailAddress]
+    public string? EmailAddress { get; set; }
+
+    [MaxLength(50)]
+    public string PhoneNumber { get; set; } = "";
 
     [Range(0, 1000)]
     public decimal DefaultMarkupPercent { get; set; }
@@ -47,6 +79,93 @@ public class SaveProjectRequest
     [Required]
     [MaxLength(200)]
     public string Name { get; set; } = "";
+}
+
+public class ProjectDetailsDto
+{
+    public int ProjectId { get; set; }
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = "";
+    public string Name { get; set; } = "";
+    public bool ConnectionUserSameAsCustomer { get; set; }
+    public string ConnectionUserFirstName { get; set; } = "";
+    public string ConnectionUserLastName { get; set; } = "";
+    public string ConnectionUserStreet { get; set; } = "";
+    public string ConnectionUserHouseNumber { get; set; } = "";
+    public string ConnectionUserPostalCode { get; set; } = "";
+    public string ConnectionUserCity { get; set; } = "";
+    public string ConnectionUserParcelNumber { get; set; } = "";
+    public string? ConnectionUserEmailAddress { get; set; }
+    public string ConnectionUserPhoneNumber { get; set; } = "";
+    public bool PropertyOwnerSameAsCustomer { get; set; }
+    public string PropertyOwnerFirstName { get; set; } = "";
+    public string PropertyOwnerLastName { get; set; } = "";
+    public string PropertyOwnerStreet { get; set; } = "";
+    public string PropertyOwnerHouseNumber { get; set; } = "";
+    public string PropertyOwnerPostalCode { get; set; } = "";
+    public string PropertyOwnerCity { get; set; } = "";
+    public string? PropertyOwnerEmailAddress { get; set; }
+    public string PropertyOwnerPhoneNumber { get; set; } = "";
+}
+
+public class SaveProjectDetailsRequest
+{
+    public bool ConnectionUserSameAsCustomer { get; set; }
+
+    [MaxLength(100)]
+    public string ConnectionUserFirstName { get; set; } = "";
+
+    [MaxLength(100)]
+    public string ConnectionUserLastName { get; set; } = "";
+
+    [MaxLength(200)]
+    public string ConnectionUserStreet { get; set; } = "";
+
+    [MaxLength(50)]
+    public string ConnectionUserHouseNumber { get; set; } = "";
+
+    [MaxLength(20)]
+    public string ConnectionUserPostalCode { get; set; } = "";
+
+    [MaxLength(120)]
+    public string ConnectionUserCity { get; set; } = "";
+
+    [MaxLength(100)]
+    public string ConnectionUserParcelNumber { get; set; } = "";
+
+    [MaxLength(200)]
+    [EmailAddress]
+    public string? ConnectionUserEmailAddress { get; set; }
+
+    [MaxLength(50)]
+    public string ConnectionUserPhoneNumber { get; set; } = "";
+
+    public bool PropertyOwnerSameAsCustomer { get; set; }
+
+    [MaxLength(100)]
+    public string PropertyOwnerFirstName { get; set; } = "";
+
+    [MaxLength(100)]
+    public string PropertyOwnerLastName { get; set; } = "";
+
+    [MaxLength(200)]
+    public string PropertyOwnerStreet { get; set; } = "";
+
+    [MaxLength(50)]
+    public string PropertyOwnerHouseNumber { get; set; } = "";
+
+    [MaxLength(20)]
+    public string PropertyOwnerPostalCode { get; set; } = "";
+
+    [MaxLength(120)]
+    public string PropertyOwnerCity { get; set; } = "";
+
+    [MaxLength(200)]
+    [EmailAddress]
+    public string? PropertyOwnerEmailAddress { get; set; }
+
+    [MaxLength(50)]
+    public string PropertyOwnerPhoneNumber { get; set; } = "";
 }
 
 public class WorkTimeEntryListItemDto
@@ -166,3 +285,6 @@ public class UpdateTodoItemStateRequest
 {
     public bool IsCompleted { get; set; }
 }
+
+
+

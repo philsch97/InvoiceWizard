@@ -1,19 +1,91 @@
-ï»¿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject WebAuthSession Auth
 
-<div class="shell">
-    <header class="shell-header">
-        <div>
-            <p class="eyebrow">InvoiceWizard Mobile</p>
-            <h1>Zentrale Kunden-, Projekt- und Zeiterfassung</h1>
-        </div>
-        <p class="shell-copy">Web-App fuer Handy und Desktop. Die WPF-App kann parallel bestehen bleiben und spaeter dieselbe API nutzen.</p>
-    </header>
+@if (!Auth.IsInitialized)
+{
+    <div class="shell">
+        <main class="shell-content">
+            <article class="panel auth-shell">
+                <h2>InvoiceWizard wird vorbereitet</h2>
+                <p>Die Sitzung und die Firmenzuordnung werden geladen.</p>
+            </article>
+        </main>
+    </div>
+}
+else if (!Auth.IsAuthenticated)
+{
+    <div class="shell">
+        <header class="shell-header">
+            <div>
+                <p class="eyebrow">InvoiceWizard Mobile</p>
+                <h1>Zentrale Kunden-, Projekt- und Zeiterfassung</h1>
+            </div>
+            <p class="shell-copy">Melde dich an, um auf die Daten deiner Firma zuzugreifen. Ohne Login bleibt die API gesperrt.</p>
+        </header>
 
-    <NavMenu />
+        <main class="shell-content">
+            <AuthGate />
+        </main>
+    </div>
+}
+else if (!Auth.HasMobileAccess)
+{
+    <div class="shell">
+        <main class="shell-content">
+            <article class="panel auth-shell">
+                <h2>Mobiler Zugriff ist im Tarif nicht enthalten</h2>
+                <p>Dein aktueller Tarif erlaubt keinen Zugriff auf die mobile Web-App. Bitte passe die Lizenz an.</p>
+                <button class="ghost-button" @onclick="Auth.LogoutAsync">Abmelden</button>
+            </article>
+        </main>
+    </div>
+}
+else
+{
+    <div class="shell">
+        <header class="shell-header">
+            <div>
+                <p class="eyebrow">InvoiceWizard Mobile</p>
+                <h1>Zentrale Kunden-, Projekt- und Zeiterfassung</h1>
+            </div>
+            <div class="shell-session">
+                <p class="shell-copy">@Auth.CurrentSession!.Tenant.Name · @Auth.CurrentSession.User.DisplayName (@Auth.CurrentSession.User.Role)</p>
+                <div class="row-actions wrap-mobile">
+                    <span class="pill">@Auth.CurrentSession.License?.PlanName</span>
+                    <button class="ghost-button" @onclick="Auth.LogoutAsync">Abmelden</button>
+                </div>
+            </div>
+        </header>
 
-    <main class="shell-content">
-        <article class="panel">
-            @Body
-        </article>
-    </main>
-</div>
+        <NavMenu />
+
+        <main class="shell-content">
+            <article class="panel">
+                @Body
+            </article>
+        </main>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Auth.StateChanged += HandleAuthChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Auth.EnsureInitializedAsync();
+        }
+    }
+
+    private void HandleAuthChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Auth.StateChanged -= HandleAuthChanged;
+    }
+}

@@ -1,0 +1,83 @@
+@using InvoiceWizard.Web.Models
+@inject WebAuthSession Auth
+
+@if (!Auth.BootstrapState.HasUsers)
+{
+    <section class="auth-shell panel">
+        <div class="section-heading compact">
+            <div>
+                <h2>Firma einrichten</h2>
+                <p>Lege die erste Firma und den ersten Admin-Zugang fuer deine mobile Web-App an.</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <div class="inline-status">@Message</div>
+        }
+
+        <div class="form-grid auth-grid">
+            <label><span>Firmenname</span><input @bind="Bootstrap.TenantName" /></label>
+            <label><span>Admin-Name</span><input @bind="Bootstrap.DisplayName" /></label>
+            <label><span>E-Mail-Adresse</span><input type="email" @bind="Bootstrap.Email" /></label>
+            <label><span>Passwort</span><input type="password" @bind="Bootstrap.Password" /></label>
+        </div>
+
+        <button class="action-button" @onclick="BootstrapAsync" disabled="@Auth.IsBusy">Firma und Admin anlegen</button>
+    </section>
+}
+else
+{
+    <section class="auth-shell panel">
+        <div class="section-heading compact">
+            <div>
+                <h2>Anmelden</h2>
+                <p>Melde dich mit deinem Firmenkonto an, um nur die Daten deiner eigenen Firma zu sehen.</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <div class="inline-status">@Message</div>
+        }
+
+        <div class="form-grid auth-grid">
+            <label><span>E-Mail-Adresse</span><input type="email" @bind="Login.Email" /></label>
+            <label><span>Passwort</span><input type="password" @bind="Login.Password" /></label>
+        </div>
+
+        <button class="action-button" @onclick="LoginAsync" disabled="@Auth.IsBusy">Anmelden</button>
+    </section>
+}
+
+@code {
+    private readonly LoginRequestModel Login = new();
+    private readonly BootstrapAdminRequestModel Bootstrap = new();
+    private string? Message { get; set; }
+
+    private async Task LoginAsync()
+    {
+        try
+        {
+            Message = null;
+            await Auth.LoginAsync(Login);
+        }
+        catch (Exception ex)
+        {
+            Message = string.IsNullOrWhiteSpace(Auth.ErrorMessage) ? ex.Message : Auth.ErrorMessage;
+        }
+    }
+
+    private async Task BootstrapAsync()
+    {
+        try
+        {
+            Message = null;
+            await Auth.BootstrapAdminAsync(Bootstrap);
+        }
+        catch (Exception ex)
+        {
+            Message = string.IsNullOrWhiteSpace(Auth.ErrorMessage) ? ex.Message : Auth.ErrorMessage;
+        }
+    }
+}

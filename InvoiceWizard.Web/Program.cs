@@ -1,15 +1,21 @@
-﻿using InvoiceWizard.Web.Components;
+using InvoiceWizard.Web.Components;
 using InvoiceWizard.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var baseUrl = builder.Configuration["Backend:BaseUrl"] ?? "https://localhost:7216/";
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-builder.Services.AddHttpClient<BackendApiClient>(client =>
+builder.Services.AddScoped<WebAuthSession>();
+builder.Services.AddScoped<AuthHeaderHandler>();
+builder.Services.AddHttpClient("BackendAnonymous", client =>
 {
-    var baseUrl = builder.Configuration["Backend:BaseUrl"] ?? "https://localhost:7216/";
     client.BaseAddress = new Uri(baseUrl);
 });
+builder.Services.AddHttpClient<BackendApiClient>(client =>
+{
+    client.BaseAddress = new Uri(baseUrl);
+}).AddHttpMessageHandler<AuthHeaderHandler>();
 
 var app = builder.Build();
 

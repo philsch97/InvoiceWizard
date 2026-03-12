@@ -1,23 +1,35 @@
 using InvoiceWizard.Backend.Contracts;
 using InvoiceWizard.Backend.Data;
 using InvoiceWizard.Backend.Domain;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace InvoiceWizard.Backend.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/customers")]
-public class CustomersController(InvoiceWizardDbContext db) : ControllerBase
+public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CustomerListItemDto>>> GetCustomers()
     {
-        var customers = await db.Customers.OrderBy(x => x.Name)
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var customers = await db.Customers.Where(x => x.TenantId == tenantId)
+            .OrderBy(x => x.Name)
             .Select(x => new CustomerListItemDto
             {
                 CustomerId = x.CustomerId,
                 Name = x.Name,
+                FirstName = x.FirstName,
+                LastName = x.LastName,
+                Street = x.Street,
+                HouseNumber = x.HouseNumber,
+                PostalCode = x.PostalCode,
+                City = x.City,
+                EmailAddress = x.EmailAddress,
+                PhoneNumber = x.PhoneNumber,
                 DefaultMarkupPercent = x.DefaultMarkupPercent,
                 ProjectCount = x.Projects.Count,
                 OpenWorkItems = x.WorkTimeEntries.Count(w => !w.IsPaid)
@@ -28,53 +40,67 @@ public class CustomersController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CustomerListItemDto>> SaveCustomer([FromBody] SaveCustomerRequest request)
     {
-        var name = request.Name.Trim();
-        var customer = await db.Customers.FirstOrDefaultAsync(x => x.Name == name);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var displayName = BuildCustomerDisplayName(request);
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return ValidationProblem("Bitte mindestens Vorname/Nachname oder einen Kundennamen angeben.");
+        }
+
+        var customer = await db.Customers.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.Name == displayName);
         if (customer is null)
         {
-            customer = new Customer { Name = name, DefaultMarkupPercent = request.DefaultMarkupPercent };
+            customer = new Customer { TenantId = tenantId };
+            ApplyCustomer(customer, request, displayName);
             db.Customers.Add(customer);
         }
         else
         {
-            customer.DefaultMarkupPercent = request.DefaultMarkupPercent;
+            ApplyCustomer(customer, request, displayName);
         }
 
         await db.SaveChangesAsync();
-        return Ok(new CustomerListItemDto { CustomerId = customer.CustomerId, Name = customer.Name, DefaultMarkupPercent = customer.DefaultMarkupPercent });
+        return Ok(MapCustomer(customer));
     }
 
     [HttpPut("{customerId:int}")]
     public async Task<ActionResult<CustomerListItemDto>> UpdateCustomer(int customerId, [FromBody] SaveCustomerRequest request)
     {
-        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == customerId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == customerId && x.TenantId == tenantId);
         if (customer is null)
         {
             return NotFound();
         }
 
-        customer.Name = request.Name.Trim();
-        customer.DefaultMarkupPercent = request.DefaultMarkupPercent;
+        var displayName = BuildCustomerDisplayName(request);
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return ValidationProblem("Bitte mindestens Vorname/Nachname oder einen Kundennamen angeben.");
+        }
+
+        ApplyCustomer(customer, request, displayName);
         await db.SaveChangesAsync();
-        return Ok(new CustomerListItemDto { CustomerId = customer.CustomerId, Name = customer.Name, DefaultMarkupPercent = customer.DefaultMarkupPercent });
+        return Ok(MapCustomer(customer));
     }
 
     [HttpDelete("{customerId:int}")]
     public async Task<IActionResult> DeleteCustomer(int customerId)
     {
-        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == customerId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == customerId && x.TenantId == tenantId);
         if (customer is null)
         {
             return NotFound();
         }
 
-        var todoListIds = await db.TodoLists.Where(x => x.CustomerId == customerId).Select(x => x.TodoListId).ToListAsync();
-        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => todoListIds.Contains(x.TodoListId)).ToListAsync());
-        db.TodoAttachments.RemoveRange(await db.TodoAttachments.Where(x => todoListIds.Contains(x.TodoListId)).ToListAsync());
-        db.TodoLists.RemoveRange(await db.TodoLists.Where(x => x.CustomerId == customerId).ToListAsync());
-        db.LineAllocations.RemoveRange(await db.LineAllocations.Where(x => x.CustomerId == customerId).ToListAsync());
-        db.WorkTimeEntries.RemoveRange(await db.WorkTimeEntries.Where(x => x.CustomerId == customerId).ToListAsync());
-        db.Projects.RemoveRange(await db.Projects.Where(x => x.CustomerId == customerId).ToListAsync());
+        var todoListIds = await db.TodoLists.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).Select(x => x.TodoListId).ToListAsync();
+        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => todoListIds.Contains(x.TodoListId) && x.TenantId == tenantId).ToListAsync());
+        db.TodoAttachments.RemoveRange(await db.TodoAttachments.Where(x => todoListIds.Contains(x.TodoListId) && x.TenantId == tenantId).ToListAsync());
+        db.TodoLists.RemoveRange(await db.TodoLists.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).ToListAsync());
+        db.LineAllocations.RemoveRange(await db.LineAllocations.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).ToListAsync());
+        db.WorkTimeEntries.RemoveRange(await db.WorkTimeEntries.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).ToListAsync());
+        db.Projects.RemoveRange(await db.Projects.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).ToListAsync());
         db.Customers.Remove(customer);
         await db.SaveChangesAsync();
         return NoContent();
@@ -83,7 +109,8 @@ public class CustomersController(InvoiceWizardDbContext db) : ControllerBase
     [HttpGet("{customerId:int}/projects")]
     public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjectsForCustomer(int customerId)
     {
-        var projects = await db.Projects.Where(x => x.CustomerId == customerId).OrderBy(x => x.Name)
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var projects = await db.Projects.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).OrderBy(x => x.Name)
             .Select(x => new ProjectListItemDto
             {
                 ProjectId = x.ProjectId,
@@ -92,7 +119,8 @@ public class CustomersController(InvoiceWizardDbContext db) : ControllerBase
                 Name = x.Name,
                 OpenWorkItems = x.WorkTimeEntries.Count(w => !w.IsPaid),
                 LoggedHours = x.WorkTimeEntries.Sum(w => (decimal?)w.HoursWorked) ?? 0m
-            }).ToListAsync();
+            })
+            .ToListAsync();
 
         return Ok(projects);
     }
@@ -100,39 +128,95 @@ public class CustomersController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPost("{customerId:int}/projects")]
     public async Task<ActionResult<ProjectListItemDto>> SaveProject(int customerId, [FromBody] SaveProjectRequest request)
     {
-        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == customerId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var customer = await db.Customers.FirstOrDefaultAsync(x => x.CustomerId == customerId && x.TenantId == tenantId);
         if (customer is null)
         {
             return NotFound();
         }
 
         var projectName = request.Name.Trim();
-        var project = await db.Projects.FirstOrDefaultAsync(x => x.CustomerId == customerId && x.Name == projectName);
+        var project = await db.Projects.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == customerId && x.Name == projectName);
         if (project is null)
         {
-            project = new Project { CustomerId = customerId, Name = projectName };
+            project = new Project { TenantId = tenantId, CustomerId = customerId, Name = projectName };
             db.Projects.Add(project);
             await db.SaveChangesAsync();
         }
 
-        return Ok(new ProjectListItemDto { ProjectId = project.ProjectId, CustomerId = customerId, CustomerName = customer.Name, Name = project.Name });
+        return Ok(MapProjectListItem(project, customer.Name));
+    }
+
+    private static string BuildCustomerDisplayName(SaveCustomerRequest request)
+    {
+        var composed = string.Join(" ", new[] { request.FirstName?.Trim(), request.LastName?.Trim() }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.IsNullOrWhiteSpace(composed) ? (request.Name ?? string.Empty).Trim() : composed.Trim();
+    }
+
+    private static void ApplyCustomer(Customer customer, SaveCustomerRequest request, string displayName)
+    {
+        customer.Name = displayName;
+        customer.FirstName = (request.FirstName ?? string.Empty).Trim();
+        customer.LastName = (request.LastName ?? string.Empty).Trim();
+        customer.Street = (request.Street ?? string.Empty).Trim();
+        customer.HouseNumber = (request.HouseNumber ?? string.Empty).Trim();
+        customer.PostalCode = (request.PostalCode ?? string.Empty).Trim();
+        customer.City = (request.City ?? string.Empty).Trim();
+        customer.EmailAddress = (request.EmailAddress ?? string.Empty).Trim();
+        customer.PhoneNumber = (request.PhoneNumber ?? string.Empty).Trim();
+        customer.DefaultMarkupPercent = request.DefaultMarkupPercent;
+    }
+
+    internal static CustomerListItemDto MapCustomer(Customer customer)
+    {
+        return new CustomerListItemDto
+        {
+            CustomerId = customer.CustomerId,
+            Name = customer.Name,
+            FirstName = customer.FirstName,
+            LastName = customer.LastName,
+            Street = customer.Street,
+            HouseNumber = customer.HouseNumber,
+            PostalCode = customer.PostalCode,
+            City = customer.City,
+            EmailAddress = customer.EmailAddress,
+            PhoneNumber = customer.PhoneNumber,
+            DefaultMarkupPercent = customer.DefaultMarkupPercent
+        };
+    }
+
+    internal static ProjectListItemDto MapProjectListItem(Project project, string? customerName = null)
+    {
+        return new ProjectListItemDto
+        {
+            ProjectId = project.ProjectId,
+            CustomerId = project.CustomerId,
+            CustomerName = customerName ?? project.Customer.Name,
+            Name = project.Name,
+            OpenWorkItems = project.WorkTimeEntries.Count(w => !w.IsPaid),
+            LoggedHours = project.WorkTimeEntries.Sum(w => (decimal?)w.HoursWorked) ?? 0m
+        };
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/projects")]
-public class ProjectsController(InvoiceWizardDbContext db) : ControllerBase
+public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjects([FromQuery] int? customerId)
     {
-        var query = db.Projects.AsQueryable();
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var query = db.Projects.Where(x => x.TenantId == tenantId).AsQueryable();
         if (customerId.HasValue)
         {
             query = query.Where(x => x.CustomerId == customerId.Value);
         }
 
-        var projects = await query.OrderBy(x => x.Customer.Name).ThenBy(x => x.Name)
+        var projects = await query.Include(x => x.Customer)
+            .Include(x => x.WorkTimeEntries)
+            .OrderBy(x => x.Customer.Name).ThenBy(x => x.Name)
             .Select(x => new ProjectListItemDto
             {
                 ProjectId = x.ProjectId,
@@ -146,35 +230,120 @@ public class ProjectsController(InvoiceWizardDbContext db) : ControllerBase
         return Ok(projects);
     }
 
-    [HttpDelete("{projectId:int}")]
-    public async Task<IActionResult> DeleteProject(int projectId)
+    [HttpGet("{projectId:int}")]
+    public async Task<ActionResult<ProjectDetailsDto>> GetProjectDetails(int projectId)
     {
-        var project = await db.Projects.FirstOrDefaultAsync(x => x.ProjectId == projectId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var project = await db.Projects.Include(x => x.Customer).FirstOrDefaultAsync(x => x.ProjectId == projectId && x.TenantId == tenantId);
         if (project is null)
         {
             return NotFound();
         }
 
-        var todoListIds = await db.TodoLists.Where(x => x.ProjectId == projectId).Select(x => x.TodoListId).ToListAsync();
-        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => todoListIds.Contains(x.TodoListId)).ToListAsync());
-        db.TodoAttachments.RemoveRange(await db.TodoAttachments.Where(x => todoListIds.Contains(x.TodoListId)).ToListAsync());
-        db.TodoLists.RemoveRange(await db.TodoLists.Where(x => x.ProjectId == projectId).ToListAsync());
-        db.LineAllocations.RemoveRange(await db.LineAllocations.Where(x => x.ProjectId == projectId).ToListAsync());
-        db.WorkTimeEntries.RemoveRange(await db.WorkTimeEntries.Where(x => x.ProjectId == projectId).ToListAsync());
+        return Ok(MapProjectDetails(project));
+    }
+
+    [HttpPut("{projectId:int}/details")]
+    public async Task<ActionResult<ProjectDetailsDto>> UpdateProjectDetails(int projectId, [FromBody] SaveProjectDetailsRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var project = await db.Projects.Include(x => x.Customer).FirstOrDefaultAsync(x => x.ProjectId == projectId && x.TenantId == tenantId);
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        ApplyProjectDetails(project, request);
+        await db.SaveChangesAsync();
+        return Ok(MapProjectDetails(project));
+    }
+
+    [HttpDelete("{projectId:int}")]
+    public async Task<IActionResult> DeleteProject(int projectId)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var project = await db.Projects.FirstOrDefaultAsync(x => x.ProjectId == projectId && x.TenantId == tenantId);
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        var todoListIds = await db.TodoLists.Where(x => x.ProjectId == projectId && x.TenantId == tenantId).Select(x => x.TodoListId).ToListAsync();
+        db.TodoItems.RemoveRange(await db.TodoItems.Where(x => todoListIds.Contains(x.TodoListId) && x.TenantId == tenantId).ToListAsync());
+        db.TodoAttachments.RemoveRange(await db.TodoAttachments.Where(x => todoListIds.Contains(x.TodoListId) && x.TenantId == tenantId).ToListAsync());
+        db.TodoLists.RemoveRange(await db.TodoLists.Where(x => x.ProjectId == projectId && x.TenantId == tenantId).ToListAsync());
+        db.LineAllocations.RemoveRange(await db.LineAllocations.Where(x => x.ProjectId == projectId && x.TenantId == tenantId).ToListAsync());
+        db.WorkTimeEntries.RemoveRange(await db.WorkTimeEntries.Where(x => x.ProjectId == projectId && x.TenantId == tenantId).ToListAsync());
         db.Projects.Remove(project);
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    private static void ApplyProjectDetails(Project project, SaveProjectDetailsRequest request)
+    {
+        project.ConnectionUserSameAsCustomer = request.ConnectionUserSameAsCustomer;
+        project.ConnectionUserFirstName = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserFirstName ?? string.Empty).Trim();
+        project.ConnectionUserLastName = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserLastName ?? string.Empty).Trim();
+        project.ConnectionUserStreet = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserStreet ?? string.Empty).Trim();
+        project.ConnectionUserHouseNumber = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserHouseNumber ?? string.Empty).Trim();
+        project.ConnectionUserPostalCode = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserPostalCode ?? string.Empty).Trim();
+        project.ConnectionUserCity = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserCity ?? string.Empty).Trim();
+        project.ConnectionUserParcelNumber = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserParcelNumber ?? string.Empty).Trim();
+        project.ConnectionUserEmailAddress = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserEmailAddress ?? string.Empty).Trim();
+        project.ConnectionUserPhoneNumber = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserPhoneNumber ?? string.Empty).Trim();
+
+        project.PropertyOwnerSameAsCustomer = request.PropertyOwnerSameAsCustomer;
+        project.PropertyOwnerFirstName = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerFirstName ?? string.Empty).Trim();
+        project.PropertyOwnerLastName = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerLastName ?? string.Empty).Trim();
+        project.PropertyOwnerStreet = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerStreet ?? string.Empty).Trim();
+        project.PropertyOwnerHouseNumber = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerHouseNumber ?? string.Empty).Trim();
+        project.PropertyOwnerPostalCode = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerPostalCode ?? string.Empty).Trim();
+        project.PropertyOwnerCity = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerCity ?? string.Empty).Trim();
+        project.PropertyOwnerEmailAddress = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerEmailAddress ?? string.Empty).Trim();
+        project.PropertyOwnerPhoneNumber = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerPhoneNumber ?? string.Empty).Trim();
+    }
+
+    private static ProjectDetailsDto MapProjectDetails(Project project)
+    {
+        return new ProjectDetailsDto
+        {
+            ProjectId = project.ProjectId,
+            CustomerId = project.CustomerId,
+            CustomerName = project.Customer.Name,
+            Name = project.Name,
+            ConnectionUserSameAsCustomer = project.ConnectionUserSameAsCustomer,
+            ConnectionUserFirstName = project.ConnectionUserSameAsCustomer ? project.Customer.FirstName : project.ConnectionUserFirstName,
+            ConnectionUserLastName = project.ConnectionUserSameAsCustomer ? project.Customer.LastName : project.ConnectionUserLastName,
+            ConnectionUserStreet = project.ConnectionUserSameAsCustomer ? project.Customer.Street : project.ConnectionUserStreet,
+            ConnectionUserHouseNumber = project.ConnectionUserSameAsCustomer ? project.Customer.HouseNumber : project.ConnectionUserHouseNumber,
+            ConnectionUserPostalCode = project.ConnectionUserSameAsCustomer ? project.Customer.PostalCode : project.ConnectionUserPostalCode,
+            ConnectionUserCity = project.ConnectionUserSameAsCustomer ? project.Customer.City : project.ConnectionUserCity,
+            ConnectionUserParcelNumber = project.ConnectionUserSameAsCustomer ? string.Empty : project.ConnectionUserParcelNumber,
+            ConnectionUserEmailAddress = project.ConnectionUserSameAsCustomer ? project.Customer.EmailAddress : project.ConnectionUserEmailAddress,
+            ConnectionUserPhoneNumber = project.ConnectionUserSameAsCustomer ? project.Customer.PhoneNumber : project.ConnectionUserPhoneNumber,
+            PropertyOwnerSameAsCustomer = project.PropertyOwnerSameAsCustomer,
+            PropertyOwnerFirstName = project.PropertyOwnerSameAsCustomer ? project.Customer.FirstName : project.PropertyOwnerFirstName,
+            PropertyOwnerLastName = project.PropertyOwnerSameAsCustomer ? project.Customer.LastName : project.PropertyOwnerLastName,
+            PropertyOwnerStreet = project.PropertyOwnerSameAsCustomer ? project.Customer.Street : project.PropertyOwnerStreet,
+            PropertyOwnerHouseNumber = project.PropertyOwnerSameAsCustomer ? project.Customer.HouseNumber : project.PropertyOwnerHouseNumber,
+            PropertyOwnerPostalCode = project.PropertyOwnerSameAsCustomer ? project.Customer.PostalCode : project.PropertyOwnerPostalCode,
+            PropertyOwnerCity = project.PropertyOwnerSameAsCustomer ? project.Customer.City : project.PropertyOwnerCity,
+            PropertyOwnerEmailAddress = project.PropertyOwnerSameAsCustomer ? project.Customer.EmailAddress : project.PropertyOwnerEmailAddress,
+            PropertyOwnerPhoneNumber = project.PropertyOwnerSameAsCustomer ? project.Customer.PhoneNumber : project.PropertyOwnerPhoneNumber
+        };
+    }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/worktimeentries")]
-public class WorkTimeEntriesController(InvoiceWizardDbContext db) : ControllerBase
+public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<WorkTimeEntryListItemDto>>> GetEntries([FromQuery] int? customerId, [FromQuery] int? projectId)
     {
-        var query = db.WorkTimeEntries.Include(x => x.Customer).Include(x => x.Project).AsQueryable();
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var query = db.WorkTimeEntries.Include(x => x.Customer).Include(x => x.Project).Where(x => x.TenantId == tenantId).AsQueryable();
         if (customerId.HasValue)
         {
             query = query.Where(x => x.CustomerId == customerId.Value);
@@ -216,14 +385,31 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db) : ControllerBa
     [HttpPost]
     public async Task<ActionResult<WorkTimeEntryListItemDto>> CreateEntry([FromBody] SaveWorkTimeEntryRequest request)
     {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var duration = request.EndTime - request.StartTime - TimeSpan.FromMinutes(request.BreakMinutes);
         if (duration <= TimeSpan.Zero)
         {
             return ValidationProblem("Start, Ende und Pause ergeben keine positive Arbeitszeit.");
         }
 
+        var customerExists = await db.Customers.AnyAsync(x => x.CustomerId == request.CustomerId && x.TenantId == tenantId);
+        if (!customerExists)
+        {
+            return NotFound();
+        }
+
+        if (request.ProjectId.HasValue)
+        {
+            var projectExists = await db.Projects.AnyAsync(x => x.ProjectId == request.ProjectId.Value && x.CustomerId == request.CustomerId && x.TenantId == tenantId);
+            if (!projectExists)
+            {
+                return ValidationProblem("Das ausgewaehlte Projekt gehoert nicht zum Kunden.");
+            }
+        }
+
         var entry = new WorkTimeEntry
         {
+            TenantId = tenantId,
             CustomerId = request.CustomerId,
             ProjectId = request.ProjectId,
             WorkDate = request.WorkDate.Date,
@@ -240,13 +426,14 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db) : ControllerBa
 
         db.WorkTimeEntries.Add(entry);
         await db.SaveChangesAsync();
-        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId));
+        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
     }
 
     [HttpPut("{entryId:int}/status")]
     public async Task<ActionResult<WorkTimeEntryListItemDto>> UpdateStatus(int entryId, [FromBody] UpdateWorkTimeStatusRequest request)
     {
-        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId);
         if (entry is null)
         {
             return NotFound();
@@ -273,13 +460,14 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db) : ControllerBa
         }
 
         await db.SaveChangesAsync();
-        return Ok(await GetMappedEntryAsync(entryId));
+        return Ok(await GetMappedEntryAsync(entryId, tenantId));
     }
 
     [HttpDelete("{entryId:int}")]
     public async Task<IActionResult> DeleteEntry(int entryId)
     {
-        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId);
         if (entry is null)
         {
             return NotFound();
@@ -290,10 +478,10 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db) : ControllerBa
         return NoContent();
     }
 
-    private Task<WorkTimeEntryListItemDto> GetMappedEntryAsync(int entryId)
+    private Task<WorkTimeEntryListItemDto> GetMappedEntryAsync(int entryId, int tenantId)
     {
         return db.WorkTimeEntries.Include(x => x.Customer).Include(x => x.Project)
-            .Where(x => x.WorkTimeEntryId == entryId)
+            .Where(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId)
             .Select(x => new WorkTimeEntryListItemDto
             {
                 WorkTimeEntryId = x.WorkTimeEntryId,
@@ -320,27 +508,30 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db) : ControllerBa
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/dashboard")]
-public class DashboardController(InvoiceWizardDbContext db) : ControllerBase
+public class DashboardController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet("summary")]
     public async Task<ActionResult<DashboardSummaryDto>> GetSummary()
     {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
         var summary = new DashboardSummaryDto
         {
-            CustomerCount = await db.Customers.CountAsync(),
-            ProjectCount = await db.Projects.CountAsync(),
-            OpenMaterialItemCount = await db.LineAllocations.CountAsync(x => !x.IsPaid),
-            OpenWorkItemCount = await db.WorkTimeEntries.CountAsync(x => !x.IsPaid),
-            LoggedHoursCurrentMonth = await db.WorkTimeEntries.Where(x => x.WorkDate >= monthStart).SumAsync(x => (decimal?)x.HoursWorked) ?? 0m,
-            PaidRevenue = await db.LineAllocations.Where(x => x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : x.AllocatedQuantity * x.CustomerUnitPrice)) ?? 0m,
-            OpenRevenue = await db.LineAllocations.Where(x => !x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : x.AllocatedQuantity * x.CustomerUnitPrice)) ?? 0m
+            CustomerCount = await db.Customers.CountAsync(x => x.TenantId == tenantId),
+            ProjectCount = await db.Projects.CountAsync(x => x.TenantId == tenantId),
+            OpenMaterialItemCount = await db.LineAllocations.CountAsync(x => x.TenantId == tenantId && !x.IsPaid),
+            OpenWorkItemCount = await db.WorkTimeEntries.CountAsync(x => x.TenantId == tenantId && !x.IsPaid),
+            LoggedHoursCurrentMonth = await db.WorkTimeEntries.Where(x => x.TenantId == tenantId && x.WorkDate >= monthStart).SumAsync(x => (decimal?)x.HoursWorked) ?? 0m,
+            PaidRevenue = await db.LineAllocations.Where(x => x.TenantId == tenantId && x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : x.AllocatedQuantity * x.CustomerUnitPrice)) ?? 0m,
+            OpenRevenue = await db.LineAllocations.Where(x => x.TenantId == tenantId && !x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : x.AllocatedQuantity * x.CustomerUnitPrice)) ?? 0m
         };
 
-        summary.PaidRevenue += await db.WorkTimeEntries.Where(x => x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer))) ?? 0m;
-        summary.OpenRevenue += await db.WorkTimeEntries.Where(x => !x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer))) ?? 0m;
+        summary.PaidRevenue += await db.WorkTimeEntries.Where(x => x.TenantId == tenantId && x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer))) ?? 0m;
+        summary.OpenRevenue += await db.WorkTimeEntries.Where(x => x.TenantId == tenantId && !x.IsPaid).SumAsync(x => (decimal?)(x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer))) ?? 0m;
         return Ok(summary);
     }
 }
+

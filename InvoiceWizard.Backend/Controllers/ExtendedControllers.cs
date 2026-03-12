@@ -1,19 +1,22 @@
 using InvoiceWizard.Backend.Contracts;
 using InvoiceWizard.Backend.Data;
 using InvoiceWizard.Backend.Domain;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace InvoiceWizard.Backend.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/invoices")]
-public class InvoicesController(InvoiceWizardDbContext db) : ControllerBase
+public class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> SaveInvoice([FromBody] SaveInvoiceRequest request)
     {
-        var exists = await db.Invoices.AnyAsync(x => x.ContentHash == request.ContentHash);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.ContentHash == request.ContentHash);
         if (exists)
         {
             return Conflict(new { message = "Invoice already exists." });
@@ -21,6 +24,7 @@ public class InvoicesController(InvoiceWizardDbContext db) : ControllerBase
 
         var invoice = new Invoice
         {
+            TenantId = tenantId,
             InvoiceNumber = request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
             SupplierName = request.SupplierName.Trim(),
@@ -28,6 +32,7 @@ public class InvoicesController(InvoiceWizardDbContext db) : ControllerBase
             ContentHash = request.ContentHash.Trim(),
             Lines = request.Lines.Select(line => new InvoiceLine
             {
+                TenantId = tenantId,
                 Position = line.Position,
                 ArticleNumber = line.ArticleNumber,
                 Ean = line.Ean,
@@ -47,14 +52,17 @@ public class InvoicesController(InvoiceWizardDbContext db) : ControllerBase
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/invoicelines")]
-public class InvoiceLinesController(InvoiceWizardDbContext db) : ControllerBase
+public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<InvoiceLineItemDto>>> GetLines([FromQuery] bool showCompleted = true)
     {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var lines = await db.InvoiceLines
+            .Where(x => x.TenantId == tenantId)
             .Include(x => x.Invoice)
             .Include(x => x.Allocations).ThenInclude(x => x.Customer)
             .Include(x => x.Allocations).ThenInclude(x => x.Project)
@@ -74,7 +82,8 @@ public class InvoiceLinesController(InvoiceWizardDbContext db) : ControllerBase
     [HttpDelete("{invoiceLineId:int}")]
     public async Task<IActionResult> DeleteLine(int invoiceLineId)
     {
-        var line = await db.InvoiceLines.Include(x => x.Allocations).FirstOrDefaultAsync(x => x.InvoiceLineId == invoiceLineId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var line = await db.InvoiceLines.Include(x => x.Allocations).FirstOrDefaultAsync(x => x.InvoiceLineId == invoiceLineId && x.TenantId == tenantId);
         if (line is null)
         {
             return NotFound();
@@ -142,14 +151,17 @@ public class InvoiceLinesController(InvoiceWizardDbContext db) : ControllerBase
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/allocations")]
-public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
+public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<AllocationItemDto>>> GetAllocations([FromQuery] int? customerId, [FromQuery] int? projectId)
     {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var query = db.LineAllocations
+            .Where(x => x.TenantId == tenantId)
             .Include(x => x.Customer)
             .Include(x => x.Project)
             .Include(x => x.InvoiceLine).ThenInclude(x => x.Invoice)
@@ -201,10 +213,26 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<AllocationItemDto>> CreateAllocation([FromBody] SaveAllocationRequest request)
     {
-        var line = await db.InvoiceLines.Include(x => x.Allocations).FirstOrDefaultAsync(x => x.InvoiceLineId == request.InvoiceLineId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var line = await db.InvoiceLines.Include(x => x.Allocations).FirstOrDefaultAsync(x => x.InvoiceLineId == request.InvoiceLineId && x.TenantId == tenantId);
         if (line is null)
         {
             return NotFound();
+        }
+
+        var customerExists = await db.Customers.AnyAsync(x => x.CustomerId == request.CustomerId && x.TenantId == tenantId);
+        if (!customerExists)
+        {
+            return ValidationProblem("Der ausgewaehlte Kunde wurde nicht gefunden.");
+        }
+
+        if (request.ProjectId.HasValue)
+        {
+            var projectExists = await db.Projects.AnyAsync(x => x.ProjectId == request.ProjectId.Value && x.CustomerId == request.CustomerId && x.TenantId == tenantId);
+            if (!projectExists)
+            {
+                return ValidationProblem("Das ausgewaehlte Projekt gehoert nicht zum Kunden.");
+            }
         }
 
         var remaining = line.Quantity - line.Allocations.Sum(x => x.AllocatedQuantity);
@@ -215,6 +243,7 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
 
         var allocation = new LineAllocation
         {
+            TenantId = tenantId,
             InvoiceLineId = request.InvoiceLineId,
             CustomerId = request.CustomerId,
             ProjectId = request.ProjectId,
@@ -226,6 +255,7 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
         db.LineAllocations.Add(allocation);
         await db.SaveChangesAsync();
         return Ok(await db.LineAllocations
+            .Where(x => x.TenantId == tenantId)
             .Include(x => x.Customer)
             .Include(x => x.Project)
             .Include(x => x.InvoiceLine).ThenInclude(x => x.Invoice)
@@ -263,7 +293,8 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPut("{allocationId:int}/quantity")]
     public async Task<IActionResult> UpdateQuantity(int allocationId, [FromBody] UpdateAllocationQuantityRequest request)
     {
-        var allocation = await db.LineAllocations.Include(x => x.InvoiceLine).ThenInclude(x => x.Allocations).FirstOrDefaultAsync(x => x.LineAllocationId == allocationId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var allocation = await db.LineAllocations.Include(x => x.InvoiceLine).ThenInclude(x => x.Allocations).FirstOrDefaultAsync(x => x.LineAllocationId == allocationId && x.TenantId == tenantId);
         if (allocation is null)
         {
             return NotFound();
@@ -284,7 +315,8 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPut("{allocationId:int}/status")]
     public async Task<IActionResult> UpdateStatus(int allocationId, [FromBody] UpdateAllocationStatusRequest request)
     {
-        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId && x.TenantId == tenantId);
         if (allocation is null)
         {
             return NotFound();
@@ -312,7 +344,8 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpPut("{allocationId:int}/export")]
     public async Task<IActionResult> UpdateExport(int allocationId, [FromBody] UpdateAllocationExportRequest request)
     {
-        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId && x.TenantId == tenantId);
         if (allocation is null)
         {
             return NotFound();
@@ -329,7 +362,8 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
     [HttpDelete("{allocationId:int}")]
     public async Task<IActionResult> DeleteAllocation(int allocationId)
     {
-        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId && x.TenantId == tenantId);
         if (allocation is null)
         {
             return NotFound();
@@ -341,14 +375,16 @@ public class AllocationsController(InvoiceWizardDbContext db) : ControllerBase
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/worktimeentry-exports")]
-public class WorkTimeEntryExportsController(InvoiceWizardDbContext db) : ControllerBase
+public class WorkTimeEntryExportsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpPut("{entryId:int}")]
     public async Task<IActionResult> UpdateExport(int entryId, [FromBody] UpdateWorkTimeExportRequest request)
     {
-        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId);
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId);
         if (entry is null)
         {
             return NotFound();
@@ -362,20 +398,24 @@ public class WorkTimeEntryExportsController(InvoiceWizardDbContext db) : Control
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("api/analytics")]
-public class AnalyticsController(InvoiceWizardDbContext db) : ControllerBase
+public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet("details")]
     public async Task<ActionResult<AnalyticsResponseDto>> GetDetails([FromQuery] int? customerId, [FromQuery] int? projectId)
     {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var allocations = await db.LineAllocations
+            .Where(x => x.TenantId == tenantId)
             .Include(x => x.Project)
             .Include(x => x.Customer)
             .Include(x => x.InvoiceLine).ThenInclude(x => x.Invoice)
             .ToListAsync();
 
         var workEntries = await db.WorkTimeEntries
+            .Where(x => x.TenantId == tenantId)
             .Include(x => x.Project)
             .Include(x => x.Customer)
             .ToListAsync();
@@ -400,7 +440,7 @@ public class AnalyticsController(InvoiceWizardDbContext db) : ControllerBase
         decimal expenses;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            expenses = await db.InvoiceLines.Include(x => x.Invoice).Select(x => x.LineTotal).SumAsync();
+            expenses = await db.InvoiceLines.Where(x => x.TenantId == tenantId).Include(x => x.Invoice).Select(x => x.LineTotal).SumAsync();
         }
         else
         {
@@ -424,7 +464,7 @@ public class AnalyticsController(InvoiceWizardDbContext db) : ControllerBase
         Dictionary<DateTime, decimal> expensesByMonth;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            expensesByMonth = db.InvoiceLines.Include(x => x.Invoice)
+            expensesByMonth = db.InvoiceLines.Where(x => x.TenantId == tenantId).Include(x => x.Invoice)
                 .AsEnumerable()
                 .GroupBy(x => new DateTime(x.Invoice.InvoiceDate.Year, x.Invoice.InvoiceDate.Month, 1))
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.LineTotal));
@@ -442,7 +482,7 @@ public class AnalyticsController(InvoiceWizardDbContext db) : ControllerBase
             maxValue = 1m;
         }
 
-        var projects = await db.Projects.Include(x => x.Customer).Include(x => x.Allocations).ThenInclude(x => x.InvoiceLine).Include(x => x.WorkTimeEntries).ToListAsync();
+        var projects = await db.Projects.Where(x => x.TenantId == tenantId).Include(x => x.Customer).Include(x => x.Allocations).ThenInclude(x => x.InvoiceLine).Include(x => x.WorkTimeEntries).ToListAsync();
         if (customerId.HasValue)
         {
             projects = projects.Where(x => x.CustomerId == customerId.Value).ToList();

@@ -1,0 +1,176 @@
+@page "/team"
+@inject BackendApiClient Api
+@inject WebAuthSession Auth
+
+<PageTitle>Benutzer</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <div>
+            <h2>Benutzerverwaltung</h2>
+            <p>Admins koennen hier Team-Mitglieder ihrer Firma anlegen, Rollen vergeben und Zugriffe deaktivieren.</p>
+        </div>
+        <button class="action-button secondary" @onclick="LoadAsync">Aktualisieren</button>
+    </div>
+
+    @if (!Auth.CanManageUsers)
+    {
+        <div class="alert-card">Nur Admins duerfen Benutzer ihrer Firma verwalten.</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(StatusMessage))
+        {
+            <div class="inline-status">@StatusMessage</div>
+        }
+
+        <div class="split-grid two-columns">
+            <article class="feature-card">
+                <div class="table-header compact">
+                    <div>
+                        <h3>Neue Person anlegen</h3>
+                        <p>@(Auth.CurrentSession?.License is null ? "Kein Lizenzlimit aktiv." : $"Tarif {Auth.CurrentSession.License.PlanName}: max. {Auth.CurrentSession.License.MaxUsers} Benutzer")</p>
+                    </div>
+                    <span class="pill">@Users.Count aktiv</span>
+                </div>
+
+                <div class="form-grid">
+                    <label><span>Name</span><input @bind="CreateModel.DisplayName" /></label>
+                    <label><span>E-Mail</span><input type="email" @bind="CreateModel.Email" /></label>
+                    <label><span>Passwort</span><input type="password" @bind="CreateModel.Password" /></label>
+                    <label>
+                        <span>Rolle</span>
+                        <select @bind="CreateModel.Role">
+                            <option value="Employee">Mitarbeiter</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </label>
+                </div>
+
+                <button class="action-button" @onclick="CreateUserAsync">Benutzer anlegen</button>
+            </article>
+
+            <article class="feature-card">
+                <div class="table-header compact">
+                    <div>
+                        <h3>Firmenkontext</h3>
+                        <p>@Auth.CurrentSession?.Tenant.Name</p>
+                    </div>
+                    <span class="pill success">@Auth.CurrentSession?.User.Role</span>
+                </div>
+                <p>Jeder Benutzer dieser Liste sieht nur Daten deiner eigenen Firma. Die Rechte greifen serverseitig in der API.</p>
+                @if (Auth.CurrentSession?.License is not null)
+                {
+                    <div class="entry-meta">
+                        <span class="pill">@Auth.CurrentSession.License.PlanName</span>
+                        <span class="pill">Max. Projekte: @Auth.CurrentSession.License.MaxProjects</span>
+                        <span class="pill">Max. Kunden: @Auth.CurrentSession.License.MaxCustomers</span>
+                    </div>
+                }
+            </article>
+        </div>
+
+        <article class="feature-card">
+            <div class="table-header compact">
+                <h3>Bestehende Benutzer</h3>
+                <span>@Users.Count Eintraege</span>
+            </div>
+
+            @if (Users.Count == 0)
+            {
+                <p class="empty-hint">Noch keine Benutzer vorhanden.</p>
+            }
+            else
+            {
+                @foreach (var user in Users)
+                {
+                    <div class="list-row stacked-mobile selected-row">
+                        <div class="compact-details">
+                            <strong>@user.DisplayName</strong>
+                            <p>@user.Email</p>
+                            <p>@(user.LastLoginAt.HasValue ? $"Letzter Login: {user.LastLoginAt.Value.ToLocalTime():dd.MM.yyyy HH:mm}" : "Noch nie angemeldet")</p>
+                        </div>
+                        <div class="form-grid compact-grid">
+                            <label><span>Name</span><input @bind="user.DisplayName" /></label>
+                            <label>
+                                <span>Rolle</span>
+                                <select @bind="user.Role">
+                                    <option value="Employee">Mitarbeiter</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                            </label>
+                            <label><span>Neues Passwort (optional)</span><input type="password" @bind="user.PendingPassword" /></label>
+                            <label class="checkbox-line"><input type="checkbox" @bind="user.IsActive" /> <span>Aktiv</span></label>
+                        </div>
+                        <div class="row-actions wrap-mobile">
+                            <span class="pill @(user.IsActive ? "success" : "warning")">@user.Role</span>
+                            <button class="action-button secondary" @onclick="() => SaveUserAsync(user)">Speichern</button>
+                        </div>
+                    </div>
+                }
+            }
+        </article>
+    }
+</section>
+
+@code {
+    private List<EditableTenantUserModel> Users { get; set; } = [];
+    private CreateTenantUserModel CreateModel { get; set; } = new();
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!Auth.CanManageUsers)
+        {
+            return;
+        }
+
+        Users = (await Api.GetTenantUsersAsync())
+            .Select(x => new EditableTenantUserModel
+            {
+                AppUserId = x.AppUserId,
+                Email = x.Email,
+                DisplayName = x.DisplayName,
+                Role = x.Role,
+                IsActive = x.IsActive,
+                IsDefault = x.IsDefault,
+                CreatedAt = x.CreatedAt,
+                LastLoginAt = x.LastLoginAt
+            })
+            .OrderByDescending(x => x.IsActive)
+            .ThenBy(x => x.DisplayName)
+            .ToList();
+    }
+
+    private async Task CreateUserAsync()
+    {
+        var created = await Api.CreateTenantUserAsync(CreateModel);
+        StatusMessage = $"Benutzer {created.DisplayName} angelegt.";
+        CreateModel = new CreateTenantUserModel();
+        await LoadAsync();
+    }
+
+    private async Task SaveUserAsync(EditableTenantUserModel user)
+    {
+        await Api.UpdateTenantUserAsync(user.AppUserId, new UpdateTenantUserModel
+        {
+            DisplayName = user.DisplayName,
+            Role = user.Role,
+            IsActive = user.IsActive,
+            Password = string.IsNullOrWhiteSpace(user.PendingPassword) ? null : user.PendingPassword
+        });
+        user.PendingPassword = string.Empty;
+        StatusMessage = $"Benutzer {user.DisplayName} aktualisiert.";
+        await LoadAsync();
+    }
+
+    private sealed class EditableTenantUserModel : TenantUserModel
+    {
+        public string PendingPassword { get; set; } = string.Empty;
+    }
+}
