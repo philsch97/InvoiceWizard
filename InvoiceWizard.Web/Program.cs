@@ -15,7 +15,7 @@ builder.Services.AddHttpClient("BackendAnonymous", client =>
 builder.Services.AddHttpClient<BackendApiClient>(client =>
 {
     client.BaseAddress = new Uri(baseUrl);
-}).AddHttpMessageHandler<AuthHeaderHandler>();
+});
 
 var app = builder.Build();
 
@@ -32,3 +32,5 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+

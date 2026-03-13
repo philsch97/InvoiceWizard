@@ -5,8 +5,15 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace InvoiceWizard.Web.Services;
 
-public class BackendApiClient(HttpClient httpClient)
+public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
 {
+    private void ApplyAuthorizationHeader()
+    {
+        httpClient.DefaultRequestHeaders.Authorization = string.IsNullOrWhiteSpace(authSession.AccessToken)
+            ? null
+            : new AuthenticationHeaderValue("Bearer", authSession.AccessToken);
+    }
+
     public async Task<DashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
         => await TryGetAsync("api/dashboard/summary", new DashboardSummary(), cancellationToken);
 
@@ -15,6 +22,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<CustomerItem> SaveCustomerAsync(SaveCustomerModel model, int? customerId = null, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = customerId.HasValue
             ? await httpClient.PutAsJsonAsync($"api/customers/{customerId.Value}", model, cancellationToken)
             : await httpClient.PostAsJsonAsync("api/customers", model, cancellationToken);
@@ -24,6 +32,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task DeleteCustomerAsync(int customerId, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.DeleteAsync($"api/customers/{customerId}", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
@@ -36,6 +45,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<ProjectItem> CreateProjectAsync(int customerId, SaveProjectModel model, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProjectItem>(cancellationToken: cancellationToken))!;
@@ -43,6 +53,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task DeleteProjectAsync(int projectId, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.DeleteAsync($"api/projects/{projectId}", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
@@ -52,6 +63,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<ProjectDetailsItem> UpdateProjectDetailsAsync(int projectId, SaveProjectDetailsModel model, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}/details", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
@@ -76,6 +88,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<WorkTimeItem> CreateWorkTimeAsync(SaveWorkTimeModel model, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PostAsJsonAsync("api/worktimeentries", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
@@ -83,6 +96,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<WorkTimeItem> UpdateWorkTimeStatusAsync(int workTimeEntryId, UpdateWorkTimeStatusModel model, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PutAsJsonAsync($"api/worktimeentries/{workTimeEntryId}/status", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
@@ -90,6 +104,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task DeleteWorkTimeAsync(int workTimeEntryId, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.DeleteAsync($"api/worktimeentries/{workTimeEntryId}", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
@@ -104,6 +119,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TodoListItem> CreateTodoListAsync(int customerId, int? projectId, string title, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PostAsJsonAsync("api/todolists", new { customerId, projectId, title }, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
@@ -111,12 +127,14 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task DeleteTodoListAsync(int todoListId, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.DeleteAsync($"api/todolists/{todoListId}", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
     public async Task<TodoListItem> CreateTodoItemAsync(int todoListId, string text, int? parentTodoItemId = null, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PostAsJsonAsync($"api/todolists/{todoListId}/items", new { text, parentTodoItemId }, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
@@ -124,6 +142,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TodoListItem> UpdateTodoItemStateAsync(int todoItemId, bool isCompleted, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PutAsJsonAsync($"api/todoitems/{todoItemId}/state", new { isCompleted }, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
@@ -131,6 +150,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TodoListItem> DeleteTodoItemAsync(int todoItemId, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.DeleteAsync($"api/todoitems/{todoItemId}", cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
@@ -138,6 +158,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TodoListItem> UploadTodoAttachmentAsync(int todoListId, IBrowserFile file, string caption, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         await using var stream = file.OpenReadStream(10_000_000, cancellationToken);
         using var fileContent = new StreamContent(stream);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
@@ -151,6 +172,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TodoListItem> DeleteTodoAttachmentAsync(int todoAttachmentId, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.DeleteAsync($"api/todoattachments/{todoAttachmentId}", cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
@@ -161,6 +183,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TenantUserModel> CreateTenantUserAsync(CreateTenantUserModel model, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PostAsJsonAsync("api/tenant-users", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TenantUserModel>(cancellationToken: cancellationToken))!;
@@ -168,6 +191,7 @@ public class BackendApiClient(HttpClient httpClient)
 
     public async Task<TenantUserModel> UpdateTenantUserAsync(int appUserId, UpdateTenantUserModel model, CancellationToken cancellationToken = default)
     {
+        ApplyAuthorizationHeader();
         var response = await httpClient.PutAsJsonAsync($"api/tenant-users/{appUserId}", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<TenantUserModel>(cancellationToken: cancellationToken))!;
@@ -175,25 +199,17 @@ public class BackendApiClient(HttpClient httpClient)
 
     private async Task<T> TryGetAsync<T>(string url, T fallback, CancellationToken cancellationToken)
     {
-        try
-        {
-            return await httpClient.GetFromJsonAsync<T>(url, cancellationToken) ?? fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
+        ApplyAuthorizationHeader();
+        var response = await httpClient.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken) ?? fallback;
     }
 
     private async Task<List<T>> TryGetListAsync<T>(string url, CancellationToken cancellationToken)
     {
-        try
-        {
-            return await httpClient.GetFromJsonAsync<List<T>>(url, cancellationToken) ?? [];
-        }
-        catch
-        {
-            return [];
-        }
+        ApplyAuthorizationHeader();
+        var response = await httpClient.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<T>>(cancellationToken: cancellationToken) ?? [];
     }
 }
