@@ -9,7 +9,10 @@ public class ManualInvoiceLineInput
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
+    public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; } = 1m;
-    public decimal LineTotal => Quantity * (NetUnitPrice / (PriceBasisQuantity <= 0m ? 1m : PriceBasisQuantity));
+    public decimal LineTotal => Quantity * ((NetUnitPrice + MetalSurcharge) / (PriceBasisQuantity <= 0m ? 1m : PriceBasisQuantity));
 }
+
+

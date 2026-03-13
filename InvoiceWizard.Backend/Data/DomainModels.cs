@@ -81,6 +81,7 @@ public class InvoiceLine
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
+    public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; } = 1m;
     public decimal LineTotal { get; set; }
@@ -190,3 +191,5 @@ public class TodoAttachment
     public byte[] Data { get; set; } = [];
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 }
+
+

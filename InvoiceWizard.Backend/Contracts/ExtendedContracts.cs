@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace InvoiceWizard.Backend.Contracts;
 
@@ -15,6 +15,7 @@ public class InvoiceLineItemDto
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
+    public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }
@@ -33,6 +34,7 @@ public class AllocationItemDto
     public string Description { get; set; } = "";
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
+    public decimal MetalSurcharge { get; set; }
     public decimal PriceBasisQuantity { get; set; }
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
@@ -73,6 +75,7 @@ public class SaveInvoiceLineRequest
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
+    public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }

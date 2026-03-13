@@ -12,6 +12,7 @@ public class InvoiceLineEntity
     public decimal Quantity { get; set; }
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
+    public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; } = 1;
     public decimal LineTotal { get; set; }
@@ -20,3 +21,5 @@ public class InvoiceLineEntity
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     public List<LineAllocationEntity> Allocations { get; set; } = new();
 }
+
+

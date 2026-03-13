@@ -1,4 +1,4 @@
-﻿using InvoiceWizard.Data.Entities;
+using InvoiceWizard.Data.Entities;
 using InvoiceWizard.Data.ViewModels;
 using InvoiceWizard.Services;
 using System.Globalization;
@@ -55,7 +55,7 @@ public partial class DataHandling : Page
 
         var customerUnitPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice)
             ? enteredPrice
-            : PricingHelper.NormalizeUnitPrice(selectedRow.Line.NetUnitPrice, selectedRow.Line.PriceBasisQuantity);
+            : PricingHelper.NormalizeUnitPrice(selectedRow.Line.NetUnitPrice, selectedRow.Line.MetalSurcharge, selectedRow.Line.PriceBasisQuantity);
 
         try
         {
@@ -98,7 +98,7 @@ public partial class DataHandling : Page
         {
             var customerUnitPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice)
                 ? enteredPrice
-                : PricingHelper.NormalizeUnitPrice(row.Line.NetUnitPrice, row.Line.PriceBasisQuantity);
+                : PricingHelper.NormalizeUnitPrice(row.Line.NetUnitPrice, row.Line.MetalSurcharge, row.Line.PriceBasisQuantity);
             await App.Api.CreateAllocationAsync(row.Line.InvoiceLineId, customer.CustomerId, projectSelection.ProjectId.Value, row.RemainingQuantity, customerUnitPrice, IsSmallMaterialCheckBox.IsChecked == true);
             created++;
         }
@@ -213,3 +213,6 @@ public partial class DataHandling : Page
         return (Brush)FindResource(key);
     }
 }
+
+
+

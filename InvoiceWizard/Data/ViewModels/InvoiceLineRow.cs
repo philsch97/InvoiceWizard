@@ -20,9 +20,10 @@ public class InvoiceLineRow
     public string Unit => Line.Unit;
     public decimal GrossListPrice => Line.GrossListPrice;
     public decimal NetUnitPrice => Line.NetUnitPrice;
+    public decimal MetalSurcharge => Line.MetalSurcharge;
     public decimal PriceBasisQuantity => Line.PriceBasisQuantity;
     public decimal LineTotal => Line.LineTotal;
-    public decimal EffectivePurchaseUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.PriceBasisQuantity);
+    public decimal EffectivePurchaseUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
     public decimal AllocatedQuantity => Line.Allocations?.Sum(a => a.AllocatedQuantity) ?? 0m;
     public decimal RemainingQuantity => Quantity - AllocatedQuantity;
     public string AllocationSummary =>
@@ -34,3 +35,5 @@ public class InvoiceLineRow
                 .Select(g => $"{g.Key}: {g.Sum(x => x.AllocatedQuantity):0.##}{(g.Any(x => x.IsSmallMaterial) ? " (KM)" : "")}"));
     public string PaidStatus => Line.IsPaid ? $"Bezahlt am {Line.PaidAt:dd.MM.yyyy}" : "Offen";
 }
+
+

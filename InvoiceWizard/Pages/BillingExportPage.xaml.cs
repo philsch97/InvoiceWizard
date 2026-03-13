@@ -426,7 +426,7 @@ public partial class BillingExportPage : Page
 
     private decimal GetPurchaseUnitPrice(LineAllocationEntity allocation)
     {
-        return allocation.CustomerUnitPrice > 0m ? allocation.CustomerUnitPrice : PricingHelper.NormalizeUnitPrice(allocation.InvoiceLine.NetUnitPrice, allocation.InvoiceLine.PriceBasisQuantity);
+        return allocation.CustomerUnitPrice > 0m ? allocation.CustomerUnitPrice : PricingHelper.NormalizeUnitPrice(allocation.InvoiceLine.NetUnitPrice, allocation.InvoiceLine.MetalSurcharge, allocation.InvoiceLine.PriceBasisQuantity);
     }
 
     private string GetSelectedSmallMaterialMode()
@@ -553,3 +553,4 @@ public partial class BillingExportPage : Page
         return (Brush)FindResource(key);
     }
 }
+

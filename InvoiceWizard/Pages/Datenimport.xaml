@@ -81,7 +81,7 @@
                     <StackPanel>
                         <TextBlock Text="Pflichtfelder im manuellen Import" Style="{StaticResource SectionTitleStyle}"/>
                         <TextBlock Text="Rechnungsnummer, Rechnungsdatum und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht." Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="Artikelnummer, EAN, Lieferant und Brutto-Listenpreis sind optional." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Artikelnummer, EAN, Lieferant, Metallzuschlag und Brutto-Listenpreis sind optional." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -111,6 +111,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,14,14">
@@ -135,17 +136,22 @@
                                 <TextBox x:Name="QuantityText" Text="1"/>
                             </StackPanel>
 
-                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,0">
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,14">
                                 <TextBlock Text="Netto-Preis * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
                                 <TextBox x:Name="NetPriceText" Text="0"/>
                             </StackPanel>
-                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,14,0">
-                                <TextBlock Text="Brutto-Listenpreis optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="GrossPriceText" Text="0"/>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,14,14">
+                                <TextBlock Text="Metallzuschlag optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="MetalSurchargeText" Text="0"/>
                             </StackPanel>
                             <StackPanel Grid.Row="2" Grid.Column="2">
                                 <TextBlock Text="Preisbasis * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
                                 <TextBox x:Name="PriceBasisText" Text="1"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,14,0">
+                                <TextBlock Text="Brutto-Listenpreis optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="GrossPriceText" Text="0"/>
                             </StackPanel>
                         </Grid>
 
@@ -177,6 +183,7 @@
                             <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="90"/>
                             <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
                             <DataGridTextColumn Header="Netto" Binding="{Binding NetUnitPrice}" Width="100"/>
+                            <DataGridTextColumn Header="Metall" Binding="{Binding MetalSurcharge}" Width="100"/>
                             <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity}" Width="80"/>
                             <DataGridTextColumn Header="Gesamt" Binding="{Binding LineTotal}" Width="110"/>
                         </DataGrid.Columns>

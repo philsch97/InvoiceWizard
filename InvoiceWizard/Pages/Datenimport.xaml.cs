@@ -1,8 +1,10 @@
-﻿using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Services;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -15,6 +17,8 @@ public partial class Datenimport : Page
 {
     private static readonly XNamespace ram = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100";
     private static readonly XNamespace udt = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100";
+    private static readonly Regex MetalSurchargeRegex = new(@"(?i)\b(metall(?:zuschlag)?|cu(?:-?zuschlag)?|kupfer(?:zuschlag)?)\b", RegexOptions.Compiled);
+    private static readonly Regex CableRegex = new(@"(?i)\b(kabel|leitung|nym|nyy|h07|nhx|erdkabel|mantelleitung)\b", RegexOptions.Compiled);
 
     private readonly ObservableCollection<ManualInvoiceLineInput> _manualLines = new();
     private string _currentSourcePdfPath = "";
@@ -65,6 +69,7 @@ public partial class Datenimport : Page
                     Quantity = line.Quantity,
                     Unit = line.Unit,
                     NetUnitPrice = line.NetUnitPrice,
+                    MetalSurcharge = line.MetalSurcharge,
                     GrossListPrice = line.GrossListPrice,
                     PriceBasisQuantity = line.PriceBasisQuantity
                 });
@@ -179,6 +184,19 @@ public partial class Datenimport : Page
             return false;
         }
 
+        var metalSurcharge = 0m;
+        if (!string.IsNullOrWhiteSpace(MetalSurchargeText.Text) && !TryParseDecimal(MetalSurchargeText.Text, out metalSurcharge))
+        {
+            error = "Bitte einen gueltigen Metallzuschlag eingeben oder das Feld leer lassen.";
+            return false;
+        }
+
+        if (metalSurcharge < 0m)
+        {
+            error = "Der Metallzuschlag darf nicht negativ sein.";
+            return false;
+        }
+
         var grossPrice = 0m;
         if (!string.IsNullOrWhiteSpace(GrossPriceText.Text) && !TryParseDecimal(GrossPriceText.Text, out grossPrice))
         {
@@ -200,6 +218,7 @@ public partial class Datenimport : Page
             Quantity = quantity,
             Unit = unit,
             NetUnitPrice = netPrice,
+            MetalSurcharge = metalSurcharge,
             GrossListPrice = grossPrice,
             PriceBasisQuantity = priceBasis
         };
@@ -215,6 +234,7 @@ public partial class Datenimport : Page
         QuantityText.Text = "1";
         UnitText.Text = "ST";
         NetPriceText.Text = "0";
+        MetalSurchargeText.Text = "0";
         GrossPriceText.Text = "0";
         PriceBasisText.Text = "1";
     }
@@ -257,7 +277,7 @@ public partial class Datenimport : Page
             invoiceNumber,
             invoiceDate.ToString("yyyyMMdd"),
             supplierName,
-            string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.PriceBasisQuantity}"))
+            string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.MetalSurcharge}:{l.PriceBasisQuantity}"))
         });
 
         return Sha256(System.Text.Encoding.UTF8.GetBytes(payload));
@@ -297,7 +317,7 @@ public partial class Datenimport : Page
 
     private static List<InvoiceLine> ParseZugferdPositions(XDocument doc)
     {
-        var result = new List<InvoiceLine>();
+        var rawLines = new List<InvoiceLine>();
         var items = doc.Descendants(ram + "IncludedSupplyChainTradeLineItem");
         var position = 1;
         foreach (var item in items)
@@ -312,7 +332,7 @@ public partial class Datenimport : Page
             var basisQty = ParseInvariant(basisQtyElement?.Value);
             if (basisQty <= 0m) basisQty = 1m;
 
-            result.Add(new InvoiceLine
+            rawLines.Add(new InvoiceLine
             {
                 Position = position++,
                 ArticleNumber = product?.Descendants(ram + "SellerAssignedID").FirstOrDefault()?.Value ?? product?.Descendants(ram + "BuyerAssignedID").FirstOrDefault()?.Value ?? "",
@@ -323,10 +343,99 @@ public partial class Datenimport : Page
                 NetUnitPrice = netPrice,
                 GrossListPrice = grossPrice,
                 PriceBasisQuantity = basisQty,
-                LineTotal = lineTotal
+                LineTotal = lineTotal > 0m ? lineTotal : PricingHelper.CalculateLineTotal(quantity, netPrice, 0m, basisQty)
             });
         }
+
+        return MergeMetalSurchargeLines(rawLines);
+    }
+
+    private static List<InvoiceLine> MergeMetalSurchargeLines(List<InvoiceLine> rawLines)
+    {
+        var result = new List<InvoiceLine>();
+        foreach (var line in rawLines)
+        {
+            if (!IsMetalSurchargeLine(line))
+            {
+                line.Position = result.Count + 1;
+                result.Add(line);
+                continue;
+            }
+
+            var target = FindBestMetalSurchargeTarget(result, line);
+            if (target == null)
+            {
+                line.Position = result.Count + 1;
+                result.Add(line);
+                continue;
+            }
+
+            var surchargeTotal = line.LineTotal > 0m
+                ? line.LineTotal
+                : PricingHelper.CalculateLineTotal(line.Quantity, line.NetUnitPrice, line.MetalSurcharge, line.PriceBasisQuantity);
+            var basisQuantity = target.PriceBasisQuantity <= 0m ? 1m : target.PriceBasisQuantity;
+            if (target.Quantity > 0m)
+            {
+                target.MetalSurcharge += surchargeTotal * basisQuantity / target.Quantity;
+            }
+            target.LineTotal += surchargeTotal;
+        }
+
+        for (var i = 0; i < result.Count; i++)
+        {
+            result[i].Position = i + 1;
+        }
+
         return result;
+    }
+
+    private static InvoiceLine? FindBestMetalSurchargeTarget(IEnumerable<InvoiceLine> candidates, InvoiceLine surchargeLine)
+    {
+        return candidates
+            .Where(line => !IsMetalSurchargeLine(line))
+            .Select(line => new { Line = line, Score = ScoreMetalSurchargeTarget(line, surchargeLine) })
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .Select(x => x.Line)
+            .FirstOrDefault();
+    }
+
+    private static int ScoreMetalSurchargeTarget(InvoiceLine candidate, InvoiceLine surchargeLine)
+    {
+        var score = 0;
+        if (candidate.Quantity > 0m && surchargeLine.Quantity > 0m && candidate.Quantity == surchargeLine.Quantity)
+        {
+            score += 50;
+        }
+
+        if (string.Equals(candidate.Unit, surchargeLine.Unit, StringComparison.OrdinalIgnoreCase))
+        {
+            score += 20;
+        }
+
+        if (string.Equals(candidate.Unit, "M", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 25;
+        }
+
+        if (LooksLikeCable(candidate))
+        {
+            score += 20;
+        }
+
+        return score;
+    }
+
+    private static bool LooksLikeCable(InvoiceLine line)
+    {
+        var text = $"{line.ArticleNumber} {line.Description}";
+        return CableRegex.IsMatch(text);
+    }
+
+    private static bool IsMetalSurchargeLine(InvoiceLine line)
+    {
+        var text = $"{line.ArticleNumber} {line.Description}";
+        return MetalSurchargeRegex.IsMatch(text);
     }
 
     private static string ExtractEan(XElement? product)

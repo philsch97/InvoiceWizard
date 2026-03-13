@@ -40,6 +40,7 @@ public class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 Quantity = line.Quantity,
                 Unit = line.Unit,
                 NetUnitPrice = line.NetUnitPrice,
+                MetalSurcharge = line.MetalSurcharge,
                 GrossListPrice = line.GrossListPrice,
                 PriceBasisQuantity = line.PriceBasisQuantity,
                 LineTotal = line.LineTotal
@@ -109,6 +110,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             Quantity = line.Quantity,
             Unit = line.Unit,
             NetUnitPrice = line.NetUnitPrice,
+            MetalSurcharge = line.MetalSurcharge,
             GrossListPrice = line.GrossListPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
             LineTotal = line.LineTotal,
@@ -130,6 +132,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             Description = allocation.InvoiceLine.Description,
             Unit = allocation.InvoiceLine.Unit,
             NetUnitPrice = allocation.InvoiceLine.NetUnitPrice,
+            MetalSurcharge = allocation.InvoiceLine.MetalSurcharge,
             PriceBasisQuantity = allocation.InvoiceLine.PriceBasisQuantity,
             CustomerId = allocation.CustomerId,
             CustomerName = allocation.Customer.Name,
@@ -188,6 +191,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
                 NetUnitPrice = x.InvoiceLine.NetUnitPrice,
+                MetalSurcharge = x.InvoiceLine.MetalSurcharge,
                 PriceBasisQuantity = x.InvoiceLine.PriceBasisQuantity,
                 CustomerId = x.CustomerId,
                 CustomerName = x.Customer.Name,
@@ -270,6 +274,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
                 NetUnitPrice = x.InvoiceLine.NetUnitPrice,
+                MetalSurcharge = x.InvoiceLine.MetalSurcharge,
                 PriceBasisQuantity = x.InvoiceLine.PriceBasisQuantity,
                 CustomerId = x.CustomerId,
                 CustomerName = x.Customer.Name,
@@ -444,7 +449,7 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         }
         else
         {
-            expenses = allocations.Sum(x => x.AllocatedQuantity * (x.InvoiceLine.NetUnitPrice / (x.InvoiceLine.PriceBasisQuantity <= 0m ? 1m : x.InvoiceLine.PriceBasisQuantity)));
+            expenses = allocations.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine));
         }
 
         var revenue = paidAllocationRevenue + paidWorkRevenue;
@@ -473,7 +478,7 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         {
             expensesByMonth = allocations
                 .GroupBy(x => new DateTime(x.InvoiceLine.Invoice.InvoiceDate.Year, x.InvoiceLine.Invoice.InvoiceDate.Month, 1))
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.AllocatedQuantity * (x.InvoiceLine.NetUnitPrice / (x.InvoiceLine.PriceBasisQuantity <= 0m ? 1m : x.InvoiceLine.PriceBasisQuantity))));
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine)));
         }
 
         var maxValue = months.Select(m => Math.Max(revenueByMonth.GetValueOrDefault(m), expensesByMonth.GetValueOrDefault(m))).DefaultIfEmpty(1m).Max();
@@ -530,5 +535,18 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
         return allocation.AllocatedQuantity * allocation.CustomerUnitPrice;
     }
+
+    private static decimal GetPurchaseUnitPrice(InvoiceLine line)
+    {
+        var divisor = line.PriceBasisQuantity <= 0m ? 1m : line.PriceBasisQuantity;
+        return (line.NetUnitPrice + line.MetalSurcharge) / divisor;
+    }
 }
+
+
+
+
+
+
+
 
