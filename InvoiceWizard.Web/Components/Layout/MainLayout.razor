@@ -61,7 +61,7 @@ else
         <NavMenu />
 
         <main class="shell-content">
-            <article class="panel">
+            <article class="panel" @key="Auth.CurrentSession?.AccessToken">
                 @Body
             </article>
         </main>
@@ -89,3 +89,4 @@ else
         Auth.StateChanged -= HandleAuthChanged;
     }
 }
+

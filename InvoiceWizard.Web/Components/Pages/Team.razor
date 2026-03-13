@@ -118,8 +118,14 @@
     private CreateTenantUserModel CreateModel { get; set; } = new();
     private string? StatusMessage { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        if (!Auth.IsInitialized || !Auth.IsAuthenticated)
+        {
+            Users = [];
+            return;
+        }
+
         await LoadAsync();
     }
 
@@ -174,3 +180,5 @@
         public string PendingPassword { get; set; } = string.Empty;
     }
 }
+
+

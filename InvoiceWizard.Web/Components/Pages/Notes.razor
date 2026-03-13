@@ -1,5 +1,6 @@
 @page "/notes"
 @inject BackendApiClient Api
+@inject WebAuthSession Auth
 
 <PageTitle>Notizen & ToDos</PageTitle>
 
@@ -167,14 +168,26 @@
     private IBrowserFile? SelectedAttachmentFile { get; set; }
     private string? StatusMessage { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        if (!Auth.IsInitialized || !Auth.IsAuthenticated)
+        {
+            Customers = [];
+            Projects = [];
+            Lists = [];
+            SelectedCustomerId = null;
+            SelectedProjectId = null;
+            SelectedList = null;
+            return;
+        }
+
         Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
-        if (Customers.Count > 0)
+        if (!SelectedCustomerId.HasValue && Customers.Count > 0)
         {
             SelectedCustomerId = Customers[0].CustomerId;
-            await OnCustomerChangedAsync();
         }
+
+        await OnCustomerChangedAsync();
     }
 
     private async Task OnCustomerChangedAsync()
@@ -372,3 +385,5 @@
         }
     };
 }
+
+

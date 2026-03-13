@@ -1,5 +1,6 @@
 ﻿@page "/"
 @inject BackendApiClient Api
+@inject WebAuthSession Auth
 
 <PageTitle>Status</PageTitle>
 
@@ -34,10 +35,16 @@
 @code {
     private DashboardSummary Summary { get; set; } = new();
     private string? ErrorMessage { get; set; }
+    private bool HasLoaded { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadAsync();
+        if (!HasLoaded && Auth.IsInitialized && Auth.IsAuthenticated)
+        {
+            HasLoaded = true;
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadAsync()

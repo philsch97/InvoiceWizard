@@ -1,5 +1,6 @@
 @page "/projectdata"
 @inject BackendApiClient Api
+@inject WebAuthSession Auth
 
 <PageTitle>Projektdaten</PageTitle>
 
@@ -97,8 +98,19 @@
     private int? SelectedProjectId { get; set; }
     private string? StatusMessage { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        if (!Auth.IsInitialized || !Auth.IsAuthenticated)
+        {
+            Customers = [];
+            Projects = [];
+            SelectedCustomerId = null;
+            SelectedProjectId = null;
+            CurrentProject = null;
+            Details = new ProjectDetailsItem();
+            return;
+        }
+
         await ReloadAsync();
     }
 
@@ -236,4 +248,5 @@
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+
 

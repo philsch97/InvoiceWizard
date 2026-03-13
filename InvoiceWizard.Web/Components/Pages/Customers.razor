@@ -1,5 +1,6 @@
 @page "/customers"
 @inject BackendApiClient Api
+@inject WebAuthSession Auth
 
 <PageTitle>Kunden & Projekte</PageTitle>
 
@@ -125,8 +126,17 @@
     private int? SelectedCustomerId { get; set; }
     private string? StatusMessage { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        if (!Auth.IsInitialized || !Auth.IsAuthenticated)
+        {
+            CustomerItems = [];
+            Projects = [];
+            EditingCustomerId = null;
+            SelectedCustomerId = null;
+            return;
+        }
+
         await LoadAsync();
     }
 
@@ -232,3 +242,5 @@
         return string.Join(", ", new[] { left, right }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 }
+
+

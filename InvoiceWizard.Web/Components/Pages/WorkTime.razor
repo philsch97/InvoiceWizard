@@ -1,5 +1,6 @@
 @page "/worktime"
 @inject BackendApiClient Api
+@inject WebAuthSession Auth
 
 <PageTitle>Arbeitszeit</PageTitle>
 
@@ -144,17 +145,43 @@
         set => Form.EndTime = TimeSpan.TryParse(value, out var result) ? result : new TimeSpan(16, 30, 0);
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        Customers = (await Api.GetCustomersAsync()).ToList();
-        if (Customers.Count > 0)
+        if (!Auth.IsInitialized || !Auth.IsAuthenticated)
         {
-            Form.CustomerId = Customers[0].CustomerId;
-            await LoadProjectsForSelectedCustomerAsync();
-            await HandleFilterCustomerChangedAsync();
+            Customers = [];
+            AvailableProjects = [];
+            FilterProjects = [];
+            Entries = [];
+            FilterCustomerId = null;
+            FilterProjectId = null;
+            return;
         }
 
-        await ReloadAsync();
+        Customers = (await Api.GetCustomersAsync()).ToList();
+        if (Customers.Count == 0)
+        {
+            AvailableProjects = [];
+            FilterProjects = [];
+            Entries = [];
+            Form.CustomerId = 0;
+            FilterCustomerId = null;
+            FilterProjectId = null;
+            return;
+        }
+
+        if (Form.CustomerId <= 0 || Customers.All(x => x.CustomerId != Form.CustomerId))
+        {
+            Form.CustomerId = Customers[0].CustomerId;
+        }
+
+        if (!FilterCustomerId.HasValue || Customers.All(x => x.CustomerId != FilterCustomerId.Value))
+        {
+            FilterCustomerId = Customers[0].CustomerId;
+        }
+
+        await LoadProjectsForSelectedCustomerAsync();
+        await HandleFilterCustomerChangedAsync();
     }
 
     private async Task LoadProjectsForSelectedCustomerAsync()
@@ -215,3 +242,5 @@
         await ReloadAsync();
     }
 }
+
+
