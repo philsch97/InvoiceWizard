@@ -47,15 +47,30 @@ public partial class DataHandling : Page
         }
 
         var selectedRow = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().First();
+        var defaultUnitPrice = PricingHelper.NormalizeUnitPrice(selectedRow.Line.NetUnitPrice, selectedRow.Line.MetalSurcharge, selectedRow.Line.PriceBasisQuantity);
+        var hasCustomPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice);
+
+        if (LooksLikeSwappedQuantityAndPrice(qty, enteredPrice, hasCustomPrice, selectedRow.RemainingQuantity, defaultUnitPrice))
+        {
+            var suggestion = $"Im Feld 'Preis/Stk' steht {enteredPrice:0.##}, waehrend die Menge noch 1 ist. Soll stattdessen die Menge auf {enteredPrice:0.##} gesetzt und der Standardpreis von {defaultUnitPrice:0.##} verwendet werden?";
+            if (MessageBox.Show(suggestion, "Eingabe pruefen", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                qty = enteredPrice;
+                hasCustomPrice = false;
+                CustomerPriceText.Clear();
+                AllocateQtyText.Text = qty.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
+            }
+        }
+
         if (qty > selectedRow.RemainingQuantity)
         {
             SetStatus($"Die Restmenge betraegt {selectedRow.RemainingQuantity:0.##}.", StatusMessageType.Warning);
             return;
         }
 
-        var customerUnitPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice)
+        var customerUnitPrice = hasCustomPrice
             ? enteredPrice
-            : PricingHelper.NormalizeUnitPrice(selectedRow.Line.NetUnitPrice, selectedRow.Line.MetalSurcharge, selectedRow.Line.PriceBasisQuantity);
+            : defaultUnitPrice;
 
         try
         {
@@ -199,6 +214,26 @@ public partial class DataHandling : Page
             || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     }
 
+    private static bool LooksLikeSwappedQuantityAndPrice(decimal quantity, decimal enteredPrice, bool hasCustomPrice, decimal remainingQuantity, decimal defaultUnitPrice)
+    {
+        if (!hasCustomPrice || quantity != 1m)
+        {
+            return false;
+        }
+
+        if (enteredPrice <= 1m || enteredPrice != decimal.Truncate(enteredPrice))
+        {
+            return false;
+        }
+
+        if (enteredPrice > remainingQuantity)
+        {
+            return false;
+        }
+
+        return defaultUnitPrice > 0m && enteredPrice < (defaultUnitPrice / 2m);
+    }
+
     private void SetStatus(string message, StatusMessageType type)
     {
         StatusText.Text = message;
@@ -213,6 +248,7 @@ public partial class DataHandling : Page
         return (Brush)FindResource(key);
     }
 }
+
 
 
 

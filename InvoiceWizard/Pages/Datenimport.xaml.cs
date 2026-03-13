@@ -331,6 +331,7 @@ public partial class Datenimport : Page
             var lineTotal = ParseInvariant(item.Descendants(ram + "LineTotalAmount").FirstOrDefault()?.Value);
             var basisQty = ParseInvariant(basisQtyElement?.Value);
             if (basisQty <= 0m) basisQty = 1m;
+            var metalSurcharge = ExtractMetalSurchargeFromAllowanceCharges(item, quantity, basisQty);
 
             rawLines.Add(new InvoiceLine
             {
@@ -341,9 +342,10 @@ public partial class Datenimport : Page
                 Quantity = quantity,
                 Unit = MapUnitCode(qtyElement?.Attribute("unitCode")?.Value ?? "ST"),
                 NetUnitPrice = netPrice,
+                MetalSurcharge = metalSurcharge,
                 GrossListPrice = grossPrice,
                 PriceBasisQuantity = basisQty,
-                LineTotal = lineTotal > 0m ? lineTotal : PricingHelper.CalculateLineTotal(quantity, netPrice, 0m, basisQty)
+                LineTotal = lineTotal > 0m ? lineTotal : PricingHelper.CalculateLineTotal(quantity, netPrice, metalSurcharge, basisQty)
             });
         }
 
@@ -438,6 +440,28 @@ public partial class Datenimport : Page
         return MetalSurchargeRegex.IsMatch(text);
     }
 
+    private static decimal ExtractMetalSurchargeFromAllowanceCharges(XElement item, decimal quantity, decimal basisQuantity)
+    {
+        var surchargeTotal = item.Descendants(ram + "SpecifiedTradeAllowanceCharge")
+            .Where(x => ParseBooleanIndicator(x.Element(ram + "ChargeIndicator")?.Element(udt + "Indicator")?.Value))
+            .Where(x => MetalSurchargeRegex.IsMatch((x.Element(ram + "Reason")?.Value ?? string.Empty).Trim()))
+            .Sum(x => ParseInvariant(x.Element(ram + "ActualAmount")?.Value));
+
+        if (surchargeTotal <= 0m || quantity <= 0m)
+        {
+            return 0m;
+        }
+
+        var divisor = basisQuantity <= 0m ? 1m : basisQuantity;
+        return surchargeTotal * divisor / quantity;
+    }
+
+    private static bool ParseBooleanIndicator(string? value)
+    {
+        return string.Equals((value ?? string.Empty).Trim(), "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals((value ?? string.Empty).Trim(), "1", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ExtractEan(XElement? product)
     {
         if (product == null) return "";
@@ -462,3 +486,4 @@ public partial class Datenimport : Page
         return (Brush)FindResource(key);
     }
 }
+
