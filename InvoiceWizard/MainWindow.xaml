@@ -27,18 +27,60 @@
                     <TextBlock x:Name="UserInfoText" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
                 </StackPanel>
 
-                <WrapPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0">
-                    <Button x:Name="ImportButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnungsimport" Click="Datenimport_Click"/>
-                    <Button x:Name="AllocationButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Positionen zuweisen" Click="Datenhandling_Click"/>
-                    <Button x:Name="CustomerButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kundenpflege" Click="CustomerHandling_Click"/>
-                    <Button x:Name="BillingExportButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Abrechnung / Export" Click="BillingExport_Click"/>
-                    <Button x:Name="ProjectContactsButton" Width="160" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Projektdaten" Click="ProjectContacts_Click"/>
-                    <Button x:Name="WorkTimeButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Arbeitszeit" Click="WorkTime_Click"/>
-                    <Button x:Name="CalendarButton" Width="140" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kalender" Click="Calendar_Click"/>
-                    <Button x:Name="NotesButton" Width="140" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Notizen" Click="Notes_Click"/>
-                    <Button x:Name="TenantUsersButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Benutzer" Click="TenantUsers_Click" Visibility="Collapsed"/>
-                    <Button x:Name="AnalyticsButton" Width="150" Height="42" Style="{StaticResource SecondaryButtonStyle}" Content="Auswertung" Click="Analytics_Click"/>
-                </WrapPanel>
+                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Auto" Margin="0,0,16,0">
+                    <WrapPanel VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,10,0" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Material" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="ImportButton" Width="150" Height="40" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnungsimport" Click="Datenimport_Click"/>
+                                    <Button x:Name="AllocationButton" Width="160" Height="40" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Content="Positionen zuweisen" Click="Datenhandling_Click"/>
+                                    <Button x:Name="BillingExportButton" Width="160" Height="40" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Content="Abrechnung / Export" Click="BillingExport_Click"/>
+                                    <Button x:Name="WorkTimeButton" Width="130" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Arbeitszeit" Click="WorkTime_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,10,0" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Stammdaten" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="CustomerButton" Width="140" Height="40" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kundenpflege" Click="CustomerHandling_Click"/>
+                                    <Button x:Name="ProjectContactsButton" Width="130" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Projektdaten" Click="ProjectContacts_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,10,0" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Organisation" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="CalendarButton" Width="110" Height="40" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kalender" Click="Calendar_Click"/>
+                                    <Button x:Name="NotesButton" Width="110" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Notizen" Click="Notes_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="AdminGroupBorder" Style="{StaticResource CardStyle}" Margin="0,0,10,0" Padding="12" Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="Admin" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="SubscriptionButton" Width="150" Height="40" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" Content="Abo / Lizenz" Click="Subscription_Click" Visibility="Collapsed"/>
+                                    <Button x:Name="TenantUsersButton" Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Benutzer" Click="TenantUsers_Click" Visibility="Collapsed"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardStyle}" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="Analyse" Foreground="{StaticResource MutedTextBrush}" FontSize="12" FontWeight="SemiBold"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="AnalyticsButton" Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Auswertung" Click="Analytics_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                </ScrollViewer>
 
                 <Button Grid.Column="3" Width="120" Height="42" Content="Abmelden" Style="{StaticResource SecondaryButtonStyle}" Click="Logout_Click"/>
             </Grid>

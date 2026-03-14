@@ -33,6 +33,124 @@ public class TenantLicensesController(InvoiceWizardDbContext db) : ControllerBas
         return Ok(items.Select(MapLicense).ToList());
     }
 
+    [HttpGet("plans")]
+    public async Task<ActionResult<IReadOnlyList<SubscriptionPlanListItemDto>>> GetPlansForTenantAdmins(CancellationToken cancellationToken)
+    {
+        if (!User.IsInRole(TenantRoles.Admin) && !await IsPlatformAdminAsync(cancellationToken))
+        {
+            return Forbid();
+        }
+
+        var plans = await db.SubscriptionPlans
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Name)
+            .Select(x => new SubscriptionPlanListItemDto
+            {
+                SubscriptionPlanId = x.SubscriptionPlanId,
+                Code = x.Code,
+                Name = x.Name,
+                MaxUsers = x.MaxUsers,
+                MaxProjects = x.MaxProjects,
+                MaxCustomers = x.MaxCustomers,
+                IncludesMobileAccess = x.IncludesMobileAccess
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(plans);
+    }
+
+    [HttpGet("current")]
+    public async Task<ActionResult<TenantLicenseAdminDto>> GetCurrentTenantLicense([FromServices] ICurrentTenantAccessor currentTenantAccessor, CancellationToken cancellationToken)
+    {
+        if (!User.IsInRole(TenantRoles.Admin))
+        {
+            return Forbid();
+        }
+
+        var tenantId = await currentTenantAccessor.GetTenantIdAsync(cancellationToken);
+        var license = await db.TenantLicenses
+            .AsNoTracking()
+            .Include(x => x.Tenant)
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.ValidFrom)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (license is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(MapLicense(license));
+    }
+
+    [HttpPost("current/cancel")]
+    public async Task<ActionResult<TenantLicenseAdminDto>> CancelCurrentTenantLicense([FromServices] ICurrentTenantAccessor currentTenantAccessor, CancellationToken cancellationToken)
+    {
+        if (!User.IsInRole(TenantRoles.Admin))
+        {
+            return Forbid();
+        }
+
+        var tenantId = await currentTenantAccessor.GetTenantIdAsync(cancellationToken);
+        var license = await db.TenantLicenses
+            .Include(x => x.Tenant)
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.ValidFrom)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (license is null)
+        {
+            return NotFound();
+        }
+
+        license.CancelledAt = DateTime.UtcNow;
+        license.RenewsAutomatically = false;
+        if (!license.ValidUntil.HasValue)
+        {
+            license.ValidUntil = license.NextBillingDate ?? AuthController.CalculateNextBillingDate(DateTime.UtcNow, license.BillingCycle) ?? DateTime.UtcNow.Date;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return Ok(MapLicense(license));
+    }
+
+    [HttpPut("current/plan")]
+    public async Task<ActionResult<TenantLicenseAdminDto>> UpdateCurrentTenantPlan([FromServices] ICurrentTenantAccessor currentTenantAccessor, [FromBody] UpdateCurrentTenantPlanRequest request, CancellationToken cancellationToken)
+    {
+        if (!User.IsInRole(TenantRoles.Admin))
+        {
+            return Forbid();
+        }
+
+        var tenantId = await currentTenantAccessor.GetTenantIdAsync(cancellationToken);
+        var planCode = (request.PlanCode ?? string.Empty).Trim().ToLowerInvariant();
+        var plan = await db.SubscriptionPlans.FirstOrDefaultAsync(x => x.Code == planCode && x.IsActive, cancellationToken);
+        if (plan is null)
+        {
+            return ValidationProblem("Der ausgewaehlte Tarif wurde nicht gefunden.");
+        }
+
+        var license = await db.TenantLicenses
+            .Include(x => x.Tenant)
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.ValidFrom)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (license is null)
+        {
+            return NotFound();
+        }
+
+        license.SubscriptionPlanId = plan.SubscriptionPlanId;
+        license.SubscriptionPlan = plan;
+        await db.SaveChangesAsync(cancellationToken);
+        return Ok(MapLicense(license));
+    }
+
     [HttpPut("{tenantLicenseId:int}")]
     public async Task<ActionResult<TenantLicenseAdminDto>> UpdateTenantLicense(int tenantLicenseId, [FromBody] UpdateTenantLicenseRequest request, CancellationToken cancellationToken)
     {

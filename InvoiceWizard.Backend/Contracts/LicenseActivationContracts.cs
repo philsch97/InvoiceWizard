@@ -101,3 +101,10 @@ public class UpdateTenantLicenseRequest
     public bool? IncludesMobileAccessOverride { get; set; }
     public bool IsActive { get; set; } = true;
 }
+
+public class UpdateCurrentTenantPlanRequest
+{
+    [Required]
+    [MaxLength(100)]
+    public string PlanCode { get; set; } = "";
+}

@@ -220,23 +220,41 @@ public partial class TenantUsersPage : Page
 
         try
         {
-            _selectedManagedLicense.PlanCode = selectedPlan.Code;
-            _selectedManagedLicense.BillingCycle = ManagedBillingCycleCombo.SelectedItem as string ?? "Monthly";
-            _selectedManagedLicense.PriceNet = priceNet;
-            _selectedManagedLicense.RenewsAutomatically = ManagedRenewsAutomaticallyCheck.IsChecked == true;
-            _selectedManagedLicense.ValidUntil = ManagedValidUntilPicker.SelectedDate;
-            _selectedManagedLicense.NextBillingDate = ManagedNextBillingDatePicker.SelectedDate;
-            _selectedManagedLicense.CancelledAt = ManagedCancelledAtPicker.SelectedDate;
-            _selectedManagedLicense.GraceUntil = ManagedGraceUntilPicker.SelectedDate;
-            _selectedManagedLicense.MaxUsers = maxUsers ?? selectedPlan.MaxUsers;
-            _selectedManagedLicense.MaxProjects = maxProjects ?? selectedPlan.MaxProjects;
-            _selectedManagedLicense.MaxCustomers = maxCustomers ?? selectedPlan.MaxCustomers;
-            _selectedManagedLicense.IncludesMobileAccess = ManagedIncludesMobileAccessCheck.IsChecked == true;
-            _selectedManagedLicense.IsActive = ManagedIsActiveCheck.IsChecked == true;
+            var request = new ManagedTenantLicenseViewModel
+            {
+                TenantLicenseId = _selectedManagedLicense.TenantLicenseId,
+                TenantId = _selectedManagedLicense.TenantId,
+                TenantName = _selectedManagedLicense.TenantName,
+                TenantSlug = _selectedManagedLicense.TenantSlug,
+                PlanCode = selectedPlan.Code,
+                BillingCycle = ManagedBillingCycleCombo.SelectedItem as string ?? "Monthly",
+                PriceNet = priceNet,
+                RenewsAutomatically = ManagedRenewsAutomaticallyCheck.IsChecked == true,
+                ValidFrom = _selectedManagedLicense.ValidFrom,
+                ValidUntil = ManagedValidUntilPicker.SelectedDate,
+                NextBillingDate = ManagedNextBillingDatePicker.SelectedDate,
+                CancelledAt = ManagedCancelledAtPicker.SelectedDate,
+                GraceUntil = ManagedGraceUntilPicker.SelectedDate,
+                MaxUsers = maxUsers ?? selectedPlan.MaxUsers,
+                MaxProjects = maxProjects ?? selectedPlan.MaxProjects,
+                MaxCustomers = maxCustomers ?? selectedPlan.MaxCustomers,
+                IncludesMobileAccess = ManagedIncludesMobileAccessCheck.IsChecked == true,
+                IsActive = ManagedIsActiveCheck.IsChecked == true
+            };
 
-            var updated = await App.Api.UpdateManagedTenantLicenseAsync(_selectedManagedLicense);
-            await LoadLicensingAsync(updated.TenantLicenseId);
-            SetStatus($"Lizenz fuer {updated.TenantName} wurde gespeichert.", StatusMessageType.Success);
+            var updated = await App.Api.UpdateManagedTenantLicenseAsync(request);
+            var index = _managedLicenses.FindIndex(x => x.TenantLicenseId == updated.TenantLicenseId);
+            if (index >= 0)
+            {
+                _managedLicenses[index] = updated;
+                ManagedLicensesGrid.ItemsSource = null;
+                ManagedLicensesGrid.ItemsSource = _managedLicenses;
+            }
+
+            _selectedManagedLicense = updated;
+            ManagedLicensesGrid.SelectedItem = updated;
+            ApplySelectedManagedLicense(updated);
+            SetStatus($"Lizenz fuer {updated.TenantName} wurde gespeichert. Neuer Status: {updated.Status}.", StatusMessageType.Success);
         }
         catch (Exception ex)
         {

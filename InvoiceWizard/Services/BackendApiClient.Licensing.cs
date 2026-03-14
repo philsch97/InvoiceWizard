@@ -32,6 +32,27 @@ public partial class BackendApiClient
         return items.Select(MapManagedTenantLicense).ToList();
     }
 
+    public async Task<List<SubscriptionPlanViewModel>> GetTenantSubscriptionPlansAsync()
+    {
+        var items = await _httpClient.GetFromJsonAsync<List<SubscriptionPlanDto>>("api/tenant-licenses/plans", _jsonOptions) ?? [];
+        return items.Select(x => new SubscriptionPlanViewModel
+        {
+            SubscriptionPlanId = x.SubscriptionPlanId,
+            Code = x.Code,
+            Name = x.Name,
+            MaxUsers = x.MaxUsers,
+            MaxProjects = x.MaxProjects,
+            MaxCustomers = x.MaxCustomers,
+            IncludesMobileAccess = x.IncludesMobileAccess
+        }).ToList();
+    }
+
+    public async Task<ManagedTenantLicenseViewModel> GetCurrentTenantLicenseAsync()
+    {
+        var item = await _httpClient.GetFromJsonAsync<ManagedTenantLicenseDto>("api/tenant-licenses/current", _jsonOptions) ?? new ManagedTenantLicenseDto();
+        return MapManagedTenantLicense(item);
+    }
+
     public async Task<LicenseActivationViewModel> CreateLicenseActivationAsync(string planCode, string? customerEmail, DateTime? validUntil, int? maxUsersOverride, int? maxProjectsOverride, int? maxCustomersOverride, bool? includesMobileAccessOverride, string billingCycle, decimal priceNet, bool renewsAutomatically)
     {
         var response = await _httpClient.PostAsJsonAsync("api/license-activations", new
@@ -69,6 +90,20 @@ public partial class BackendApiClient
             includesMobileAccessOverride = item.IncludesMobileAccess,
             isActive = item.IsActive
         });
+        response.EnsureSuccessStatusCode();
+        return MapManagedTenantLicense((await response.Content.ReadFromJsonAsync<ManagedTenantLicenseDto>(_jsonOptions)) ?? new ManagedTenantLicenseDto());
+    }
+
+    public async Task<ManagedTenantLicenseViewModel> CancelCurrentTenantLicenseAsync()
+    {
+        var response = await _httpClient.PostAsync("api/tenant-licenses/current/cancel", null);
+        response.EnsureSuccessStatusCode();
+        return MapManagedTenantLicense((await response.Content.ReadFromJsonAsync<ManagedTenantLicenseDto>(_jsonOptions)) ?? new ManagedTenantLicenseDto());
+    }
+
+    public async Task<ManagedTenantLicenseViewModel> UpdateCurrentTenantPlanAsync(string planCode)
+    {
+        var response = await _httpClient.PutAsJsonAsync("api/tenant-licenses/current/plan", new { planCode });
         response.EnsureSuccessStatusCode();
         return MapManagedTenantLicense((await response.Content.ReadFromJsonAsync<ManagedTenantLicenseDto>(_jsonOptions)) ?? new ManagedTenantLicenseDto());
     }

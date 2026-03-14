@@ -48,7 +48,7 @@ public partial class BackendApiClient
             email,
             password
         });
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response);
         var session = await response.Content.ReadFromJsonAsync<AuthResponseDto>(_jsonOptions) ?? new AuthResponseDto();
         return MapAuthSession(session);
     }
@@ -63,7 +63,7 @@ public partial class BackendApiClient
             email,
             password
         });
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response);
         var session = await response.Content.ReadFromJsonAsync<AuthResponseDto>(_jsonOptions) ?? new AuthResponseDto();
         return MapAuthSession(session);
     }
@@ -75,7 +75,7 @@ public partial class BackendApiClient
             email,
             password
         });
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response);
         var session = await response.Content.ReadFromJsonAsync<AuthResponseDto>(_jsonOptions) ?? new AuthResponseDto();
         return MapAuthSession(session);
     }
@@ -680,6 +680,38 @@ public partial class BackendApiClient
     private static string? NormalizeOptionalEmail(string? emailAddress)
     {
         return string.IsNullOrWhiteSpace(emailAddress) ? null : emailAddress.Trim();
+    }
+
+    private async Task EnsureSuccessWithMessageAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync();
+        var message = body;
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                if (document.RootElement.TryGetProperty("message", out var messageElement))
+                {
+                    message = messageElement.GetString() ?? body;
+                }
+                else if (document.RootElement.TryGetProperty("title", out var titleElement))
+                {
+                    message = titleElement.GetString() ?? body;
+                }
+            }
+            catch (JsonException)
+            {
+                message = body;
+            }
+        }
+
+        throw new HttpRequestException(message, null, response.StatusCode);
     }
 
     private class BootstrapStateDto

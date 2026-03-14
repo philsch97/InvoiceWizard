@@ -26,9 +26,10 @@ public partial class LoginWindow : Window
             LoginPanel.Visibility = hasUsers ? Visibility.Visible : Visibility.Collapsed;
             BootstrapPanel.Visibility = hasUsers ? Visibility.Collapsed : Visibility.Visible;
             IntroText.Text = hasUsers
-                ? "Melde dich an oder aktiviere mit einem Lizenzcode eine neue Firma."
+                ? "Melde dich an, um auf deine Firmendaten zuzugreifen."
                 : "Fuer diesen Server wird jetzt zuerst der erste Plattform-Admin eingerichtet.";
-            SetStatus(hasUsers ? "Bitte anmelden oder einen Aktivierungscode verwenden." : "Es wurde noch kein Benutzer gefunden. Bitte zuerst den ersten Plattform-Admin anlegen.", StatusMessageType.Info);
+            SetActivationVisible(false);
+            SetStatus(hasUsers ? "Bitte mit deinem bestehenden Zugang anmelden." : "Es wurde noch kein Benutzer gefunden. Bitte zuerst den ersten Plattform-Admin anlegen.", StatusMessageType.Info);
         }
         catch (Exception ex)
         {
@@ -113,7 +114,7 @@ public partial class LoginWindow : Window
         }
         catch (HttpRequestException ex)
         {
-            SetStatus($"Anmeldung fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+            SetStatus(GetFriendlyAuthError(ex), StatusMessageType.Error);
         }
         catch (Exception ex)
         {
@@ -131,9 +132,15 @@ public partial class LoginWindow : Window
         Close();
     }
 
+    private void ToggleActivation_Click(object sender, RoutedEventArgs e)
+    {
+        SetActivationVisible(ActivationPanel.Visibility != Visibility.Visible);
+    }
+
     private void ToggleBusy(bool isBusy)
     {
         LoginButton.IsEnabled = !isBusy;
+        ShowActivationButton.IsEnabled = !isBusy;
         ActivateLicenseButton.IsEnabled = !isBusy;
         CancelLoginButton.IsEnabled = !isBusy;
         BootstrapButton.IsEnabled = !isBusy;
@@ -153,5 +160,58 @@ public partial class LoginWindow : Window
     {
         var key = $"Status{type}{part}Brush";
         return (Brush)FindResource(key);
+    }
+
+    private void SetActivationVisible(bool isVisible)
+    {
+        ActivationPanel.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+        ShowActivationButton.Content = isVisible ? "Registrierung ausblenden" : "Neue Firma registrieren";
+        Height = isVisible ? 920 : 760;
+    }
+
+    private static string GetFriendlyAuthError(HttpRequestException ex)
+    {
+        var message = ex.Message;
+        if (message.Contains("ungueltig", StringComparison.OrdinalIgnoreCase) || message.Contains("passwort", StringComparison.OrdinalIgnoreCase))
+        {
+            return message;
+        }
+
+        if (message.Contains("keine gueltige lizenz", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Deine Lizenz ist abgelaufen oder aktuell nicht aktiv. Bitte wende dich an den Admin oder verlaengere das Abo.";
+        }
+
+        if (message.Contains("bereits verwendet", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Der Aktivierungscode wurde bereits verwendet.";
+        }
+
+        if (message.Contains("bereits vergeben", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Diese E-Mail-Adresse wird bereits verwendet.";
+        }
+
+        if (message.Contains("abgelaufen", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Die Lizenz oder der Aktivierungscode ist abgelaufen.";
+        }
+
+        if (message.Contains("nicht gefunden", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Der Aktivierungscode wurde nicht gefunden.";
+        }
+
+        if (message.Contains("reserviert", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Dieser Aktivierungscode ist fuer eine andere E-Mail-Adresse reserviert.";
+        }
+
+        if (message.Contains("invalid", StringComparison.OrdinalIgnoreCase) || message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+        {
+            return "E-Mail-Adresse oder Passwort sind nicht korrekt.";
+        }
+
+        return $"Anmeldung fehlgeschlagen: {message}";
     }
 }

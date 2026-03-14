@@ -6,6 +6,18 @@
       mc:Ignorable="d"
       d:DesignHeight="1080" d:DesignWidth="1320"
       Title="TenantUsersPage">
+    <Page.Resources>
+        <Style x:Key="LeftAlignedDateTextStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="LeftAlignedDatePickerStyle" TargetType="DatePicker">
+            <Setter Property="SelectedDateFormat" Value="Short"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+    </Page.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="18">
             <Grid.RowDefinitions>
@@ -134,7 +146,7 @@
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                 <TextBlock Text="Gueltig bis optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <DatePicker x:Name="ActivationValidUntilPicker"/>
+                                <DatePicker x:Name="ActivationValidUntilPicker" Style="{StaticResource LeftAlignedDatePickerStyle}"/>
                             </StackPanel>
                         </Grid>
 
@@ -192,7 +204,7 @@
                                 <DataGridTextColumn Header="Limits" Binding="{Binding LimitsLabel}" Width="170"/>
                                 <DataGridTextColumn Header="E-Mail" Binding="{Binding CustomerEmail}" Width="160"/>
                                 <DataGridTextColumn Header="Abo" Binding="{Binding BillingLabel}" Width="150"/>
-                                <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy}" Width="110"/>
+                                <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy, TargetNullValue=-}" Width="110" ElementStyle="{StaticResource LeftAlignedDateTextStyle}"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="150"/>
                             </DataGrid.Columns>
                         </DataGrid>
@@ -223,8 +235,8 @@
                                 <DataGridTextColumn Header="Firma" Binding="{Binding TenantName}" Width="2*"/>
                                 <DataGridTextColumn Header="Tarif" Binding="{Binding PlanName}" Width="*"/>
                                 <DataGridTextColumn Header="Abo" Binding="{Binding BillingLabel}" Width="140"/>
-                                <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy}" Width="110"/>
-                                <DataGridTextColumn Header="Naechste Abbuchung" Binding="{Binding NextBillingDate, StringFormat=dd.MM.yyyy}" Width="130"/>
+                                <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy, TargetNullValue=-}" Width="110" ElementStyle="{StaticResource LeftAlignedDateTextStyle}"/>
+                                <DataGridTextColumn Header="Naechste Abbuchung" Binding="{Binding NextBillingDate, StringFormat=dd.MM.yyyy, TargetNullValue=-}" Width="130" ElementStyle="{StaticResource LeftAlignedDateTextStyle}"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                             </DataGrid.Columns>
                         </DataGrid>
@@ -262,11 +274,11 @@
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Text="Gueltig bis" Style="{StaticResource MutedLabelStyle}"/>
-                                <DatePicker x:Name="ManagedValidUntilPicker"/>
+                                <DatePicker x:Name="ManagedValidUntilPicker" Style="{StaticResource LeftAlignedDatePickerStyle}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                 <TextBlock Text="Grace bis" Style="{StaticResource MutedLabelStyle}"/>
-                                <DatePicker x:Name="ManagedGraceUntilPicker"/>
+                                <DatePicker x:Name="ManagedGraceUntilPicker" Style="{StaticResource LeftAlignedDatePickerStyle}"/>
                             </StackPanel>
                         </Grid>
 
@@ -274,11 +286,11 @@
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Text="Naechste Abbuchung" Style="{StaticResource MutedLabelStyle}"/>
-                                <DatePicker x:Name="ManagedNextBillingDatePicker"/>
+                                <DatePicker x:Name="ManagedNextBillingDatePicker" Style="{StaticResource LeftAlignedDatePickerStyle}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                 <TextBlock Text="Gekuendigt am" Style="{StaticResource MutedLabelStyle}"/>
-                                <DatePicker x:Name="ManagedCancelledAtPicker"/>
+                                <DatePicker x:Name="ManagedCancelledAtPicker" Style="{StaticResource LeftAlignedDatePickerStyle}"/>
                             </StackPanel>
                         </Grid>
 
