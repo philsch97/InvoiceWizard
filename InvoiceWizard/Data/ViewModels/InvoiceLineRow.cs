@@ -11,7 +11,8 @@ public class InvoiceLineRow
     }
 
     public InvoiceLineEntity Line { get; }
-    public string InvoiceNumber => Line.Invoice?.InvoiceNumber ?? "";
+    public string InvoiceNumber => Line.InvoiceDisplayNumber;
+    public string ExpenseStatus => Line.ExpenseStatus;
     public int Position => Line.Position;
     public string ArticleNumber => Line.ArticleNumber;
     public string Ean => Line.Ean;
@@ -35,5 +36,3 @@ public class InvoiceLineRow
                 .Select(g => $"{g.Key}: {g.Sum(x => x.AllocatedQuantity):0.##}{(g.Any(x => x.IsSmallMaterial) ? " (KM)" : "")}"));
     public string PaidStatus => Line.IsPaid ? $"Bezahlt am {Line.PaidAt:dd.MM.yyyy}" : "Offen";
 }
-
-

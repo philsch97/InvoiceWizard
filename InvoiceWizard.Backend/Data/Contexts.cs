@@ -19,6 +19,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
     public DbSet<TodoList> TodoLists => Set<TodoList>();
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
     public DbSet<TodoAttachment> TodoAttachments => Set<TodoAttachment>();
+    public DbSet<CalendarEntry> CalendarEntries => Set<CalendarEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,6 +37,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<TodoList>().HasKey(x => x.TodoListId);
         modelBuilder.Entity<TodoItem>().HasKey(x => x.TodoItemId);
         modelBuilder.Entity<TodoAttachment>().HasKey(x => x.TodoAttachmentId);
+        modelBuilder.Entity<CalendarEntry>().HasKey(x => x.CalendarEntryId);
 
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<Tenant>().HasIndex(x => x.Slug).IsUnique();
@@ -60,6 +62,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<TodoList>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoItem>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoAttachment>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CalendarEntry>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Project>().HasOne(x => x.Customer).WithMany(x => x.Projects).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<InvoiceLine>().HasOne(x => x.Invoice).WithMany(x => x.Lines).HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
@@ -73,6 +76,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<TodoItem>().HasOne(x => x.TodoList).WithMany(x => x.Items).HasForeignKey(x => x.TodoListId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TodoItem>().HasOne(x => x.ParentTodoItem).WithMany(x => x.Children).HasForeignKey(x => x.ParentTodoItemId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoAttachment>().HasOne(x => x.TodoList).WithMany(x => x.Attachments).HasForeignKey(x => x.TodoListId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<CalendarEntry>().HasOne(x => x.AppUser).WithMany().HasForeignKey(x => x.AppUserId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Tenant>().Property(x => x.Name).HasMaxLength(200);
         modelBuilder.Entity<Tenant>().Property(x => x.Slug).HasMaxLength(200);
@@ -81,9 +85,12 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<UserTenantMembership>().Property(x => x.Role).HasMaxLength(50);
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Code).HasMaxLength(100);
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Name).HasMaxLength(200);
+        modelBuilder.Entity<CalendarEntry>().Property(x => x.Title).HasMaxLength(200);
+        modelBuilder.Entity<CalendarEntry>().Property(x => x.Location).HasMaxLength(200);
 
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceDate).HasColumnType("date");
         modelBuilder.Entity<WorkTimeEntry>().Property(x => x.WorkDate).HasColumnType("date");
+        modelBuilder.Entity<CalendarEntry>().Property(x => x.EntryDate).HasColumnType("date");
 
         modelBuilder.Entity<Customer>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<Project>().HasIndex(x => x.TenantId);
@@ -94,11 +101,13 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<TodoList>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<TodoItem>().HasIndex(x => x.TenantId);
         modelBuilder.Entity<TodoAttachment>().HasIndex(x => x.TenantId);
+        modelBuilder.Entity<CalendarEntry>().HasIndex(x => x.TenantId);
 
         modelBuilder.Entity<LineAllocation>().HasIndex(x => new { x.TenantId, x.InvoiceLineId, x.CustomerId, x.ProjectId, x.AllocatedQuantity });
         modelBuilder.Entity<WorkTimeEntry>().HasIndex(x => new { x.TenantId, x.CustomerId, x.ProjectId, x.WorkDate, x.StartTime, x.EndTime });
         modelBuilder.Entity<TodoList>().HasIndex(x => new { x.TenantId, x.CustomerId, x.ProjectId, x.UpdatedAt });
         modelBuilder.Entity<TodoItem>().HasIndex(x => new { x.TenantId, x.TodoListId, x.ParentTodoItemId, x.SortOrder });
         modelBuilder.Entity<TenantLicense>().HasIndex(x => new { x.TenantId, x.IsActive });
+        modelBuilder.Entity<CalendarEntry>().HasIndex(x => new { x.TenantId, x.AppUserId, x.EntryDate, x.StartTime });
     }
 }

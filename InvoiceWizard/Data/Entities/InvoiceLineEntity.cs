@@ -19,7 +19,8 @@ public class InvoiceLineEntity
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    public bool HasSupplierInvoice => Invoice?.HasSupplierInvoice ?? true;
+    public string InvoiceDisplayNumber => Invoice?.DisplayNumber ?? "";
+    public string ExpenseStatus => Invoice?.ExpenseStatus ?? "Mit Rechnung";
     public List<LineAllocationEntity> Allocations { get; set; } = new();
 }
-
-

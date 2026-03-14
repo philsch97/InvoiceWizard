@@ -34,6 +34,7 @@
                     <Button x:Name="BillingExportButton" Width="170" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Abrechnung / Export" Click="BillingExport_Click"/>
                     <Button x:Name="ProjectContactsButton" Width="160" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Projektdaten" Click="ProjectContacts_Click"/>
                     <Button x:Name="WorkTimeButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Arbeitszeit" Click="WorkTime_Click"/>
+                    <Button x:Name="CalendarButton" Width="140" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Kalender" Click="Calendar_Click"/>
                     <Button x:Name="NotesButton" Width="140" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Notizen" Click="Notes_Click"/>
                     <Button x:Name="TenantUsersButton" Width="150" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Benutzer" Click="TenantUsers_Click" Visibility="Collapsed"/>
                     <Button x:Name="AnalyticsButton" Width="150" Height="42" Style="{StaticResource SecondaryButtonStyle}" Content="Auswertung" Click="Analytics_Click"/>
@@ -48,4 +49,3 @@
         </Border>
     </Grid>
 </Window>
-

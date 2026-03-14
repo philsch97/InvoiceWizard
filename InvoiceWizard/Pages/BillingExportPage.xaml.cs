@@ -309,7 +309,7 @@ public partial class BillingExportPage : Page
         allocation.LastExportedAt = DateTime.Now;
         rows.Add(new ExcelExportService.ExportRow
         {
-            SupplierInvoiceNumber = allocation.InvoiceLine.Invoice.InvoiceNumber,
+            SupplierInvoiceNumber = allocation.InvoiceLine.InvoiceDisplayNumber,
             ArticleNumber = allocation.InvoiceLine.ArticleNumber,
             Ean = allocation.InvoiceLine.Ean,
             Description = $"[{projectLabel}] {allocation.InvoiceLine.Description}",
@@ -335,7 +335,7 @@ public partial class BillingExportPage : Page
             allocation.LastExportedAt = DateTime.Now;
             rows.Add(new ExcelExportService.ExportRow
             {
-                SupplierInvoiceNumber = allocation.InvoiceLine.Invoice.InvoiceNumber,
+                SupplierInvoiceNumber = allocation.InvoiceLine.InvoiceDisplayNumber,
                 ArticleNumber = string.IsNullOrWhiteSpace(allocation.InvoiceLine.ArticleNumber) ? "KLEINMAT" : allocation.InvoiceLine.ArticleNumber,
                 Ean = allocation.InvoiceLine.Ean,
                 Description = $"[{projectLabel}] Kleinmaterial: {allocation.InvoiceLine.Description}",
@@ -553,4 +553,5 @@ public partial class BillingExportPage : Page
         return (Brush)FindResource(key);
     }
 }
+
 

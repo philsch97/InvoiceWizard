@@ -42,6 +42,11 @@ public partial class MainWindow : Window
         NavigateTo(new WorkTimePage(), WorkTimeButton);
     }
 
+    private void Calendar_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(new CalendarPage(), CalendarButton);
+    }
+
     private void Notes_Click(object sender, RoutedEventArgs e)
     {
         NavigateTo(new NotesPage(), NotesButton);
@@ -96,7 +101,7 @@ public partial class MainWindow : Window
         var primaryStyle = (Style)FindResource(typeof(Button));
         var secondaryStyle = (Style)FindResource("SecondaryButtonStyle");
 
-        foreach (var button in new[] { ImportButton, AllocationButton, CustomerButton, BillingExportButton, ProjectContactsButton, WorkTimeButton, NotesButton, TenantUsersButton, AnalyticsButton })
+        foreach (var button in new[] { ImportButton, AllocationButton, CustomerButton, BillingExportButton, ProjectContactsButton, WorkTimeButton, CalendarButton, NotesButton, TenantUsersButton, AnalyticsButton })
         {
             if (button.Visibility != Visibility.Visible)
             {

@@ -22,10 +22,12 @@ public class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             return Conflict(new { message = "Invoice already exists." });
         }
 
+        var fallbackNumber = $"MANUELL-{DateTime.UtcNow:yyyyMMddHHmmss}";
         var invoice = new Invoice
         {
             TenantId = tenantId,
-            InvoiceNumber = request.InvoiceNumber.Trim(),
+            HasSupplierInvoice = request.HasSupplierInvoice,
+            InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? fallbackNumber : request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
             SupplierName = request.SupplierName.Trim(),
             SourcePdfPath = request.SourcePdfPath.Trim(),
@@ -103,6 +105,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             InvoiceId = line.InvoiceId,
             InvoiceNumber = line.Invoice.InvoiceNumber,
             InvoiceDate = line.Invoice.InvoiceDate,
+            HasSupplierInvoice = line.Invoice.HasSupplierInvoice,
             Position = line.Position,
             ArticleNumber = line.ArticleNumber,
             Ean = line.Ean,
@@ -128,6 +131,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             InvoiceLineId = allocation.InvoiceLineId,
             InvoiceNumber = allocation.InvoiceLine.Invoice.InvoiceNumber,
             InvoiceDate = allocation.InvoiceLine.Invoice.InvoiceDate,
+            HasSupplierInvoice = allocation.InvoiceLine.Invoice.HasSupplierInvoice,
             ArticleNumber = allocation.InvoiceLine.ArticleNumber,
             Description = allocation.InvoiceLine.Description,
             Unit = allocation.InvoiceLine.Unit,
@@ -187,6 +191,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 InvoiceLineId = x.InvoiceLineId,
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
+                HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,
                 ArticleNumber = x.InvoiceLine.ArticleNumber,
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
@@ -270,6 +275,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 InvoiceLineId = x.InvoiceLineId,
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
+                HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,
                 ArticleNumber = x.InvoiceLine.ArticleNumber,
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
@@ -445,7 +451,10 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         decimal expenses;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            expenses = await db.InvoiceLines.Where(x => x.TenantId == tenantId).Include(x => x.Invoice).Select(x => x.LineTotal).SumAsync();
+            expenses = await db.InvoiceLines
+                .Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
+                .Select(x => x.LineTotal)
+                .SumAsync();
         }
         else
         {
@@ -469,7 +478,8 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         Dictionary<DateTime, decimal> expensesByMonth;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            expensesByMonth = db.InvoiceLines.Where(x => x.TenantId == tenantId).Include(x => x.Invoice)
+            expensesByMonth = db.InvoiceLines.Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
+                .Include(x => x.Invoice)
                 .AsEnumerable()
                 .GroupBy(x => new DateTime(x.Invoice.InvoiceDate.Year, x.Invoice.InvoiceDate.Month, 1))
                 .ToDictionary(g => g.Key, g => g.Sum(x => x.LineTotal));
@@ -542,11 +552,3 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         return (line.NetUnitPrice + line.MetalSurcharge) / divisor;
     }
 }
-
-
-
-
-
-
-
-

@@ -61,6 +61,7 @@ public class Invoice
     public Tenant Tenant { get; set; } = null!;
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
+    public bool HasSupplierInvoice { get; set; } = true;
     public string SupplierName { get; set; } = "Sonepar";
     public string SourcePdfPath { get; set; } = "";
     public string ContentHash { get; set; } = "";
@@ -192,4 +193,19 @@ public class TodoAttachment
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 }
 
-
+public class CalendarEntry
+{
+    public int CalendarEntryId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public int AppUserId { get; set; }
+    public AppUser AppUser { get; set; } = null!;
+    public DateTime EntryDate { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Location { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}

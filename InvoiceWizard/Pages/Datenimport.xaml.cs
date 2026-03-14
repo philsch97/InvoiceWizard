@@ -1,15 +1,16 @@
 using InvoiceWizard.Data.ViewModels;
 using InvoiceWizard.Services;
+using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Xml.Linq;
-using Microsoft.Win32;
 
 namespace InvoiceWizard;
 
@@ -29,6 +30,7 @@ public partial class Datenimport : Page
         InitializeComponent();
         ManualLinesGrid.ItemsSource = _manualLines;
         InvoiceDatePicker.SelectedDate = DateTime.Today;
+        UpdateInvoiceModeUi();
         SetStatus("Bereit fuer den Import.", StatusMessageType.Info);
     }
 
@@ -56,6 +58,7 @@ public partial class Datenimport : Page
             SupplierNameText.Text = ExtractSupplierNameFromXml(doc);
             SourceInfoText.Text = dlg.FileName;
             _currentSourcePdfPath = dlg.FileName;
+            NoSupplierInvoiceCheckBox.IsChecked = false;
 
             _manualLines.Clear();
             foreach (var line in ParseZugferdPositions(doc))
@@ -75,6 +78,7 @@ public partial class Datenimport : Page
                 });
             }
 
+            UpdateInvoiceModeUi();
             SetStatus($"{_manualLines.Count} Position(en) aus ZUGFeRD geladen.", StatusMessageType.Success);
         }
         catch (Exception ex)
@@ -96,7 +100,7 @@ public partial class Datenimport : Page
         ClearLineInputs();
         _currentSourcePdfPath = "";
         _currentContentHash = "";
-        SourceInfoText.Text = "Manuelle Erfassung";
+        SourceInfoText.Text = NoSupplierInvoiceCheckBox.IsChecked == true ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
         SetStatus("Position erfolgreich hinzugefuegt.", StatusMessageType.Success);
     }
 
@@ -115,9 +119,11 @@ public partial class Datenimport : Page
 
     private async void SaveInvoice_Click(object sender, RoutedEventArgs e)
     {
+        var hasSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked != true;
         var invoiceNumber = (InvoiceNumberText.Text ?? "").Trim();
         var supplierName = (SupplierNameText.Text ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(invoiceNumber))
+
+        if (hasSupplierInvoice && string.IsNullOrWhiteSpace(invoiceNumber))
         {
             SetStatus("Bitte die Rechnungsnummer als Pflichtfeld ausfuellen.", StatusMessageType.Error);
             return;
@@ -125,7 +131,7 @@ public partial class Datenimport : Page
 
         if (InvoiceDatePicker.SelectedDate == null)
         {
-            SetStatus("Bitte ein Rechnungsdatum auswaehlen.", StatusMessageType.Error);
+            SetStatus("Bitte ein Datum auswaehlen.", StatusMessageType.Error);
             return;
         }
 
@@ -135,21 +141,52 @@ public partial class Datenimport : Page
             return;
         }
 
+        var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var invoiceDate = InvoiceDatePicker.SelectedDate.Value;
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
-            ? BuildManualHash(invoiceNumber, invoiceDate, supplierName, _manualLines)
+            ? BuildManualHash(effectiveInvoiceNumber, invoiceDate, supplierName, hasSupplierInvoice, _manualLines)
             : _currentContentHash;
 
         try
         {
-            await App.Api.SaveInvoiceAsync(invoiceNumber, invoiceDate, supplierName, _currentSourcePdfPath, hash, _manualLines);
+            await App.Api.SaveInvoiceAsync(effectiveInvoiceNumber, invoiceDate, supplierName, _currentSourcePdfPath, hash, _manualLines, hasSupplierInvoice);
             var importedLineCount = _manualLines.Count;
             ResetForm();
-            SetStatus($"Rechnung {invoiceNumber} mit {importedLineCount} Position(en) erfolgreich importiert.", StatusMessageType.Success);
+            var summary = hasSupplierInvoice
+                ? $"Rechnung {invoiceNumber} mit {importedLineCount} Position(en) erfolgreich importiert."
+                : $"Manuell hinzugefuegte Positionen ohne Lieferantenrechnung wurden mit {importedLineCount} Zeile(n) gespeichert.";
+            SetStatus(summary, StatusMessageType.Success);
         }
         catch (Exception ex)
         {
             SetStatus($"Speichern fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private void NoSupplierInvoiceCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (NoSupplierInvoiceCheckBox.IsChecked == true && !string.IsNullOrWhiteSpace(_currentSourcePdfPath))
+        {
+            _currentSourcePdfPath = "";
+            _currentContentHash = "";
+            SourceInfoText.Text = "Manuelle Erfassung ohne Rechnung";
+        }
+
+        UpdateInvoiceModeUi();
+    }
+
+    private void UpdateInvoiceModeUi()
+    {
+        var noSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked == true;
+        InvoiceNumberLabel.Text = noSupplierInvoice ? "Interne Referenz optional" : "Rechnungsnummer * Pflicht";
+        InvoiceDateLabel.Text = noSupplierInvoice ? "Erfassungsdatum * Pflicht" : "Rechnungsdatum * Pflicht";
+        ImportModeInfoText.Text = noSupplierInvoice
+            ? "Fuer Altbestand oder manuell hinzugefuegte Materialien reicht ein Datum und mindestens eine Position. Ein Einkaufspreis pro Position ist Pflicht und bleibt fuer die Kalkulation sichtbar, obwohl kein Lieferantenbeleg vorliegt."
+            : "Rechnungsnummer, Rechnungsdatum und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
+
+        if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
+        {
+            SourceInfoText.Text = noSupplierInvoice ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
         }
     }
 
@@ -244,11 +281,12 @@ public partial class Datenimport : Page
         InvoiceNumberText.Clear();
         SupplierNameText.Clear();
         InvoiceDatePicker.SelectedDate = DateTime.Today;
+        NoSupplierInvoiceCheckBox.IsChecked = false;
         _manualLines.Clear();
         _currentSourcePdfPath = "";
         _currentContentHash = "";
-        SourceInfoText.Text = "Manuelle Erfassung";
         ClearLineInputs();
+        UpdateInvoiceModeUi();
     }
 
     private void RenumberLines()
@@ -270,18 +308,21 @@ public partial class Datenimport : Page
 
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
 
-    private static string BuildManualHash(string invoiceNumber, DateTime invoiceDate, string supplierName, IEnumerable<ManualInvoiceLineInput> lines)
+    private static string BuildManualHash(string invoiceNumber, DateTime invoiceDate, string supplierName, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
     {
         var payload = string.Join("|", new[]
         {
             invoiceNumber,
             invoiceDate.ToString("yyyyMMdd"),
             supplierName,
+            hasSupplierInvoice ? "WITH-INVOICE" : "WITHOUT-INVOICE",
             string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.MetalSurcharge}:{l.PriceBasisQuantity}"))
         });
 
-        return Sha256(System.Text.Encoding.UTF8.GetBytes(payload));
+        return Sha256(Encoding.UTF8.GetBytes(payload));
     }
+
+    private static string BuildManualDocumentNumber() => $"MANUELL-{DateTime.Now:yyyyMMdd-HHmmss}";
 
     private static string ExtractInvoiceNumberFromXml(XDocument doc)
         => doc.Descendants(ram + "ID").FirstOrDefault()?.Value ?? "";
@@ -486,4 +527,3 @@ public partial class Datenimport : Page
         return (Brush)FindResource(key);
     }
 }
-

@@ -94,7 +94,8 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Projekt" Binding="{Binding Project.Name}" Width="150"/>
                             <DataGridCheckBoxColumn Header="KM" Binding="{Binding IsSmallMaterial}" Width="55"/>
-                            <DataGridTextColumn Header="Lieferanten-Rechnung" Binding="{Binding InvoiceLine.Invoice.InvoiceNumber}" Width="140"/>
+                            <DataGridTextColumn Header="Lieferanten-Beleg" Binding="{Binding InvoiceLine.InvoiceDisplayNumber}" Width="140"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding InvoiceLine.ExpenseStatus}" Width="110"/>
                             <DataGridTextColumn Header="Artikel" Binding="{Binding InvoiceLine.ArticleNumber}" Width="120"/>
                             <DataGridTextColumn Header="EAN" Binding="{Binding InvoiceLine.Ean}" Width="140"/>
                             <DataGridTextColumn Header="Beschreibung" Binding="{Binding InvoiceLine.Description}" Width="*"/>
@@ -137,3 +138,5 @@
         </Grid>
     </ScrollViewer>
 </Page>
+
+
