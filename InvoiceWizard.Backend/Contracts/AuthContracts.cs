@@ -100,6 +100,13 @@ public class AuthLicenseDto
     public int MaxProjects { get; set; }
     public int MaxCustomers { get; set; }
     public bool IncludesMobileAccess { get; set; }
+    public string BillingCycle { get; set; } = "";
+    public decimal PriceNet { get; set; }
+    public bool RenewsAutomatically { get; set; }
+    public DateTime? NextBillingDate { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public DateTime? GraceUntil { get; set; }
+    public string Status { get; set; } = "";
     public DateTime ValidFrom { get; set; }
     public DateTime? ValidUntil { get; set; }
     public bool IsActive { get; set; }

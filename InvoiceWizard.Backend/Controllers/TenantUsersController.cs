@@ -71,14 +71,14 @@ public class TenantUsersController(
 
         var license = await db.TenantLicenses
             .Include(x => x.SubscriptionPlan)
-            .Where(x => x.TenantId == tenantId && x.IsActive)
+            .Where(x => x.TenantId == tenantId && x.IsActive && (!x.ValidUntil.HasValue || x.ValidUntil.Value >= DateTime.UtcNow || (x.GraceUntil.HasValue && x.GraceUntil.Value >= DateTime.UtcNow)))
             .OrderByDescending(x => x.ValidFrom)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (license is not null)
         {
             var activeUsers = await db.UserTenantMemberships.CountAsync(x => x.TenantId == tenantId && x.IsActive, cancellationToken);
-            if (activeUsers >= license.SubscriptionPlan.MaxUsers)
+            if (activeUsers >= AuthController.GetEffectiveMaxUsers(license))
             {
                 return Conflict(new { message = $"Das Benutzerlimit fuer den Tarif {license.SubscriptionPlan.Name} ist erreicht." });
             }

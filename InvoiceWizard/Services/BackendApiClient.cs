@@ -450,6 +450,13 @@ public partial class BackendApiClient
                 MaxProjects = item.License.MaxProjects,
                 MaxCustomers = item.License.MaxCustomers,
                 IncludesMobileAccess = item.License.IncludesMobileAccess,
+                BillingCycle = item.License.BillingCycle,
+                PriceNet = item.License.PriceNet,
+                RenewsAutomatically = item.License.RenewsAutomatically,
+                NextBillingDate = item.License.NextBillingDate,
+                CancelledAt = item.License.CancelledAt,
+                GraceUntil = item.License.GraceUntil,
+                Status = item.License.Status,
                 ValidFrom = item.License.ValidFrom,
                 ValidUntil = item.License.ValidUntil,
                 IsActive = item.License.IsActive
@@ -715,6 +722,13 @@ public partial class BackendApiClient
         public int MaxProjects { get; set; }
         public int MaxCustomers { get; set; }
         public bool IncludesMobileAccess { get; set; }
+        public string BillingCycle { get; set; } = "";
+        public decimal PriceNet { get; set; }
+        public bool RenewsAutomatically { get; set; }
+        public DateTime? NextBillingDate { get; set; }
+        public DateTime? CancelledAt { get; set; }
+        public DateTime? GraceUntil { get; set; }
+        public string Status { get; set; } = "";
         public DateTime ValidFrom { get; set; }
         public DateTime? ValidUntil { get; set; }
         public bool IsActive { get; set; }

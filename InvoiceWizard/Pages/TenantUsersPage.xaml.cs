@@ -9,10 +9,13 @@ namespace InvoiceWizard;
 public partial class TenantUsersPage : Page
 {
     private readonly string[] _roles = ["Employee", "Admin"];
+    private readonly string[] _billingCycles = ["Monthly", "Yearly", "Manual"];
     private List<TenantUserViewModel> _users = [];
     private List<SubscriptionPlanViewModel> _plans = [];
     private List<LicenseActivationViewModel> _licenseActivations = [];
+    private List<ManagedTenantLicenseViewModel> _managedLicenses = [];
     private TenantUserViewModel? _selectedUser;
+    private ManagedTenantLicenseViewModel? _selectedManagedLicense;
 
     public TenantUsersPage()
     {
@@ -24,8 +27,16 @@ public partial class TenantUsersPage : Page
     {
         CreateRoleCombo.ItemsSource = _roles;
         EditRoleCombo.ItemsSource = _roles;
+        ActivationBillingCycleCombo.ItemsSource = _billingCycles;
+        ManagedBillingCycleCombo.ItemsSource = _billingCycles;
         CreateRoleCombo.SelectedItem = "Employee";
         EditRoleCombo.SelectedItem = "Employee";
+        ActivationBillingCycleCombo.SelectedItem = "Monthly";
+        ManagedBillingCycleCombo.SelectedItem = "Monthly";
+        ActivationPriceNetText.Text = "0,00";
+        ActivationRenewsAutomaticallyCheck.IsChecked = true;
+        ManagedPriceNetText.Text = "0,00";
+        ManagedIsActiveCheck.IsChecked = true;
         ApplySessionInfo();
         await LoadUsersAsync();
         await LoadLicensingAsync();
@@ -135,6 +146,12 @@ public partial class TenantUsersPage : Page
             return;
         }
 
+        if (!TryParsePrice(ActivationPriceNetText.Text, out var priceNet))
+        {
+            SetStatus("Bitte fuer den Netto-Preis eine gueltige Zahl eingeben.", StatusMessageType.Warning);
+            return;
+        }
+
         try
         {
             var item = await App.Api.CreateLicenseActivationAsync(
@@ -144,11 +161,82 @@ public partial class TenantUsersPage : Page
                 maxUsers,
                 maxProjects,
                 maxCustomers,
-                MobileAccessOverrideCheck.IsChecked);
+                MobileAccessOverrideCheck.IsChecked,
+                ActivationBillingCycleCombo.SelectedItem as string ?? "Monthly",
+                priceNet,
+                ActivationRenewsAutomaticallyCheck.IsChecked == true);
 
             ClearLicenseForm();
             await LoadLicensingAsync();
             SetStatus($"Aktivierungscode {item.ActivationCode} wurde erzeugt.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(GetFriendlyError(ex), StatusMessageType.Error);
+        }
+    }
+
+    private void ManagedLicensesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ManagedLicensesGrid.SelectedItem is ManagedTenantLicenseViewModel item)
+        {
+            ApplySelectedManagedLicense(item);
+            return;
+        }
+
+        ClearManagedLicenseSelection();
+    }
+
+    private async void SaveManagedLicense_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsurePlatformAdmin())
+        {
+            return;
+        }
+
+        if (_selectedManagedLicense is null)
+        {
+            SetStatus("Bitte zuerst eine Kundenlizenz auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (ManagedPlanCombo.SelectedItem is not SubscriptionPlanViewModel selectedPlan)
+        {
+            SetStatus("Bitte einen Tarif fuer die Kundenlizenz auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (!TryParseNullableInt(ManagedMaxUsersText.Text, out var maxUsers) || !TryParseNullableInt(ManagedMaxProjectsText.Text, out var maxProjects) || !TryParseNullableInt(ManagedMaxCustomersText.Text, out var maxCustomers))
+        {
+            SetStatus("Die Lizenz-Limits muessen ganze Zahlen sein.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (!TryParsePrice(ManagedPriceNetText.Text, out var priceNet))
+        {
+            SetStatus("Bitte fuer den Netto-Preis eine gueltige Zahl eingeben.", StatusMessageType.Warning);
+            return;
+        }
+
+        try
+        {
+            _selectedManagedLicense.PlanCode = selectedPlan.Code;
+            _selectedManagedLicense.BillingCycle = ManagedBillingCycleCombo.SelectedItem as string ?? "Monthly";
+            _selectedManagedLicense.PriceNet = priceNet;
+            _selectedManagedLicense.RenewsAutomatically = ManagedRenewsAutomaticallyCheck.IsChecked == true;
+            _selectedManagedLicense.ValidUntil = ManagedValidUntilPicker.SelectedDate;
+            _selectedManagedLicense.NextBillingDate = ManagedNextBillingDatePicker.SelectedDate;
+            _selectedManagedLicense.CancelledAt = ManagedCancelledAtPicker.SelectedDate;
+            _selectedManagedLicense.GraceUntil = ManagedGraceUntilPicker.SelectedDate;
+            _selectedManagedLicense.MaxUsers = maxUsers ?? selectedPlan.MaxUsers;
+            _selectedManagedLicense.MaxProjects = maxProjects ?? selectedPlan.MaxProjects;
+            _selectedManagedLicense.MaxCustomers = maxCustomers ?? selectedPlan.MaxCustomers;
+            _selectedManagedLicense.IncludesMobileAccess = ManagedIncludesMobileAccessCheck.IsChecked == true;
+            _selectedManagedLicense.IsActive = ManagedIsActiveCheck.IsChecked == true;
+
+            var updated = await App.Api.UpdateManagedTenantLicenseAsync(_selectedManagedLicense);
+            await LoadLicensingAsync(updated.TenantLicenseId);
+            SetStatus($"Lizenz fuer {updated.TenantName} wurde gespeichert.", StatusMessageType.Success);
         }
         catch (Exception ex)
         {
@@ -218,10 +306,11 @@ public partial class TenantUsersPage : Page
         }
     }
 
-    private async Task LoadLicensingAsync()
+    private async Task LoadLicensingAsync(int? selectedTenantLicenseId = null)
     {
         var isPlatformAdmin = App.Session?.User?.IsPlatformAdmin == true;
         LicensingSectionBorder.Visibility = isPlatformAdmin ? Visibility.Visible : Visibility.Collapsed;
+        ManagedLicensesBorder.Visibility = isPlatformAdmin ? Visibility.Visible : Visibility.Collapsed;
         if (!isPlatformAdmin)
         {
             return;
@@ -231,10 +320,27 @@ public partial class TenantUsersPage : Page
         {
             _plans = await App.Api.GetSubscriptionPlansAsync();
             _licenseActivations = await App.Api.GetLicenseActivationsAsync();
+            _managedLicenses = await App.Api.GetManagedTenantLicensesAsync();
             PlanCombo.ItemsSource = _plans;
+            ManagedPlanCombo.ItemsSource = _plans;
             PlanCombo.SelectedItem = _plans.FirstOrDefault(x => string.Equals(x.Code, "business", StringComparison.OrdinalIgnoreCase)) ?? _plans.FirstOrDefault();
             LicenseActivationsGrid.ItemsSource = _licenseActivations;
-            LicenseAdminText.Text = "Nur der Plattform-Admin kann neue Aktivierungscodes fuer Kunden erzeugen. Diese Codes werden einmalig von deinen Kunden im Loginfenster aktiviert.";
+            ManagedLicensesGrid.ItemsSource = _managedLicenses;
+            ManagedLicensesHintText.Text = "Hier verwaltest du laufende Kundenabos manuell: Tarif, Preis, Laufzeit, Auto-Verlaengerung, Kuendigung und Grace-Phase.";
+            LicenseAdminText.Text = "Nur der Plattform-Admin kann neue Aktivierungscodes fuer Kunden erzeugen. Diese Codes werden einmalig von deinen Kunden im Loginfenster aktiviert und erzeugen danach eine laufende Firmenlizenz.";
+
+            var target = selectedTenantLicenseId.HasValue
+                ? _managedLicenses.FirstOrDefault(x => x.TenantLicenseId == selectedTenantLicenseId.Value)
+                : _managedLicenses.FirstOrDefault(x => x.TenantLicenseId == _selectedManagedLicense?.TenantLicenseId);
+            ManagedLicensesGrid.SelectedItem = target;
+            if (target is null)
+            {
+                ClearManagedLicenseSelection();
+            }
+            else
+            {
+                ApplySelectedManagedLicense(target);
+            }
         }
         catch (Exception ex)
         {
@@ -246,9 +352,10 @@ public partial class TenantUsersPage : Page
     {
         var tenantName = App.Session?.Tenant?.Name ?? "Unbekannte Firma";
         var planName = App.Session?.License?.PlanName ?? App.Session?.License?.PlanCode ?? "Lizenz";
+        var billingText = App.Session?.License is null ? string.Empty : $" Abo: {GetBillingCycleLabel(App.Session.License.BillingCycle)} / {App.Session.License.PriceNet:N2} EUR netto.";
         HeaderText.Text = App.Session?.User?.IsPlatformAdmin == true
-            ? $"Du verwaltest die Plattform-Firma {tenantName}. Neben Benutzern kannst du hier auch Aktivierungscodes fuer neue Kundenfirmen erzeugen. Aktueller Tarif: {planName}."
-            : $"Admins koennen hier Team-Mitglieder der Firma {tenantName} anlegen, Rollen vergeben und Zugriffe deaktivieren. Aktueller Tarif: {planName}.";
+            ? $"Du verwaltest die Plattform-Firma {tenantName}. Neben Benutzern kannst du hier auch Aktivierungscodes und laufende Kundenabos verwalten. Aktueller Tarif: {planName}.{billingText}"
+            : $"Admins koennen hier Team-Mitglieder der Firma {tenantName} anlegen, Rollen vergeben und Zugriffe deaktivieren. Aktueller Tarif: {planName}.{billingText}";
     }
 
     private void ApplySelectedUser(TenantUserViewModel user)
@@ -279,8 +386,51 @@ public partial class TenantUsersPage : Page
         MaxUsersOverrideText.Clear();
         MaxProjectsOverrideText.Clear();
         MaxCustomersOverrideText.Clear();
+        ActivationBillingCycleCombo.SelectedItem = "Monthly";
+        ActivationPriceNetText.Text = "0,00";
         MobileAccessOverrideCheck.IsChecked = true;
+        ActivationRenewsAutomaticallyCheck.IsChecked = true;
         PlanCombo.SelectedItem = _plans.FirstOrDefault(x => string.Equals(x.Code, "business", StringComparison.OrdinalIgnoreCase)) ?? _plans.FirstOrDefault();
+    }
+
+    private void ApplySelectedManagedLicense(ManagedTenantLicenseViewModel item)
+    {
+        _selectedManagedLicense = item;
+        ManagedTenantNameText.Text = item.TenantName;
+        ManagedPlanCombo.SelectedItem = _plans.FirstOrDefault(x => string.Equals(x.Code, item.PlanCode, StringComparison.OrdinalIgnoreCase));
+        ManagedBillingCycleCombo.SelectedItem = item.BillingCycle;
+        ManagedPriceNetText.Text = item.PriceNet.ToString("0.00", CultureInfo.InvariantCulture);
+        ManagedValidUntilPicker.SelectedDate = item.ValidUntil;
+        ManagedNextBillingDatePicker.SelectedDate = item.NextBillingDate;
+        ManagedCancelledAtPicker.SelectedDate = item.CancelledAt;
+        ManagedGraceUntilPicker.SelectedDate = item.GraceUntil;
+        ManagedMaxUsersText.Text = item.MaxUsers.ToString(CultureInfo.InvariantCulture);
+        ManagedMaxProjectsText.Text = item.MaxProjects.ToString(CultureInfo.InvariantCulture);
+        ManagedMaxCustomersText.Text = item.MaxCustomers.ToString(CultureInfo.InvariantCulture);
+        ManagedIncludesMobileAccessCheck.IsChecked = item.IncludesMobileAccess;
+        ManagedRenewsAutomaticallyCheck.IsChecked = item.RenewsAutomatically;
+        ManagedIsActiveCheck.IsChecked = item.IsActive;
+        ManagedLicenseSelectionHintText.Text = $"{item.TenantName}: Status {item.Status}, aktuell {GetBillingCycleLabel(item.BillingCycle)} mit {item.PriceNet:N2} EUR netto.";
+    }
+
+    private void ClearManagedLicenseSelection()
+    {
+        _selectedManagedLicense = null;
+        ManagedTenantNameText.Clear();
+        ManagedPlanCombo.SelectedItem = _plans.FirstOrDefault();
+        ManagedBillingCycleCombo.SelectedItem = "Monthly";
+        ManagedPriceNetText.Text = "0,00";
+        ManagedValidUntilPicker.SelectedDate = null;
+        ManagedNextBillingDatePicker.SelectedDate = null;
+        ManagedCancelledAtPicker.SelectedDate = null;
+        ManagedGraceUntilPicker.SelectedDate = null;
+        ManagedMaxUsersText.Clear();
+        ManagedMaxProjectsText.Clear();
+        ManagedMaxCustomersText.Clear();
+        ManagedIncludesMobileAccessCheck.IsChecked = false;
+        ManagedRenewsAutomaticallyCheck.IsChecked = false;
+        ManagedIsActiveCheck.IsChecked = true;
+        ManagedLicenseSelectionHintText.Text = "Waehle links eine Kundenlizenz aus, um Abo-Daten, Laufzeit und Status zu verwalten.";
     }
 
     private void ClearSelection()
@@ -333,8 +483,21 @@ public partial class TenantUsersPage : Page
         return false;
     }
 
+    private static bool TryParsePrice(string? text, out decimal value)
+    {
+        var normalized = (text ?? string.Empty).Trim().Replace(',', '.');
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out value) && value >= 0;
+    }
+
     private static string NormalizeRole(string role)
         => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Employee";
+
+    private static string GetBillingCycleLabel(string? billingCycle)
+        => string.Equals(billingCycle, "Yearly", StringComparison.OrdinalIgnoreCase)
+            ? "Jaehrlich"
+            : string.Equals(billingCycle, "Manual", StringComparison.OrdinalIgnoreCase)
+                ? "Manuell"
+                : "Monatlich";
 
     private static string GetFriendlyError(Exception ex)
     {

@@ -78,6 +78,10 @@ public class AuthController(
             Tenant = tenant,
             SubscriptionPlan = defaultPlan,
             ValidFrom = DateTime.UtcNow,
+            BillingCycle = "Yearly",
+            PriceNet = 0,
+            RenewsAutomatically = false,
+            NextBillingDate = DateTime.UtcNow.Date.AddYears(1),
             IsActive = true
         };
 
@@ -162,6 +166,10 @@ public class AuthController(
             MaxProjectsOverride = activation.MaxProjectsOverride,
             MaxCustomersOverride = activation.MaxCustomersOverride,
             IncludesMobileAccessOverride = activation.IncludesMobileAccessOverride,
+            BillingCycle = NormalizeBillingCycle(activation.BillingCycle),
+            PriceNet = activation.PriceNet,
+            RenewsAutomatically = activation.RenewsAutomatically,
+            NextBillingDate = CalculateNextBillingDate(DateTime.UtcNow, activation.BillingCycle),
             IsActive = true
         };
 
@@ -258,9 +266,10 @@ public class AuthController(
 
     private Task<TenantLicense?> GetCurrentLicenseAsync(int tenantId)
     {
+        var now = DateTime.UtcNow;
         return db.TenantLicenses
             .Include(x => x.SubscriptionPlan)
-            .Where(x => x.TenantId == tenantId && x.IsActive && (!x.ValidUntil.HasValue || x.ValidUntil.Value >= DateTime.UtcNow))
+            .Where(x => x.TenantId == tenantId && x.IsActive && (!x.ValidUntil.HasValue || x.ValidUntil.Value >= now || (x.GraceUntil.HasValue && x.GraceUntil.Value >= now)))
             .OrderByDescending(x => x.ValidFrom)
             .FirstOrDefaultAsync();
     }
@@ -269,6 +278,52 @@ public class AuthController(
     internal static int GetEffectiveMaxProjects(TenantLicense license) => license.MaxProjectsOverride ?? license.SubscriptionPlan.MaxProjects;
     internal static int GetEffectiveMaxCustomers(TenantLicense license) => license.MaxCustomersOverride ?? license.SubscriptionPlan.MaxCustomers;
     internal static bool GetEffectiveMobileAccess(TenantLicense license) => license.IncludesMobileAccessOverride ?? license.SubscriptionPlan.IncludesMobileAccess;
+    internal static string GetLicenseStatus(TenantLicense license)
+    {
+        var now = DateTime.UtcNow;
+        if (!license.IsActive)
+        {
+            return "Gesperrt";
+        }
+
+        if (license.ValidUntil.HasValue && license.ValidUntil.Value < now)
+        {
+            if (license.GraceUntil.HasValue && license.GraceUntil.Value >= now)
+            {
+                return "Grace-Phase";
+            }
+
+            return "Abgelaufen";
+        }
+
+        if (license.CancelledAt.HasValue)
+        {
+            return "Gekuendigt";
+        }
+
+        return "Aktiv";
+    }
+
+    internal static string NormalizeBillingCycle(string? billingCycle)
+    {
+        var value = (billingCycle ?? string.Empty).Trim().ToLowerInvariant();
+        return value switch
+        {
+            "yearly" or "jaehrlich" => "Yearly",
+            "manual" or "manuell" => "Manual",
+            _ => "Monthly"
+        };
+    }
+
+    internal static DateTime? CalculateNextBillingDate(DateTime validFromUtc, string? billingCycle)
+    {
+        return NormalizeBillingCycle(billingCycle) switch
+        {
+            "Yearly" => validFromUtc.Date.AddYears(1),
+            "Manual" => null,
+            _ => validFromUtc.Date.AddMonths(1)
+        };
+    }
 
     private static string NormalizeActivationCode(string value)
         => (value ?? string.Empty).Trim().ToUpperInvariant();
@@ -302,6 +357,13 @@ public class AuthController(
                 MaxProjects = GetEffectiveMaxProjects(license),
                 MaxCustomers = GetEffectiveMaxCustomers(license),
                 IncludesMobileAccess = GetEffectiveMobileAccess(license),
+                BillingCycle = NormalizeBillingCycle(license.BillingCycle),
+                PriceNet = license.PriceNet,
+                RenewsAutomatically = license.RenewsAutomatically,
+                NextBillingDate = license.NextBillingDate,
+                CancelledAt = license.CancelledAt,
+                GraceUntil = license.GraceUntil,
+                Status = GetLicenseStatus(license),
                 ValidFrom = license.ValidFrom,
                 ValidUntil = license.ValidUntil,
                 IsActive = license.IsActive

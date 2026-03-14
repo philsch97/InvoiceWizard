@@ -26,20 +26,51 @@ public partial class BackendApiClient
         return items.Select(MapLicenseActivation).ToList();
     }
 
-    public async Task<LicenseActivationViewModel> CreateLicenseActivationAsync(string planCode, string? customerEmail, DateTime? validUntil, int? maxUsersOverride, int? maxProjectsOverride, int? maxCustomersOverride, bool? includesMobileAccessOverride)
+    public async Task<List<ManagedTenantLicenseViewModel>> GetManagedTenantLicensesAsync()
+    {
+        var items = await _httpClient.GetFromJsonAsync<List<ManagedTenantLicenseDto>>("api/tenant-licenses", _jsonOptions) ?? [];
+        return items.Select(MapManagedTenantLicense).ToList();
+    }
+
+    public async Task<LicenseActivationViewModel> CreateLicenseActivationAsync(string planCode, string? customerEmail, DateTime? validUntil, int? maxUsersOverride, int? maxProjectsOverride, int? maxCustomersOverride, bool? includesMobileAccessOverride, string billingCycle, decimal priceNet, bool renewsAutomatically)
     {
         var response = await _httpClient.PostAsJsonAsync("api/license-activations", new
         {
             planCode,
-            customerEmail,
+            customerEmail = string.IsNullOrWhiteSpace(customerEmail) ? null : customerEmail.Trim(),
             validUntil,
             maxUsersOverride,
             maxProjectsOverride,
             maxCustomersOverride,
-            includesMobileAccessOverride
+            includesMobileAccessOverride,
+            billingCycle,
+            priceNet,
+            renewsAutomatically
         });
         response.EnsureSuccessStatusCode();
         return MapLicenseActivation((await response.Content.ReadFromJsonAsync<LicenseActivationDto>(_jsonOptions)) ?? new LicenseActivationDto());
+    }
+
+    public async Task<ManagedTenantLicenseViewModel> UpdateManagedTenantLicenseAsync(ManagedTenantLicenseViewModel item)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/tenant-licenses/{item.TenantLicenseId}", new
+        {
+            planCode = item.PlanCode,
+            billingCycle = item.BillingCycle,
+            priceNet = item.PriceNet,
+            renewsAutomatically = item.RenewsAutomatically,
+            validUntil = item.ValidUntil,
+            nextBillingDate = item.NextBillingDate,
+            cancelledAt = item.CancelledAt,
+            graceUntil = item.GraceUntil,
+            maxUsersOverride = item.MaxUsers,
+            maxProjectsOverride = item.MaxProjects,
+            maxCustomersOverride = item.MaxCustomers,
+            includesMobileAccessOverride = item.IncludesMobileAccess,
+            isActive = item.IsActive
+        });
+        response.EnsureSuccessStatusCode();
+        return MapManagedTenantLicense((await response.Content.ReadFromJsonAsync<ManagedTenantLicenseDto>(_jsonOptions)) ?? new ManagedTenantLicenseDto());
     }
 
     private static LicenseActivationViewModel MapLicenseActivation(LicenseActivationDto item)
@@ -60,7 +91,37 @@ public partial class BackendApiClient
             MaxUsers = item.MaxUsers,
             MaxProjects = item.MaxProjects,
             MaxCustomers = item.MaxCustomers,
-            IncludesMobileAccess = item.IncludesMobileAccess
+            IncludesMobileAccess = item.IncludesMobileAccess,
+            BillingCycle = item.BillingCycle,
+            PriceNet = item.PriceNet,
+            RenewsAutomatically = item.RenewsAutomatically
+        };
+    }
+
+    private static ManagedTenantLicenseViewModel MapManagedTenantLicense(ManagedTenantLicenseDto item)
+    {
+        return new ManagedTenantLicenseViewModel
+        {
+            TenantLicenseId = item.TenantLicenseId,
+            TenantId = item.TenantId,
+            TenantName = item.TenantName,
+            TenantSlug = item.TenantSlug,
+            PlanCode = item.PlanCode,
+            PlanName = item.PlanName,
+            MaxUsers = item.MaxUsers,
+            MaxProjects = item.MaxProjects,
+            MaxCustomers = item.MaxCustomers,
+            IncludesMobileAccess = item.IncludesMobileAccess,
+            BillingCycle = item.BillingCycle,
+            PriceNet = item.PriceNet,
+            RenewsAutomatically = item.RenewsAutomatically,
+            ValidFrom = item.ValidFrom,
+            ValidUntil = item.ValidUntil,
+            NextBillingDate = item.NextBillingDate,
+            CancelledAt = item.CancelledAt,
+            GraceUntil = item.GraceUntil,
+            IsActive = item.IsActive,
+            Status = item.Status
         };
     }
 
@@ -73,6 +134,9 @@ public partial class BackendApiClient
         public int MaxProjects { get; set; }
         public int MaxCustomers { get; set; }
         public bool IncludesMobileAccess { get; set; }
+        public string BillingCycle { get; set; } = "";
+        public decimal PriceNet { get; set; }
+        public bool RenewsAutomatically { get; set; }
     }
 
     private class LicenseActivationDto
@@ -92,5 +156,32 @@ public partial class BackendApiClient
         public int MaxProjects { get; set; }
         public int MaxCustomers { get; set; }
         public bool IncludesMobileAccess { get; set; }
+        public string BillingCycle { get; set; } = "";
+        public decimal PriceNet { get; set; }
+        public bool RenewsAutomatically { get; set; }
+    }
+
+    private class ManagedTenantLicenseDto
+    {
+        public int TenantLicenseId { get; set; }
+        public int TenantId { get; set; }
+        public string TenantName { get; set; } = "";
+        public string TenantSlug { get; set; } = "";
+        public string PlanCode { get; set; } = "";
+        public string PlanName { get; set; } = "";
+        public int MaxUsers { get; set; }
+        public int MaxProjects { get; set; }
+        public int MaxCustomers { get; set; }
+        public bool IncludesMobileAccess { get; set; }
+        public string BillingCycle { get; set; } = "";
+        public decimal PriceNet { get; set; }
+        public bool RenewsAutomatically { get; set; }
+        public DateTime ValidFrom { get; set; }
+        public DateTime? ValidUntil { get; set; }
+        public DateTime? NextBillingDate { get; set; }
+        public DateTime? CancelledAt { get; set; }
+        public DateTime? GraceUntil { get; set; }
+        public bool IsActive { get; set; }
+        public string Status { get; set; } = "";
     }
 }

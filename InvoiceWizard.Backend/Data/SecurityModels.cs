@@ -71,6 +71,12 @@ public class TenantLicense
     public int? MaxProjectsOverride { get; set; }
     public int? MaxCustomersOverride { get; set; }
     public bool? IncludesMobileAccessOverride { get; set; }
+    public string BillingCycle { get; set; } = "Monthly";
+    public decimal PriceNet { get; set; }
+    public bool RenewsAutomatically { get; set; } = true;
+    public DateTime? NextBillingDate { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public DateTime? GraceUntil { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -87,6 +93,9 @@ public class LicenseActivation
     public int? MaxProjectsOverride { get; set; }
     public int? MaxCustomersOverride { get; set; }
     public bool? IncludesMobileAccessOverride { get; set; }
+    public string BillingCycle { get; set; } = "Monthly";
+    public decimal PriceNet { get; set; }
+    public bool RenewsAutomatically { get; set; } = true;
     public bool IsUsed { get; set; }
     public DateTime? UsedAt { get; set; }
     public int? UsedByAppUserId { get; set; }

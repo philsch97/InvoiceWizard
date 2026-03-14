@@ -93,6 +93,10 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Name).HasMaxLength(200);
         modelBuilder.Entity<LicenseActivation>().Property(x => x.ActivationCode).HasMaxLength(120);
         modelBuilder.Entity<LicenseActivation>().Property(x => x.CustomerEmail).HasMaxLength(320);
+        modelBuilder.Entity<TenantLicense>().Property(x => x.BillingCycle).HasMaxLength(50);
+        modelBuilder.Entity<TenantLicense>().Property(x => x.PriceNet).HasColumnType("numeric(12,2)");
+        modelBuilder.Entity<LicenseActivation>().Property(x => x.BillingCycle).HasMaxLength(50);
+        modelBuilder.Entity<LicenseActivation>().Property(x => x.PriceNet).HasColumnType("numeric(12,2)");
         modelBuilder.Entity<CalendarEntry>().Property(x => x.Title).HasMaxLength(200);
         modelBuilder.Entity<CalendarEntry>().Property(x => x.Location).HasMaxLength(200);
 

@@ -55,27 +55,9 @@ public class LicenseActivationsController(InvoiceWizardDbContext db) : Controlle
             .Include(x => x.CreatedByAppUser)
             .Include(x => x.UsedByAppUser)
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => new LicenseActivationDto
-            {
-                LicenseActivationId = x.LicenseActivationId,
-                ActivationCode = x.ActivationCode,
-                PlanCode = x.SubscriptionPlan.Code,
-                PlanName = x.SubscriptionPlan.Name,
-                CustomerEmail = x.CustomerEmail,
-                ValidUntil = x.ValidUntil,
-                IsUsed = x.IsUsed,
-                UsedAt = x.UsedAt,
-                UsedByDisplayName = x.UsedByAppUser != null ? x.UsedByAppUser.DisplayName : null,
-                CreatedAt = x.CreatedAt,
-                CreatedByDisplayName = x.CreatedByAppUser.DisplayName,
-                MaxUsers = x.MaxUsersOverride ?? x.SubscriptionPlan.MaxUsers,
-                MaxProjects = x.MaxProjectsOverride ?? x.SubscriptionPlan.MaxProjects,
-                MaxCustomers = x.MaxCustomersOverride ?? x.SubscriptionPlan.MaxCustomers,
-                IncludesMobileAccess = x.IncludesMobileAccessOverride ?? x.SubscriptionPlan.IncludesMobileAccess
-            })
             .ToListAsync(cancellationToken);
 
-        return Ok(items);
+        return Ok(items.Select(MapActivation).ToList());
     }
 
     [HttpPost]
@@ -104,38 +86,48 @@ public class LicenseActivationsController(InvoiceWizardDbContext db) : Controlle
             MaxProjectsOverride = request.MaxProjectsOverride,
             MaxCustomersOverride = request.MaxCustomersOverride,
             IncludesMobileAccessOverride = request.IncludesMobileAccessOverride,
+            BillingCycle = AuthController.NormalizeBillingCycle(request.BillingCycle),
+            PriceNet = request.PriceNet,
+            RenewsAutomatically = request.RenewsAutomatically,
             CreatedByAppUserId = currentUserId
         };
 
         db.LicenseActivations.Add(activation);
         await db.SaveChangesAsync(cancellationToken);
 
-        var dto = await db.LicenseActivations
+        var activationEntity = await db.LicenseActivations
             .AsNoTracking()
             .Include(x => x.SubscriptionPlan)
             .Include(x => x.CreatedByAppUser)
             .Where(x => x.LicenseActivationId == activation.LicenseActivationId)
-            .Select(x => new LicenseActivationDto
-            {
-                LicenseActivationId = x.LicenseActivationId,
-                ActivationCode = x.ActivationCode,
-                PlanCode = x.SubscriptionPlan.Code,
-                PlanName = x.SubscriptionPlan.Name,
-                CustomerEmail = x.CustomerEmail,
-                ValidUntil = x.ValidUntil,
-                IsUsed = x.IsUsed,
-                UsedAt = x.UsedAt,
-                UsedByDisplayName = null,
-                CreatedAt = x.CreatedAt,
-                CreatedByDisplayName = x.CreatedByAppUser.DisplayName,
-                MaxUsers = x.MaxUsersOverride ?? x.SubscriptionPlan.MaxUsers,
-                MaxProjects = x.MaxProjectsOverride ?? x.SubscriptionPlan.MaxProjects,
-                MaxCustomers = x.MaxCustomersOverride ?? x.SubscriptionPlan.MaxCustomers,
-                IncludesMobileAccess = x.IncludesMobileAccessOverride ?? x.SubscriptionPlan.IncludesMobileAccess
-            })
             .FirstAsync(cancellationToken);
 
-        return Ok(dto);
+        return Ok(MapActivation(activationEntity));
+    }
+
+    private static LicenseActivationDto MapActivation(LicenseActivation x)
+    {
+        return new LicenseActivationDto
+        {
+            LicenseActivationId = x.LicenseActivationId,
+            ActivationCode = x.ActivationCode,
+            PlanCode = x.SubscriptionPlan.Code,
+            PlanName = x.SubscriptionPlan.Name,
+            CustomerEmail = x.CustomerEmail,
+            ValidUntil = x.ValidUntil,
+            IsUsed = x.IsUsed,
+            UsedAt = x.UsedAt,
+            UsedByDisplayName = x.UsedByAppUser?.DisplayName,
+            CreatedAt = x.CreatedAt,
+            CreatedByDisplayName = x.CreatedByAppUser.DisplayName,
+            MaxUsers = x.MaxUsersOverride ?? x.SubscriptionPlan.MaxUsers,
+            MaxProjects = x.MaxProjectsOverride ?? x.SubscriptionPlan.MaxProjects,
+            MaxCustomers = x.MaxCustomersOverride ?? x.SubscriptionPlan.MaxCustomers,
+            IncludesMobileAccess = x.IncludesMobileAccessOverride ?? x.SubscriptionPlan.IncludesMobileAccess,
+            BillingCycle = AuthController.NormalizeBillingCycle(x.BillingCycle),
+            PriceNet = x.PriceNet,
+            RenewsAutomatically = x.RenewsAutomatically
+        };
     }
 
     private async Task<bool> IsPlatformAdminAsync(CancellationToken cancellationToken)

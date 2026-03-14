@@ -14,6 +14,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
@@ -153,7 +154,20 @@
                             </StackPanel>
                         </Grid>
 
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Abo-Zyklus" Style="{StaticResource MutedLabelStyle}"/>
+                                <ComboBox x:Name="ActivationBillingCycleCombo"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Preis netto" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ActivationPriceNetText"/>
+                            </StackPanel>
+                        </Grid>
+
                         <CheckBox x:Name="MobileAccessOverrideCheck" Content="Mobilzugang aktivieren" Margin="0,0,0,16"/>
+                        <CheckBox x:Name="ActivationRenewsAutomaticallyCheck" Content="Automatische Verlaengerung kennzeichnen" Margin="0,0,0,16"/>
 
                         <WrapPanel>
                             <Button Width="170" Height="40" Margin="0,0,10,0" Content="Aktivierungscode erzeugen" Click="CreateLicenseActivation_Click"/>
@@ -177,6 +191,7 @@
                                 <DataGridTextColumn Header="Tarif" Binding="{Binding PlanName}" Width="120"/>
                                 <DataGridTextColumn Header="Limits" Binding="{Binding LimitsLabel}" Width="170"/>
                                 <DataGridTextColumn Header="E-Mail" Binding="{Binding CustomerEmail}" Width="160"/>
+                                <DataGridTextColumn Header="Abo" Binding="{Binding BillingLabel}" Width="150"/>
                                 <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy}" Width="110"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="150"/>
                             </DataGrid.Columns>
@@ -185,7 +200,117 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <Border x:Name="ManagedLicensesBorder" Grid.Row="3" Style="{StaticResource CardStyle}" Margin="0,0,0,16" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.2*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="Kundenlizenzen und Abos" Style="{StaticResource SectionTitleStyle}"/>
+                        <TextBlock x:Name="ManagedLicensesHintText" Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                        <DataGrid x:Name="ManagedLicensesGrid"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  SelectionChanged="ManagedLicensesGrid_SelectionChanged"
+                                  HeadersVisibility="Column"
+                                  MinHeight="260">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Firma" Binding="{Binding TenantName}" Width="2*"/>
+                                <DataGridTextColumn Header="Tarif" Binding="{Binding PlanName}" Width="*"/>
+                                <DataGridTextColumn Header="Abo" Binding="{Binding BillingLabel}" Width="140"/>
+                                <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy}" Width="110"/>
+                                <DataGridTextColumn Header="Naechste Abbuchung" Binding="{Binding NextBillingDate, StringFormat=dd.MM.yyyy}" Width="130"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Ausgewaehlte Lizenz bearbeiten" Style="{StaticResource SectionTitleStyle}"/>
+                        <TextBlock x:Name="ManagedLicenseSelectionHintText" Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Firma" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ManagedTenantNameText" IsReadOnly="True"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Tarif" Style="{StaticResource MutedLabelStyle}"/>
+                                <ComboBox x:Name="ManagedPlanCombo" DisplayMemberPath="DisplayLabel"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Abo-Zyklus" Style="{StaticResource MutedLabelStyle}"/>
+                                <ComboBox x:Name="ManagedBillingCycleCombo"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Preis netto" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ManagedPriceNetText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Gueltig bis" Style="{StaticResource MutedLabelStyle}"/>
+                                <DatePicker x:Name="ManagedValidUntilPicker"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Grace bis" Style="{StaticResource MutedLabelStyle}"/>
+                                <DatePicker x:Name="ManagedGraceUntilPicker"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Naechste Abbuchung" Style="{StaticResource MutedLabelStyle}"/>
+                                <DatePicker x:Name="ManagedNextBillingDatePicker"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Gekuendigt am" Style="{StaticResource MutedLabelStyle}"/>
+                                <DatePicker x:Name="ManagedCancelledAtPicker"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Benutzerlimit" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ManagedMaxUsersText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                                <TextBlock Text="Projektlimit" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ManagedMaxProjectsText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                <TextBlock Text="Kundenlimit" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ManagedMaxCustomersText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <CheckBox x:Name="ManagedIncludesMobileAccessCheck" Content="Mobilzugang aktiv" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="ManagedRenewsAutomaticallyCheck" Content="Automatische Verlaengerung" Margin="0,0,0,12"/>
+                        <CheckBox x:Name="ManagedIsActiveCheck" Content="Lizenz ist aktiv" Margin="0,0,0,16"/>
+
+                        <WrapPanel>
+                            <Button Width="190" Height="40" Margin="0,0,10,0" Content="Lizenz speichern" Click="SaveManagedLicense_Click"/>
+                            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="4" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                 <StackPanel>
                     <TextBlock Text="Firmenbenutzer" Style="{StaticResource SectionTitleStyle}"/>
                     <DataGrid x:Name="UsersGrid"
@@ -211,7 +336,7 @@
                 </StackPanel>
             </Border>
 
-            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <Border x:Name="StatusBorder" Grid.Row="5" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>
