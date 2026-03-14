@@ -434,6 +434,16 @@ public partial class BackendApiClient
     public Task<byte[]> DownloadInvoicePdfAsync(int invoiceId)
         => _httpClient.GetByteArrayAsync($"api/invoices/{invoiceId}/pdf");
 
+    public async Task UploadInvoicePdfAsync(int invoiceId, string originalPdfFileName, byte[] pdfBytes)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/invoices/{invoiceId}/pdf", new
+        {
+            originalPdfFileName,
+            pdfContentBase64 = Convert.ToBase64String(pdfBytes)
+        });
+        await EnsureSuccessWithMessageAsync(response);
+    }
+
     public async Task<AnalyticsResponseDto> GetAnalyticsAsync(int? customerId = null, int? projectId = null)
     {
         var query = new List<string>();
@@ -712,7 +722,9 @@ public partial class BackendApiClient
         }
 
         var body = await response.Content.ReadAsStringAsync();
-        var message = body;
+        var message = string.IsNullOrWhiteSpace(body)
+            ? $"Serverfehler: {(int)response.StatusCode} ({response.ReasonPhrase})"
+            : body;
         if (!string.IsNullOrWhiteSpace(body))
         {
             try
@@ -731,6 +743,11 @@ public partial class BackendApiClient
             {
                 message = body;
             }
+        }
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound && string.IsNullOrWhiteSpace(body))
+        {
+            message = "Der Server kennt diese Funktion noch nicht. Bitte den aktuellen Stand deployen und die WPF danach neu starten.";
         }
 
         throw new HttpRequestException(message, null, response.StatusCode);

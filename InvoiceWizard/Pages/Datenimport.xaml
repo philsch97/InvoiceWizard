@@ -192,6 +192,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="Rechnungsarchiv" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
                     <WrapPanel Grid.Column="1" Margin="0,18,18,0">
+                        <Button Width="190" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF nachtraeglich hinterlegen" Click="UploadStoredPdf_Click"/>
                         <Button Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung ansehen" Click="OpenStoredPdf_Click"/>
                         <Button Width="180" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="PDFs in Ordner exportieren" Click="ExportStoredPdfs_Click"/>
                     </WrapPanel>

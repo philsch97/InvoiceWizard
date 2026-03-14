@@ -85,6 +85,14 @@ public class InvoiceListItemDto
     public bool HasStoredPdf { get; set; }
 }
 
+public class UploadInvoicePdfRequest
+{
+    [Required]
+    public string OriginalPdfFileName { get; set; } = "";
+    [Required]
+    public string PdfContentBase64 { get; set; } = "";
+}
+
 public class SaveInvoiceLineRequest
 {
     public int Position { get; set; }

@@ -110,6 +110,33 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         return File(bytes, "application/pdf", fileName);
     }
 
+    [HttpPut("{invoiceId:int}/pdf")]
+    public async Task<IActionResult> UploadPdf(int invoiceId, [FromBody] UploadInvoicePdfRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices.FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PdfContentBase64))
+        {
+            return ValidationProblem("Bitte eine PDF-Datei hochladen.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(invoice.StoredPdfPath) && System.IO.File.Exists(invoice.StoredPdfPath))
+        {
+            System.IO.File.Delete(invoice.StoredPdfPath);
+        }
+
+        invoice.OriginalPdfFileName = request.OriginalPdfFileName.Trim();
+        invoice.StoredPdfPath = await SavePdfAsync(tenantId, invoice.InvoiceId, invoice.OriginalPdfFileName, request.PdfContentBase64, HttpContext.RequestAborted);
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+
+        return Ok(new { invoice.InvoiceId, invoice.OriginalPdfFileName });
+    }
+
     private async Task<string> SavePdfAsync(int tenantId, int invoiceId, string originalPdfFileName, string pdfContentBase64, CancellationToken cancellationToken)
     {
         var storageRoot = Path.Combine(environment.ContentRootPath, "storage", "invoices", tenantId.ToString());

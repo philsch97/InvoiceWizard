@@ -405,6 +405,33 @@ public partial class Datenimport : Page
         }
     }
 
+    private async void UploadStoredPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (InvoicesGrid.SelectedItem is not InvoiceEntity invoice)
+        {
+            SetStatus("Bitte zuerst eine Rechnung im Archiv auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        var dlg = new OpenFileDialog { Filter = "PDF Dateien (*.pdf)|*.pdf", Multiselect = false };
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var pdfBytes = await File.ReadAllBytesAsync(dlg.FileName);
+            await App.Api.UploadInvoicePdfAsync(invoice.InvoiceId, Path.GetFileName(dlg.FileName), pdfBytes);
+            await LoadStoredInvoicesAsync();
+            SetStatus($"PDF fuer {invoice.DisplayNumber} wurde erfolgreich hinterlegt.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"PDF konnte nicht gespeichert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private async void ExportStoredPdfs_Click(object sender, RoutedEventArgs e)
     {
         var invoices = InvoicesGrid.SelectedItems.OfType<InvoiceEntity>().Where(x => x.HasStoredPdf).ToList();
