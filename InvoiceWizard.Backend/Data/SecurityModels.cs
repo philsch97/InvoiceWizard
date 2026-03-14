@@ -24,6 +24,7 @@ public class AppUser
     public string PasswordHash { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public bool IsActive { get; set; } = true;
+    public bool IsPlatformAdmin { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
     public List<UserTenantMembership> Memberships { get; set; } = new();
@@ -54,6 +55,7 @@ public class SubscriptionPlan
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<TenantLicense> Licenses { get; set; } = new();
+    public List<LicenseActivation> LicenseActivations { get; set; } = new();
 }
 
 public class TenantLicense
@@ -65,6 +67,31 @@ public class TenantLicense
     public SubscriptionPlan SubscriptionPlan { get; set; } = null!;
     public DateTime ValidFrom { get; set; } = DateTime.UtcNow;
     public DateTime? ValidUntil { get; set; }
+    public int? MaxUsersOverride { get; set; }
+    public int? MaxProjectsOverride { get; set; }
+    public int? MaxCustomersOverride { get; set; }
+    public bool? IncludesMobileAccessOverride { get; set; }
     public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class LicenseActivation
+{
+    public int LicenseActivationId { get; set; }
+    public string ActivationCode { get; set; } = "";
+    public int SubscriptionPlanId { get; set; }
+    public SubscriptionPlan SubscriptionPlan { get; set; } = null!;
+    public string CustomerEmail { get; set; } = "";
+    public DateTime? ValidUntil { get; set; }
+    public int? MaxUsersOverride { get; set; }
+    public int? MaxProjectsOverride { get; set; }
+    public int? MaxCustomersOverride { get; set; }
+    public bool? IncludesMobileAccessOverride { get; set; }
+    public bool IsUsed { get; set; }
+    public DateTime? UsedAt { get; set; }
+    public int? UsedByAppUserId { get; set; }
+    public AppUser? UsedByAppUser { get; set; }
+    public int CreatedByAppUserId { get; set; }
+    public AppUser CreatedByAppUser { get; set; } = null!;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

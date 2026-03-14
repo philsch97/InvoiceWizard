@@ -53,6 +53,21 @@ public partial class BackendApiClient
         return MapAuthSession(session);
     }
 
+    public async Task<AuthSessionViewModel> ActivateLicenseAsync(string activationCode, string tenantName, string displayName, string email, string password)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/auth/activate-license", new
+        {
+            activationCode,
+            tenantName,
+            displayName,
+            email,
+            password
+        });
+        response.EnsureSuccessStatusCode();
+        var session = await response.Content.ReadFromJsonAsync<AuthResponseDto>(_jsonOptions) ?? new AuthResponseDto();
+        return MapAuthSession(session);
+    }
+
     public async Task<AuthSessionViewModel> LoginAsync(string email, string password)
     {
         var response = await _httpClient.PostAsJsonAsync("api/auth/login", new
@@ -417,7 +432,8 @@ public partial class BackendApiClient
                 AppUserId = item.User.AppUserId,
                 Email = item.User.Email,
                 DisplayName = item.User.DisplayName,
-                Role = item.User.Role
+                Role = item.User.Role,
+                IsPlatformAdmin = item.User.IsPlatformAdmin
             },
             Tenant = new AuthTenantViewModel
             {
@@ -680,6 +696,7 @@ public partial class BackendApiClient
         public string Email { get; set; } = "";
         public string DisplayName { get; set; } = "";
         public string Role { get; set; } = "";
+        public bool IsPlatformAdmin { get; set; }
     }
 
     private class AuthTenantDto
@@ -709,6 +726,7 @@ public partial class BackendApiClient
         public string Email { get; set; } = "";
         public string DisplayName { get; set; } = "";
         public string Role { get; set; } = "";
+        public bool IsPlatformAdmin { get; set; }
         public bool IsActive { get; set; }
         public bool IsDefault { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -749,6 +767,9 @@ public class AnalyticsResponseDto
     public List<AnalyticsMonthViewModel> Monthly { get; set; } = new();
     public List<ProjectAnalyticsRow> Projects { get; set; } = new();
 }
+
+
+
 
 
 

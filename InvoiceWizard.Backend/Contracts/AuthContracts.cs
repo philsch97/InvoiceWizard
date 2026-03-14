@@ -29,6 +29,31 @@ public class BootstrapAdminRequest
     public string Password { get; set; } = "";
 }
 
+public class ActivateLicenseRequest
+{
+    [Required]
+    [MaxLength(120)]
+    public string ActivationCode { get; set; } = "";
+
+    [Required]
+    [MaxLength(200)]
+    public string TenantName { get; set; } = "";
+
+    [Required]
+    [MaxLength(200)]
+    public string DisplayName { get; set; } = "";
+
+    [Required]
+    [EmailAddress]
+    [MaxLength(320)]
+    public string Email { get; set; } = "";
+
+    [Required]
+    [MinLength(8)]
+    [MaxLength(200)]
+    public string Password { get; set; } = "";
+}
+
 public class LoginRequest
 {
     [Required]
@@ -56,6 +81,7 @@ public class AuthUserDto
     public string Email { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string Role { get; set; } = "";
+    public bool IsPlatformAdmin { get; set; }
 }
 
 public class AuthTenantDto

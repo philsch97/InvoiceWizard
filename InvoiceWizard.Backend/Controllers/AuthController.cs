@@ -41,34 +41,24 @@ public class AuthController(
             return Conflict(new { message = "Initial admin was already created." });
         }
 
-        var slug = DatabaseInitializer.CreateSlug(request.TenantName);
+        var slug = await BuildUniqueSlugAsync(request.TenantName);
         if (string.IsNullOrWhiteSpace(slug))
         {
             return ValidationProblem("Bitte einen gueltigen Firmennamen angeben.");
         }
 
-        Tenant tenant;
-        var reusableTenants = await db.Tenants.Include(x => x.Memberships).Where(x => x.IsActive).OrderBy(x => x.TenantId).Take(2).ToListAsync();
-        if (reusableTenants.Count == 1 && reusableTenants[0].Memberships.Count == 0)
+        var tenant = new Tenant
         {
-            tenant = reusableTenants[0];
-            tenant.Name = request.TenantName.Trim();
-            tenant.Slug = slug;
-        }
-        else
-        {
-            tenant = new Tenant
-            {
-                Name = request.TenantName.Trim(),
-                Slug = slug
-            };
-        }
+            Name = request.TenantName.Trim(),
+            Slug = slug
+        };
 
         var user = new AppUser
         {
             Email = request.Email.Trim().ToLowerInvariant(),
             DisplayName = request.DisplayName.Trim(),
-            PasswordHash = passwordHashService.HashPassword(request.Password)
+            PasswordHash = passwordHashService.HashPassword(request.Password),
+            IsPlatformAdmin = true
         };
 
         var membership = new UserTenantMembership
@@ -83,19 +73,103 @@ public class AuthController(
         var defaultPlan = await db.SubscriptionPlans.OrderByDescending(x => x.MaxUsers).FirstOrDefaultAsync(x => x.Code == "business")
             ?? await db.SubscriptionPlans.OrderByDescending(x => x.MaxUsers).FirstAsync();
 
-        var license = await db.TenantLicenses.FirstOrDefaultAsync(x => x.TenantId == tenant.TenantId && x.IsActive);
-        if (license is null)
+        var license = new TenantLicense
         {
-            license = new TenantLicense
-            {
-                Tenant = tenant,
-                SubscriptionPlan = defaultPlan,
-                ValidFrom = DateTime.UtcNow,
-                IsActive = true
-            };
-            db.TenantLicenses.Add(license);
+            Tenant = tenant,
+            SubscriptionPlan = defaultPlan,
+            ValidFrom = DateTime.UtcNow,
+            IsActive = true
+        };
+
+        db.TenantLicenses.Add(license);
+        db.UserTenantMemberships.Add(membership);
+        await db.SaveChangesAsync();
+
+        return Ok(CreateAuthResponse(user, tenant, membership.Role, license));
+    }
+
+    [AllowAnonymous]
+    [HttpPost("activate-license")]
+    public async Task<ActionResult<AuthResponseDto>> ActivateLicense([FromBody] ActivateLicenseRequest request)
+    {
+        var code = NormalizeActivationCode(request.ActivationCode);
+        var activation = await db.LicenseActivations
+            .Include(x => x.SubscriptionPlan)
+            .FirstOrDefaultAsync(x => x.ActivationCode == code);
+
+        if (activation is null)
+        {
+            return NotFound(new { message = "Der Aktivierungscode wurde nicht gefunden." });
         }
 
+        if (activation.IsUsed)
+        {
+            return Conflict(new { message = "Der Aktivierungscode wurde bereits verwendet." });
+        }
+
+        if (activation.ValidUntil.HasValue && activation.ValidUntil.Value.Date < DateTime.UtcNow.Date)
+        {
+            return ValidationProblem("Der Aktivierungscode ist abgelaufen.");
+        }
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(activation.CustomerEmail) && !string.Equals(activation.CustomerEmail.Trim(), normalizedEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Dieser Aktivierungscode ist fuer eine andere E-Mail-Adresse reserviert.");
+        }
+
+        if (await db.AppUsers.AnyAsync(x => x.Email == normalizedEmail))
+        {
+            return Conflict(new { message = "Diese E-Mail-Adresse ist bereits vergeben." });
+        }
+
+        var slug = await BuildUniqueSlugAsync(request.TenantName);
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            return ValidationProblem("Bitte einen gueltigen Firmennamen angeben.");
+        }
+
+        var tenant = new Tenant
+        {
+            Name = request.TenantName.Trim(),
+            Slug = slug
+        };
+
+        var user = new AppUser
+        {
+            Email = normalizedEmail,
+            DisplayName = request.DisplayName.Trim(),
+            PasswordHash = passwordHashService.HashPassword(request.Password)
+        };
+
+        var membership = new UserTenantMembership
+        {
+            AppUser = user,
+            Tenant = tenant,
+            Role = TenantRoles.Admin,
+            IsDefault = true,
+            IsActive = true
+        };
+
+        var license = new TenantLicense
+        {
+            Tenant = tenant,
+            SubscriptionPlanId = activation.SubscriptionPlanId,
+            SubscriptionPlan = activation.SubscriptionPlan,
+            ValidFrom = DateTime.UtcNow,
+            ValidUntil = activation.ValidUntil,
+            MaxUsersOverride = activation.MaxUsersOverride,
+            MaxProjectsOverride = activation.MaxProjectsOverride,
+            MaxCustomersOverride = activation.MaxCustomersOverride,
+            IncludesMobileAccessOverride = activation.IncludesMobileAccessOverride,
+            IsActive = true
+        };
+
+        activation.IsUsed = true;
+        activation.UsedAt = DateTime.UtcNow;
+        activation.UsedByAppUser = user;
+
+        db.TenantLicenses.Add(license);
         db.UserTenantMemberships.Add(membership);
         await db.SaveChangesAsync();
 
@@ -127,11 +201,11 @@ public class AuthController(
             return Forbid();
         }
 
-        var license = await db.TenantLicenses
-            .Include(x => x.SubscriptionPlan)
-            .Where(x => x.TenantId == membership.TenantId && x.IsActive)
-            .OrderByDescending(x => x.ValidFrom)
-            .FirstOrDefaultAsync();
+        var license = await GetCurrentLicenseAsync(membership.TenantId);
+        if (license is null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Fuer diese Firma ist aktuell keine gueltige Lizenz aktiv." });
+        }
 
         user.LastLoginAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -160,14 +234,44 @@ public class AuthController(
             return Unauthorized();
         }
 
-        var license = await db.TenantLicenses
-            .Include(x => x.SubscriptionPlan)
-            .Where(x => x.TenantId == tenantId && x.IsActive)
-            .OrderByDescending(x => x.ValidFrom)
-            .FirstOrDefaultAsync();
-
+        var license = await GetCurrentLicenseAsync(tenantId);
         return Ok(CreateAuthResponse(user, membership.Tenant, membership.Role, license));
     }
+
+    private async Task<string> BuildUniqueSlugAsync(string tenantName)
+    {
+        var baseSlug = DatabaseInitializer.CreateSlug(tenantName);
+        if (string.IsNullOrWhiteSpace(baseSlug))
+        {
+            return string.Empty;
+        }
+
+        var slug = baseSlug;
+        var suffix = 2;
+        while (await db.Tenants.AnyAsync(x => x.Slug == slug))
+        {
+            slug = $"{baseSlug}-{suffix++}";
+        }
+
+        return slug;
+    }
+
+    private Task<TenantLicense?> GetCurrentLicenseAsync(int tenantId)
+    {
+        return db.TenantLicenses
+            .Include(x => x.SubscriptionPlan)
+            .Where(x => x.TenantId == tenantId && x.IsActive && (!x.ValidUntil.HasValue || x.ValidUntil.Value >= DateTime.UtcNow))
+            .OrderByDescending(x => x.ValidFrom)
+            .FirstOrDefaultAsync();
+    }
+
+    internal static int GetEffectiveMaxUsers(TenantLicense license) => license.MaxUsersOverride ?? license.SubscriptionPlan.MaxUsers;
+    internal static int GetEffectiveMaxProjects(TenantLicense license) => license.MaxProjectsOverride ?? license.SubscriptionPlan.MaxProjects;
+    internal static int GetEffectiveMaxCustomers(TenantLicense license) => license.MaxCustomersOverride ?? license.SubscriptionPlan.MaxCustomers;
+    internal static bool GetEffectiveMobileAccess(TenantLicense license) => license.IncludesMobileAccessOverride ?? license.SubscriptionPlan.IncludesMobileAccess;
+
+    private static string NormalizeActivationCode(string value)
+        => (value ?? string.Empty).Trim().ToUpperInvariant();
 
     private AuthResponseDto CreateAuthResponse(AppUser user, Tenant tenant, string role, TenantLicense? license)
     {
@@ -180,7 +284,8 @@ public class AuthController(
                 AppUserId = user.AppUserId,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                Role = role
+                Role = role,
+                IsPlatformAdmin = user.IsPlatformAdmin
             },
             Tenant = new AuthTenantDto
             {
@@ -193,10 +298,10 @@ public class AuthController(
                 TenantLicenseId = license.TenantLicenseId,
                 PlanCode = license.SubscriptionPlan.Code,
                 PlanName = license.SubscriptionPlan.Name,
-                MaxUsers = license.SubscriptionPlan.MaxUsers,
-                MaxProjects = license.SubscriptionPlan.MaxProjects,
-                MaxCustomers = license.SubscriptionPlan.MaxCustomers,
-                IncludesMobileAccess = license.SubscriptionPlan.IncludesMobileAccess,
+                MaxUsers = GetEffectiveMaxUsers(license),
+                MaxProjects = GetEffectiveMaxProjects(license),
+                MaxCustomers = GetEffectiveMaxCustomers(license),
+                IncludesMobileAccess = GetEffectiveMobileAccess(license),
                 ValidFrom = license.ValidFrom,
                 ValidUntil = license.ValidUntil,
                 IsActive = license.IsActive

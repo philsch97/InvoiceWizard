@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,6 +10,8 @@ public partial class TenantUsersPage : Page
 {
     private readonly string[] _roles = ["Employee", "Admin"];
     private List<TenantUserViewModel> _users = [];
+    private List<SubscriptionPlanViewModel> _plans = [];
+    private List<LicenseActivationViewModel> _licenseActivations = [];
     private TenantUserViewModel? _selectedUser;
 
     public TenantUsersPage()
@@ -25,11 +28,13 @@ public partial class TenantUsersPage : Page
         EditRoleCombo.SelectedItem = "Employee";
         ApplySessionInfo();
         await LoadUsersAsync();
+        await LoadLicensingAsync();
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         await LoadUsersAsync();
+        await LoadLicensingAsync();
     }
 
     private async void CreateUser_Click(object sender, RoutedEventArgs e)
@@ -111,6 +116,46 @@ public partial class TenantUsersPage : Page
         }
     }
 
+    private async void CreateLicenseActivation_Click(object sender, RoutedEventArgs e)
+    {
+        if (!EnsurePlatformAdmin())
+        {
+            return;
+        }
+
+        if (PlanCombo.SelectedItem is not SubscriptionPlanViewModel plan)
+        {
+            SetStatus("Bitte zuerst einen Tarif auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (!TryParseNullableInt(MaxUsersOverrideText.Text, out var maxUsers) || !TryParseNullableInt(MaxProjectsOverrideText.Text, out var maxProjects) || !TryParseNullableInt(MaxCustomersOverrideText.Text, out var maxCustomers))
+        {
+            SetStatus("Die Lizenz-Overrides muessen leere Felder oder ganze Zahlen sein.", StatusMessageType.Warning);
+            return;
+        }
+
+        try
+        {
+            var item = await App.Api.CreateLicenseActivationAsync(
+                plan.Code,
+                (ActivationCustomerEmailText.Text ?? string.Empty).Trim(),
+                ActivationValidUntilPicker.SelectedDate,
+                maxUsers,
+                maxProjects,
+                maxCustomers,
+                MobileAccessOverrideCheck.IsChecked);
+
+            ClearLicenseForm();
+            await LoadLicensingAsync();
+            SetStatus($"Aktivierungscode {item.ActivationCode} wurde erzeugt.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(GetFriendlyError(ex), StatusMessageType.Error);
+        }
+    }
+
     private void UsersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (UsersGrid.SelectedItem is TenantUserViewModel user)
@@ -125,6 +170,11 @@ public partial class TenantUsersPage : Page
     private void ClearCreateForm_Click(object sender, RoutedEventArgs e)
     {
         ClearCreateForm();
+    }
+
+    private void ClearLicenseForm_Click(object sender, RoutedEventArgs e)
+    {
+        ClearLicenseForm();
     }
 
     private void ClearSelection_Click(object sender, RoutedEventArgs e)
@@ -160,14 +210,31 @@ public partial class TenantUsersPage : Page
                 ? $"Tarif {App.Session?.License?.PlanName ?? App.Session?.License?.PlanCode}: {activeUsers} von {maxUsers} Benutzern aktiv."
                 : $"Aktive Benutzer: {activeUsers}.";
 
-            if (_users.Count == 0)
-            {
-                SetStatus("Noch keine weiteren Benutzer angelegt.", StatusMessageType.Info);
-            }
-            else
-            {
-                SetStatus($"{_users.Count} Benutzer fuer diese Firma geladen.", StatusMessageType.Info);
-            }
+            SetStatus(_users.Count == 0 ? "Noch keine weiteren Benutzer angelegt." : $"{_users.Count} Benutzer fuer diese Firma geladen.", StatusMessageType.Info);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(GetFriendlyError(ex), StatusMessageType.Error);
+        }
+    }
+
+    private async Task LoadLicensingAsync()
+    {
+        var isPlatformAdmin = App.Session?.User?.IsPlatformAdmin == true;
+        LicensingSectionBorder.Visibility = isPlatformAdmin ? Visibility.Visible : Visibility.Collapsed;
+        if (!isPlatformAdmin)
+        {
+            return;
+        }
+
+        try
+        {
+            _plans = await App.Api.GetSubscriptionPlansAsync();
+            _licenseActivations = await App.Api.GetLicenseActivationsAsync();
+            PlanCombo.ItemsSource = _plans;
+            PlanCombo.SelectedItem = _plans.FirstOrDefault(x => string.Equals(x.Code, "business", StringComparison.OrdinalIgnoreCase)) ?? _plans.FirstOrDefault();
+            LicenseActivationsGrid.ItemsSource = _licenseActivations;
+            LicenseAdminText.Text = "Nur der Plattform-Admin kann neue Aktivierungscodes fuer Kunden erzeugen. Diese Codes werden einmalig von deinen Kunden im Loginfenster aktiviert.";
         }
         catch (Exception ex)
         {
@@ -179,7 +246,9 @@ public partial class TenantUsersPage : Page
     {
         var tenantName = App.Session?.Tenant?.Name ?? "Unbekannte Firma";
         var planName = App.Session?.License?.PlanName ?? App.Session?.License?.PlanCode ?? "Lizenz";
-        HeaderText.Text = $"Admins koennen hier Team-Mitglieder der Firma {tenantName} anlegen, Rollen vergeben und Zugriffe deaktivieren. Aktueller Tarif: {planName}.";
+        HeaderText.Text = App.Session?.User?.IsPlatformAdmin == true
+            ? $"Du verwaltest die Plattform-Firma {tenantName}. Neben Benutzern kannst du hier auch Aktivierungscodes fuer neue Kundenfirmen erzeugen. Aktueller Tarif: {planName}."
+            : $"Admins koennen hier Team-Mitglieder der Firma {tenantName} anlegen, Rollen vergeben und Zugriffe deaktivieren. Aktueller Tarif: {planName}.";
     }
 
     private void ApplySelectedUser(TenantUserViewModel user)
@@ -201,6 +270,17 @@ public partial class TenantUsersPage : Page
         CreateEmailText.Clear();
         CreatePasswordBox.Clear();
         CreateRoleCombo.SelectedItem = "Employee";
+    }
+
+    private void ClearLicenseForm()
+    {
+        ActivationCustomerEmailText.Clear();
+        ActivationValidUntilPicker.SelectedDate = null;
+        MaxUsersOverrideText.Clear();
+        MaxProjectsOverrideText.Clear();
+        MaxCustomersOverrideText.Clear();
+        MobileAccessOverrideCheck.IsChecked = true;
+        PlanCombo.SelectedItem = _plans.FirstOrDefault(x => string.Equals(x.Code, "business", StringComparison.OrdinalIgnoreCase)) ?? _plans.FirstOrDefault();
     }
 
     private void ClearSelection()
@@ -225,6 +305,34 @@ public partial class TenantUsersPage : Page
         return true;
     }
 
+    private bool EnsurePlatformAdmin()
+    {
+        if (App.Session?.User?.IsPlatformAdmin != true)
+        {
+            SetStatus("Nur der Plattform-Admin darf Aktivierungscodes erzeugen.", StatusMessageType.Warning);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseNullableInt(string? text, out int? value)
+    {
+        value = null;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0)
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
     private static string NormalizeRole(string role)
         => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Employee";
 
@@ -233,12 +341,12 @@ public partial class TenantUsersPage : Page
         var message = ex.Message;
         if (message.Contains("409"))
         {
-            return "Der Benutzer konnte nicht angelegt oder aktualisiert werden. Bitte E-Mail, Benutzerlimit und Rolle pruefen.";
+            return "Der Vorgang konnte nicht abgeschlossen werden. Bitte Limits, E-Mail-Adresse und vorhandene Daten pruefen.";
         }
 
         if (message.Contains("403"))
         {
-            return "Dieser Zugriff ist nur fuer Admins erlaubt.";
+            return "Dieser Zugriff ist nur fuer berechtigte Admins erlaubt.";
         }
 
         if (message.Contains("400"))

@@ -10,6 +10,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
     public DbSet<UserTenantMembership> UserTenantMemberships => Set<UserTenantMembership>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<TenantLicense> TenantLicenses => Set<TenantLicense>();
+    public DbSet<LicenseActivation> LicenseActivations => Set<LicenseActivation>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
@@ -28,6 +29,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<UserTenantMembership>().HasKey(x => x.UserTenantMembershipId);
         modelBuilder.Entity<SubscriptionPlan>().HasKey(x => x.SubscriptionPlanId);
         modelBuilder.Entity<TenantLicense>().HasKey(x => x.TenantLicenseId);
+        modelBuilder.Entity<LicenseActivation>().HasKey(x => x.LicenseActivationId);
         modelBuilder.Entity<Customer>().HasKey(x => x.CustomerId);
         modelBuilder.Entity<Project>().HasKey(x => x.ProjectId);
         modelBuilder.Entity<Invoice>().HasKey(x => x.InvoiceId);
@@ -44,6 +46,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<AppUser>().HasIndex(x => x.Email).IsUnique();
         modelBuilder.Entity<UserTenantMembership>().HasIndex(x => new { x.AppUserId, x.TenantId }).IsUnique();
         modelBuilder.Entity<SubscriptionPlan>().HasIndex(x => x.Code).IsUnique();
+        modelBuilder.Entity<LicenseActivation>().HasIndex(x => x.ActivationCode).IsUnique();
         modelBuilder.Entity<Customer>().HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
         modelBuilder.Entity<Project>().HasIndex(x => new { x.TenantId, x.CustomerId, x.Name }).IsUnique();
         modelBuilder.Entity<Invoice>().HasIndex(x => new { x.TenantId, x.ContentHash }).IsUnique();
@@ -52,6 +55,9 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<UserTenantMembership>().HasOne(x => x.Tenant).WithMany(x => x.Memberships).HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TenantLicense>().HasOne(x => x.Tenant).WithMany(x => x.Licenses).HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<TenantLicense>().HasOne(x => x.SubscriptionPlan).WithMany(x => x.Licenses).HasForeignKey(x => x.SubscriptionPlanId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LicenseActivation>().HasOne(x => x.SubscriptionPlan).WithMany(x => x.LicenseActivations).HasForeignKey(x => x.SubscriptionPlanId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LicenseActivation>().HasOne(x => x.CreatedByAppUser).WithMany().HasForeignKey(x => x.CreatedByAppUserId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LicenseActivation>().HasOne(x => x.UsedByAppUser).WithMany().HasForeignKey(x => x.UsedByAppUserId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Customer>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Project>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
@@ -85,6 +91,8 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<UserTenantMembership>().Property(x => x.Role).HasMaxLength(50);
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Code).HasMaxLength(100);
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Name).HasMaxLength(200);
+        modelBuilder.Entity<LicenseActivation>().Property(x => x.ActivationCode).HasMaxLength(120);
+        modelBuilder.Entity<LicenseActivation>().Property(x => x.CustomerEmail).HasMaxLength(320);
         modelBuilder.Entity<CalendarEntry>().Property(x => x.Title).HasMaxLength(200);
         modelBuilder.Entity<CalendarEntry>().Property(x => x.Location).HasMaxLength(200);
 

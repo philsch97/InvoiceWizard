@@ -4,11 +4,12 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       mc:Ignorable="d"
-      d:DesignHeight="920" d:DesignWidth="1320"
+      d:DesignHeight="1080" d:DesignWidth="1320"
       Title="TenantUsersPage">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="18">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -104,7 +105,87 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <Border x:Name="LicensingSectionBorder" Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16" Visibility="Collapsed">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="1.2*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="Lizenz-Aktivierungscode erstellen" Style="{StaticResource SectionTitleStyle}"/>
+                        <TextBlock x:Name="LicenseAdminText" Margin="0,8,0,16" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Text="Tarif" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="PlanCombo" DisplayMemberPath="DisplayLabel"/>
+                        </StackPanel>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Kunden-E-Mail optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="ActivationCustomerEmailText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Gueltig bis optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <DatePicker x:Name="ActivationValidUntilPicker"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Benutzerlimit optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="MaxUsersOverrideText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                                <TextBlock Text="Projektlimit optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="MaxProjectsOverrideText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                <TextBlock Text="Kundenlimit optional" Style="{StaticResource MutedLabelStyle}"/>
+                                <TextBox x:Name="MaxCustomersOverrideText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <CheckBox x:Name="MobileAccessOverrideCheck" Content="Mobilzugang aktivieren" Margin="0,0,0,16"/>
+
+                        <WrapPanel>
+                            <Button Width="170" Height="40" Margin="0,0,10,0" Content="Aktivierungscode erzeugen" Click="CreateLicenseActivation_Click"/>
+                            <Button Width="140" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Felder leeren" Click="ClearLicenseForm_Click"/>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Aktivierungscodes" Style="{StaticResource SectionTitleStyle}"/>
+                        <DataGrid x:Name="LicenseActivationsGrid"
+                                  Margin="0,16,0,0"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  HeadersVisibility="Column"
+                                  MinHeight="250">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Code" Binding="{Binding ActivationCode}" Width="160"/>
+                                <DataGridTextColumn Header="Tarif" Binding="{Binding PlanName}" Width="120"/>
+                                <DataGridTextColumn Header="Limits" Binding="{Binding LimitsLabel}" Width="170"/>
+                                <DataGridTextColumn Header="E-Mail" Binding="{Binding CustomerEmail}" Width="160"/>
+                                <DataGridTextColumn Header="Gueltig bis" Binding="{Binding ValidUntil, StringFormat=dd.MM.yyyy}" Width="110"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="150"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                 <StackPanel>
                     <TextBlock Text="Firmenbenutzer" Style="{StaticResource SectionTitleStyle}"/>
                     <DataGrid x:Name="UsersGrid"
@@ -130,7 +211,7 @@
                 </StackPanel>
             </Border>
 
-            <Border x:Name="StatusBorder" Grid.Row="3" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>

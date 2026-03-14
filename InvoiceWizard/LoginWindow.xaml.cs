@@ -26,9 +26,9 @@ public partial class LoginWindow : Window
             LoginPanel.Visibility = hasUsers ? Visibility.Visible : Visibility.Collapsed;
             BootstrapPanel.Visibility = hasUsers ? Visibility.Collapsed : Visibility.Visible;
             IntroText.Text = hasUsers
-                ? "Melde dich an, um auf die geschuetzten Firmendaten zuzugreifen."
-                : "Fuer diesen Server wird jetzt zuerst ein Admin-Zugang fuer deine Firma eingerichtet.";
-            SetStatus(hasUsers ? "Bitte mit deinem Benutzer anmelden." : "Es wurde noch kein Benutzer gefunden. Bitte zuerst den ersten Admin anlegen.", StatusMessageType.Info);
+                ? "Melde dich an oder aktiviere mit einem Lizenzcode eine neue Firma."
+                : "Fuer diesen Server wird jetzt zuerst der erste Plattform-Admin eingerichtet.";
+            SetStatus(hasUsers ? "Bitte anmelden oder einen Aktivierungscode verwenden." : "Es wurde noch kein Benutzer gefunden. Bitte zuerst den ersten Plattform-Admin anlegen.", StatusMessageType.Info);
         }
         catch (Exception ex)
         {
@@ -53,6 +53,30 @@ public partial class LoginWindow : Window
         await ExecuteAuthAsync(() => App.Api.LoginAsync(email, password), "Anmeldung erfolgreich.");
     }
 
+    private async void ActivateLicense_Click(object sender, RoutedEventArgs e)
+    {
+        var activationCode = (ActivationCodeText.Text ?? string.Empty).Trim();
+        var tenantName = (ActivationTenantText.Text ?? string.Empty).Trim();
+        var displayName = (ActivationDisplayNameText.Text ?? string.Empty).Trim();
+        var email = (ActivationEmailText.Text ?? string.Empty).Trim();
+        var password = ActivationPasswordBox.Password;
+        var confirmPassword = ActivationPasswordConfirmBox.Password;
+
+        if (string.IsNullOrWhiteSpace(activationCode) || string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            SetStatus("Bitte alle Pflichtfelder fuer die Lizenzaktivierung ausfuellen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (!string.Equals(password, confirmPassword, StringComparison.Ordinal))
+        {
+            SetStatus("Die Passwoerter stimmen nicht ueberein.", StatusMessageType.Error);
+            return;
+        }
+
+        await ExecuteAuthAsync(() => App.Api.ActivateLicenseAsync(activationCode, tenantName, displayName, email, password), "Lizenz aktiviert und Firma erfolgreich eingerichtet.");
+    }
+
     private async void Bootstrap_Click(object sender, RoutedEventArgs e)
     {
         var tenantName = (BootstrapTenantText.Text ?? string.Empty).Trim();
@@ -73,7 +97,7 @@ public partial class LoginWindow : Window
             return;
         }
 
-        await ExecuteAuthAsync(() => App.Api.BootstrapAdminAsync(tenantName, displayName, email, password), "Erster Admin wurde angelegt und angemeldet.");
+        await ExecuteAuthAsync(() => App.Api.BootstrapAdminAsync(tenantName, displayName, email, password), "Plattform-Admin wurde angelegt und angemeldet.");
     }
 
     private async Task ExecuteAuthAsync(Func<Task<AuthSessionViewModel>> action, string successMessage)
@@ -110,6 +134,7 @@ public partial class LoginWindow : Window
     private void ToggleBusy(bool isBusy)
     {
         LoginButton.IsEnabled = !isBusy;
+        ActivateLicenseButton.IsEnabled = !isBusy;
         CancelLoginButton.IsEnabled = !isBusy;
         BootstrapButton.IsEnabled = !isBusy;
         CancelBootstrapButton.IsEnabled = !isBusy;
