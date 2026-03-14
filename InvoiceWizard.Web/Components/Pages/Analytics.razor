@@ -1,0 +1,178 @@
+@page "/analytics"
+@inject BackendApiClient Api
+@inject WebAuthSession Auth
+
+<PageTitle>Auswertung</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <div>
+            <h2>Auswertung</h2>
+            <p>Umsaetze, Ausgaben, Gewinne und die wichtigsten Projektkennzahlen mobil im Blick.</p>
+        </div>
+        <button class="action-button secondary" @onclick="LoadAsync">Aktualisieren</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <div class="inline-status">@StatusMessage</div>
+    }
+
+    <article class="feature-card">
+        <div class="form-grid selector-grid">
+            <label>
+                <span>Kunde</span>
+                <select @bind="SelectedCustomerId" @bind:after="OnCustomerChangedAsync">
+                    <option value="">Alle Kunden</option>
+                    @foreach (var customer in Customers)
+                    {
+                        <option value="@customer.CustomerId">@customer.Name</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Projekt</span>
+                <select @bind="SelectedProjectId" @bind:after="LoadAsync">
+                    <option value="">Alle Projekte</option>
+                    @foreach (var project in Projects)
+                    {
+                        <option value="@project.ProjectId">@project.Name</option>
+                    }
+                </select>
+            </label>
+        </div>
+    </article>
+
+    <div class="stats-grid analytics-stats">
+        <article class="stat-card metric-blue"><span>Bezahlt</span><strong>@AnalyticsData.Revenue.ToString("0.00") EUR</strong></article>
+        <article class="stat-card metric-slate"><span>Ausgaben</span><strong>@AnalyticsData.Expenses.ToString("0.00") EUR</strong></article>
+        <article class="stat-card metric-green"><span>Gewinn</span><strong>@AnalyticsData.Profit.ToString("0.00") EUR</strong></article>
+        <article class="stat-card metric-gold"><span>Offen</span><strong>@AnalyticsData.OpenRevenue.ToString("0.00") EUR</strong></article>
+    </div>
+
+    <div class="split-grid two-columns">
+        <article class="feature-card">
+            <div class="table-header compact"><h3>Monatsverlauf</h3><span>@AnalyticsData.Monthly.Count Monate</span></div>
+            @foreach (var month in AnalyticsData.Monthly)
+            {
+                <div class="chart-row">
+                    <div class="chart-meta">
+                        <strong>@month.Label</strong>
+                        <span>@month.Profit.ToString("0.00") EUR</span>
+                    </div>
+                    <div class="chart-bars">
+                        <div class="chart-bar revenue" style="width:@GetBarWidth(month.Revenue, month.Revenue > month.Expenses ? month.Revenue : month.Expenses)%"></div>
+                        <div class="chart-bar expenses" style="width:@GetBarWidth(month.Expenses, month.Revenue > month.Expenses ? month.Revenue : month.Expenses)%"></div>
+                    </div>
+                </div>
+            }
+        </article>
+
+        <article class="feature-card">
+            <div class="table-header compact"><h3>Ausgaben nach Kategorie</h3><span>@AnalyticsData.ExpenseCategories.Count Kategorien</span></div>
+            @if (AnalyticsData.ExpenseCategories.Count == 0)
+            {
+                <p class="empty-hint">Keine Ausgaben fuer die aktuelle Filterung vorhanden.</p>
+            }
+            else
+            {
+                @foreach (var category in AnalyticsData.ExpenseCategories)
+                {
+                    <div class="list-row stacked-mobile">
+                        <div>
+                            <strong>@category.AccountingCategoryLabel</strong>
+                            <p>@category.Amount.ToString("0.00") EUR</p>
+                        </div>
+                        <span class="pill">@category.AccountingCategory</span>
+                    </div>
+                }
+            }
+        </article>
+    </div>
+
+    <article class="list-card">
+        <div class="table-header"><h3>Projekte</h3><span>@AnalyticsData.Projects.Count Eintraege</span></div>
+        @if (AnalyticsData.Projects.Count == 0)
+        {
+            <p class="empty-hint">Keine Projekte in der aktuellen Filterung.</p>
+        }
+        else
+        {
+            @foreach (var project in AnalyticsData.Projects)
+            {
+                <div class="entry-card">
+                    <div class="entry-header">
+                        <div>
+                            <strong>@project.ProjectName</strong>
+                            <p>@project.CustomerName</p>
+                        </div>
+                        <span class="pill">@project.OpenItemCount offen</span>
+                    </div>
+                    <div class="inline-metrics stats-inline-grid">
+                        <div><span>Bezahlt</span><strong>@project.PaidRevenue.ToString("0.00") EUR</strong></div>
+                        <div><span>Offen</span><strong>@project.OpenRevenue.ToString("0.00") EUR</strong></div>
+                        <div><span>Stunden</span><strong>@project.LoggedHours.ToString("0.##") h</strong></div>
+                    </div>
+                </div>
+            }
+        }
+    </article>
+</section>
+
+@code {
+    private List<CustomerItem> Customers { get; set; } = [];
+    private List<ProjectItem> Projects { get; set; } = [];
+    private AnalyticsResponseItem AnalyticsData { get; set; } = new();
+    private int? SelectedCustomerId { get; set; }
+    private int? SelectedProjectId { get; set; }
+    private string? StatusMessage { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Auth.IsInitialized || !Auth.IsAuthenticated)
+        {
+            Customers = [];
+            Projects = [];
+            AnalyticsData = new AnalyticsResponseItem();
+            return;
+        }
+
+        Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        await LoadProjectsAsync();
+        await LoadAsync();
+    }
+
+    private async Task OnCustomerChangedAsync()
+    {
+        await LoadProjectsAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadProjectsAsync()
+    {
+        Projects = SelectedCustomerId.HasValue
+            ? (await Api.GetProjectsAsync(SelectedCustomerId.Value)).OrderBy(x => x.Name).ToList()
+            : [];
+
+        if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
+        {
+            SelectedProjectId = null;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        AnalyticsData = await Api.GetAnalyticsAsync(SelectedCustomerId, SelectedProjectId);
+        StatusMessage = $"Auswertung aktualisiert: {AnalyticsData.Projects.Count} Projekt(e), {AnalyticsData.ExpenseCategories.Count} Ausgabenkategorie(n).";
+    }
+
+    private static decimal GetBarWidth(decimal value, decimal max)
+    {
+        if (max <= 0m)
+        {
+            return 0m;
+        }
+
+        return Math.Round(value / max * 100m, 2);
+    }
+}

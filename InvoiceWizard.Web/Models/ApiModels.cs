@@ -190,3 +190,84 @@ public class TodoAttachmentItem
     public DateTime UploadedAt { get; set; }
     public string DownloadUrl { get; set; } = "";
 }
+
+public class CalendarUserItem
+{
+    public int AppUserId { get; set; }
+    public string DisplayName { get; set; } = "";
+    public string Role { get; set; } = "";
+    public bool CanEdit { get; set; }
+    public bool IsCurrentUser { get; set; }
+}
+
+public class CalendarEntryItem
+{
+    public int CalendarEntryId { get; set; }
+    public int AppUserId { get; set; }
+    public string UserDisplayName { get; set; } = "";
+    public DateTime EntryDate { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Location { get; set; } = "";
+    public DateTime UpdatedAt { get; set; }
+    public bool CanEdit { get; set; }
+}
+
+public class SaveCalendarEntryModel
+{
+    public DateTime EntryDate { get; set; } = DateTime.Today;
+    public TimeSpan StartTime { get; set; } = new(8, 0, 0);
+    public TimeSpan EndTime { get; set; } = new(9, 0, 0);
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Location { get; set; } = "";
+}
+
+public class AnalyticsResponseItem
+{
+    public decimal Revenue { get; set; }
+    public decimal Expenses { get; set; }
+    public decimal Profit { get; set; }
+    public decimal OpenRevenue { get; set; }
+    public List<AnalyticsMonthItem> Monthly { get; set; } = [];
+    public List<ProjectAnalyticsItem> Projects { get; set; } = [];
+    public List<ExpenseCategoryItem> ExpenseCategories { get; set; } = [];
+}
+
+public class AnalyticsMonthItem
+{
+    public string Label { get; set; } = "";
+    public decimal Revenue { get; set; }
+    public decimal Expenses { get; set; }
+    public double RevenueHeight { get; set; }
+    public double ExpenseHeight { get; set; }
+    public decimal Profit => Revenue - Expenses;
+}
+
+public class ProjectAnalyticsItem
+{
+    public string CustomerName { get; set; } = "";
+    public string ProjectName { get; set; } = "";
+    public decimal PaidRevenue { get; set; }
+    public decimal OpenRevenue { get; set; }
+    public decimal LoggedHours { get; set; }
+    public int OpenItemCount { get; set; }
+}
+
+public class ExpenseCategoryItem
+{
+    public string AccountingCategory { get; set; } = "";
+    public decimal Amount { get; set; }
+
+    public string AccountingCategoryLabel => AccountingCategory switch
+    {
+        "Tools" => "Werkzeug",
+        "Services" => "Dienstleistungen",
+        "Office" => "Buero",
+        "Vehicle" => "Fahrzeug",
+        "Other" => "Sonstiges",
+        _ => "Material und Waren"
+    };
+}

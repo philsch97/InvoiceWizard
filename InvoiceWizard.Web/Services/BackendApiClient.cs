@@ -109,6 +109,61 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<List<CalendarUserItem>> GetCalendarUsersAsync(CancellationToken cancellationToken = default)
+        => await TryGetListAsync<CalendarUserItem>("api/calendar/users", cancellationToken);
+
+    public async Task<List<CalendarEntryItem>> GetCalendarEntriesAsync(int? appUserId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+    {
+        var parts = new List<string>
+        {
+            $"fromDate={Uri.EscapeDataString(fromDate.ToString("yyyy-MM-dd"))}",
+            $"toDate={Uri.EscapeDataString(toDate.ToString("yyyy-MM-dd"))}"
+        };
+        if (appUserId.HasValue)
+        {
+            parts.Add($"appUserId={appUserId.Value}");
+        }
+
+        return await TryGetListAsync<CalendarEntryItem>($"api/calendar/entries?{string.Join("&", parts)}", cancellationToken);
+    }
+
+    public async Task<List<CalendarEntryItem>> GetCalendarWeeklyOverviewAsync(DateTime weekStart, CancellationToken cancellationToken = default)
+        => await TryGetListAsync<CalendarEntryItem>($"api/calendar/weekly-overview?weekStart={Uri.EscapeDataString(weekStart.ToString("yyyy-MM-dd"))}", cancellationToken);
+
+    public async Task<CalendarEntryItem> SaveCalendarEntryAsync(SaveCalendarEntryModel model, int? calendarEntryId = null, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = calendarEntryId.HasValue
+            ? await httpClient.PutAsJsonAsync($"api/calendar/entries/{calendarEntryId.Value}", model, cancellationToken)
+            : await httpClient.PostAsJsonAsync("api/calendar/entries", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<CalendarEntryItem>(cancellationToken: cancellationToken))!;
+    }
+
+    public async Task DeleteCalendarEntryAsync(int calendarEntryId, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.DeleteAsync($"api/calendar/entries/{calendarEntryId}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<AnalyticsResponseItem> GetAnalyticsAsync(int? customerId = null, int? projectId = null, CancellationToken cancellationToken = default)
+    {
+        var parts = new List<string>();
+        if (customerId.HasValue)
+        {
+            parts.Add($"customerId={customerId.Value}");
+        }
+
+        if (projectId.HasValue)
+        {
+            parts.Add($"projectId={projectId.Value}");
+        }
+
+        var url = parts.Count == 0 ? "api/analytics/details" : $"api/analytics/details?{string.Join("&", parts)}";
+        return await TryGetAsync(url, new AnalyticsResponseItem(), cancellationToken);
+    }
+
     public async Task<List<TodoListItem>> GetTodoListsAsync(int customerId, int? projectId = null, CancellationToken cancellationToken = default)
     {
         var url = projectId.HasValue
