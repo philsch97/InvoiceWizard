@@ -1,9 +1,11 @@
+using InvoiceWizard.Data.Entities;
 using InvoiceWizard.Data.ViewModels;
 using InvoiceWizard.Services;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -22,14 +24,32 @@ public partial class Datenimport : Page
     private static readonly Regex CableRegex = new(@"(?i)\b(kabel|leitung|nym|nyy|h07|nhx|erdkabel|mantelleitung)\b", RegexOptions.Compiled);
 
     private readonly ObservableCollection<ManualInvoiceLineInput> _manualLines = new();
+    private readonly ObservableCollection<InvoiceEntity> _storedInvoices = new();
+    private readonly List<KeyValuePair<string, string>> _accountingCategories =
+    [
+        new("Material und Waren", "MaterialAndGoods"),
+        new("Werkzeug", "Tools"),
+        new("Dienstleistungen", "Services"),
+        new("Buero", "Office"),
+        new("Fahrzeug", "Vehicle"),
+        new("Sonstiges", "Other")
+    ];
     private string _currentSourcePdfPath = "";
     private string _currentContentHash = "";
+    private byte[]? _currentPdfBytes;
+    private string _currentOriginalPdfFileName = "";
 
     public Datenimport()
     {
         InitializeComponent();
         ManualLinesGrid.ItemsSource = _manualLines;
+        InvoicesGrid.ItemsSource = _storedInvoices;
+        AccountingCategoryCombo.ItemsSource = _accountingCategories;
+        AccountingCategoryCombo.DisplayMemberPath = "Key";
+        AccountingCategoryCombo.SelectedValuePath = "Value";
+        AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
         InvoiceDatePicker.SelectedDate = DateTime.Today;
+        Loaded += async (_, _) => await LoadStoredInvoicesAsync();
         UpdateInvoiceModeUi();
         SetStatus("Bereit fuer den Import.", StatusMessageType.Info);
     }
@@ -44,21 +64,28 @@ public partial class Datenimport : Page
 
         try
         {
+            _currentPdfBytes = File.ReadAllBytes(dlg.FileName);
+            _currentOriginalPdfFileName = Path.GetFileName(dlg.FileName);
             var xmlBytes = ZugferdExtractor.ExtractEmbeddedXml(dlg.FileName);
             if (xmlBytes == null)
             {
+                _currentPdfBytes = null;
+                _currentOriginalPdfFileName = "";
+                _currentContentHash = "";
+                _currentSourcePdfPath = "";
                 SetStatus("Kein eingebettetes ZUGFeRD-XML gefunden.", StatusMessageType.Error);
                 return;
             }
 
             var doc = XDocument.Load(new MemoryStream(xmlBytes));
-            _currentContentHash = Sha256(xmlBytes);
+            _currentContentHash = Sha256(_currentPdfBytes);
             InvoiceNumberText.Text = ExtractInvoiceNumberFromXml(doc);
             InvoiceDatePicker.SelectedDate = ExtractInvoiceDateFromXml(doc);
             SupplierNameText.Text = ExtractSupplierNameFromXml(doc);
             SourceInfoText.Text = dlg.FileName;
             _currentSourcePdfPath = dlg.FileName;
             NoSupplierInvoiceCheckBox.IsChecked = false;
+            AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
 
             _manualLines.Clear();
             foreach (var line in ParseZugferdPositions(doc))
@@ -87,6 +114,39 @@ public partial class Datenimport : Page
         }
     }
 
+    private void ChooseClassicPdf_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog { Filter = "PDF Dateien (*.pdf)|*.pdf", Multiselect = false };
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            _currentPdfBytes = File.ReadAllBytes(dlg.FileName);
+            _currentOriginalPdfFileName = Path.GetFileName(dlg.FileName);
+            _currentContentHash = Sha256(_currentPdfBytes);
+            _currentSourcePdfPath = dlg.FileName;
+            SourceInfoText.Text = dlg.FileName;
+            NoSupplierInvoiceCheckBox.IsChecked = false;
+
+            var parsed = PdfInvoiceImportService.Parse(dlg.FileName);
+            InvoiceNumberText.Text = string.IsNullOrWhiteSpace(parsed.InvoiceNumber) ? InvoiceNumberText.Text : parsed.InvoiceNumber;
+            InvoiceDatePicker.SelectedDate = parsed.InvoiceDate ?? InvoiceDatePicker.SelectedDate ?? DateTime.Today;
+            SupplierNameText.Text = string.IsNullOrWhiteSpace(parsed.SupplierName) ? SupplierNameText.Text : parsed.SupplierName;
+            AccountingCategoryCombo.SelectedValue = DetectAccountingCategory(parsed.RawText);
+            _manualLines.Clear();
+
+            UpdateInvoiceModeUi();
+            SetStatus("PDF geladen. Erkannte Daten wurden eingetragen und koennen jetzt noch bearbeitet werden. Positionen bitte bei Bedarf manuell ergaenzen.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"PDF-Import fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private void AddManualLine_Click(object sender, RoutedEventArgs e)
     {
         if (!TryReadLine(out var line, out var error))
@@ -98,9 +158,12 @@ public partial class Datenimport : Page
         line.Position = _manualLines.Count + 1;
         _manualLines.Add(line);
         ClearLineInputs();
-        _currentSourcePdfPath = "";
-        _currentContentHash = "";
-        SourceInfoText.Text = NoSupplierInvoiceCheckBox.IsChecked == true ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
+        if (_currentPdfBytes is null)
+        {
+            _currentSourcePdfPath = "";
+            _currentContentHash = "";
+            SourceInfoText.Text = NoSupplierInvoiceCheckBox.IsChecked == true ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
+        }
         SetStatus("Position erfolgreich hinzugefuegt.", StatusMessageType.Success);
     }
 
@@ -129,6 +192,12 @@ public partial class Datenimport : Page
             return;
         }
 
+        if (hasSupplierInvoice && _currentPdfBytes is null)
+        {
+            SetStatus("Bitte fuer Lieferantenrechnungen zuerst die PDF hochladen.", StatusMessageType.Error);
+            return;
+        }
+
         if (InvoiceDatePicker.SelectedDate == null)
         {
             SetStatus("Bitte ein Datum auswaehlen.", StatusMessageType.Error);
@@ -149,9 +218,20 @@ public partial class Datenimport : Page
 
         try
         {
-            await App.Api.SaveInvoiceAsync(effectiveInvoiceNumber, invoiceDate, supplierName, _currentSourcePdfPath, hash, _manualLines, hasSupplierInvoice);
+            await App.Api.SaveInvoiceAsync(
+                effectiveInvoiceNumber,
+                invoiceDate,
+                supplierName,
+                AccountingCategoryCombo.SelectedValue as string ?? "MaterialAndGoods",
+                _currentSourcePdfPath,
+                _currentOriginalPdfFileName,
+                _currentPdfBytes is null ? null : Convert.ToBase64String(_currentPdfBytes),
+                hash,
+                _manualLines,
+                hasSupplierInvoice);
             var importedLineCount = _manualLines.Count;
             ResetForm();
+            await LoadStoredInvoicesAsync();
             var summary = hasSupplierInvoice
                 ? $"Rechnung {invoiceNumber} mit {importedLineCount} Position(en) erfolgreich importiert."
                 : $"Manuell hinzugefuegte Positionen ohne Lieferantenrechnung wurden mit {importedLineCount} Zeile(n) gespeichert.";
@@ -169,6 +249,8 @@ public partial class Datenimport : Page
         {
             _currentSourcePdfPath = "";
             _currentContentHash = "";
+            _currentPdfBytes = null;
+            _currentOriginalPdfFileName = "";
             SourceInfoText.Text = "Manuelle Erfassung ohne Rechnung";
         }
 
@@ -182,7 +264,7 @@ public partial class Datenimport : Page
         InvoiceDateLabel.Text = noSupplierInvoice ? "Erfassungsdatum * Pflicht" : "Rechnungsdatum * Pflicht";
         ImportModeInfoText.Text = noSupplierInvoice
             ? "Fuer Altbestand oder manuell hinzugefuegte Materialien reicht ein Datum und mindestens eine Position. Ein Einkaufspreis pro Position ist Pflicht und bleibt fuer die Kalkulation sichtbar, obwohl kein Lieferantenbeleg vorliegt."
-            : "Rechnungsnummer, Rechnungsdatum und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
+            : "Rechnungsnummer, Rechnungsdatum, Kategorie, PDF und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
 
         if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
         {
@@ -285,8 +367,75 @@ public partial class Datenimport : Page
         _manualLines.Clear();
         _currentSourcePdfPath = "";
         _currentContentHash = "";
+        _currentPdfBytes = null;
+        _currentOriginalPdfFileName = "";
+        AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
         ClearLineInputs();
         UpdateInvoiceModeUi();
+    }
+
+    private async Task LoadStoredInvoicesAsync()
+    {
+        _storedInvoices.Clear();
+        foreach (var item in await App.Api.GetInvoicesAsync())
+        {
+            _storedInvoices.Add(item);
+        }
+    }
+
+    private async void OpenStoredPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (InvoicesGrid.SelectedItem is not InvoiceEntity invoice || !invoice.HasStoredPdf)
+        {
+            SetStatus("Bitte zuerst eine Rechnung mit gespeicherter PDF auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        try
+        {
+            var bytes = await App.Api.DownloadInvoicePdfAsync(invoice.InvoiceId);
+            var tempFile = Path.Combine(Path.GetTempPath(), string.IsNullOrWhiteSpace(invoice.OriginalPdfFileName) ? $"rechnung_{invoice.InvoiceId}.pdf" : invoice.OriginalPdfFileName);
+            await File.WriteAllBytesAsync(tempFile, bytes);
+            Process.Start(new ProcessStartInfo(tempFile) { UseShellExecute = true });
+            SetStatus($"PDF fuer {invoice.DisplayNumber} geoeffnet.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"PDF konnte nicht geoeffnet werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void ExportStoredPdfs_Click(object sender, RoutedEventArgs e)
+    {
+        var invoices = InvoicesGrid.SelectedItems.OfType<InvoiceEntity>().Where(x => x.HasStoredPdf).ToList();
+        if (invoices.Count == 0)
+        {
+            invoices = _storedInvoices.Where(x => x.HasStoredPdf).ToList();
+        }
+
+        if (invoices.Count == 0)
+        {
+            SetStatus("Es sind keine gespeicherten PDFs zum Export vorhanden.", StatusMessageType.Warning);
+            return;
+        }
+
+        var dialog = new OpenFolderDialog();
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        foreach (var invoice in invoices)
+        {
+            var bytes = await App.Api.DownloadInvoicePdfAsync(invoice.InvoiceId);
+            var fileName = string.IsNullOrWhiteSpace(invoice.OriginalPdfFileName)
+                ? $"{invoice.InvoiceDate:yyyyMMdd}_{invoice.DisplayNumber}.pdf"
+                : invoice.OriginalPdfFileName;
+            var safeName = SanitizeFileName(fileName);
+            await File.WriteAllBytesAsync(Path.Combine(dialog.FolderName, safeName), bytes);
+        }
+
+        SetStatus($"{invoices.Count} PDF(s) wurden in den ausgewaehlten Ordner exportiert.", StatusMessageType.Success);
     }
 
     private void RenumberLines()
@@ -323,6 +472,45 @@ public partial class Datenimport : Page
     }
 
     private static string BuildManualDocumentNumber() => $"MANUELL-{DateTime.Now:yyyyMMdd-HHmmss}";
+
+    private static string DetectAccountingCategory(string rawText)
+    {
+        var text = rawText.ToLowerInvariant();
+        if (text.Contains("werkzeug") || text.Contains("maschine"))
+        {
+            return "Tools";
+        }
+
+        if (text.Contains("dienstleistung") || text.Contains("service"))
+        {
+            return "Services";
+        }
+
+        if (text.Contains("buero"))
+        {
+            return "Office";
+        }
+
+        if (text.Contains("fahrzeug") || text.Contains("kraftstoff"))
+        {
+            return "Vehicle";
+        }
+
+        return "MaterialAndGoods";
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(fileName.Length);
+        foreach (var character in fileName)
+        {
+            builder.Append(invalidChars.Contains(character) ? '_' : character);
+        }
+
+        var sanitized = builder.ToString().Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "rechnung.pdf" : sanitized;
+    }
 
     private static string ExtractInvoiceNumberFromXml(XDocument doc)
         => doc.Descendants(ram + "ID").FirstOrDefault()?.Value ?? "";

@@ -63,7 +63,10 @@ public class Invoice
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; } = true;
     public string SupplierName { get; set; } = "Sonepar";
+    public string AccountingCategory { get; set; } = "MaterialAndGoods";
     public string SourcePdfPath { get; set; } = "";
+    public string OriginalPdfFileName { get; set; } = "";
+    public string StoredPdfPath { get; set; } = "";
     public string ContentHash { get; set; } = "";
     public List<InvoiceLine> Lines { get; set; } = new();
 }

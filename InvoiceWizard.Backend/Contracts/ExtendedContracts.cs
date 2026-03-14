@@ -9,6 +9,7 @@ public class InvoiceLineItemDto
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; }
+    public string AccountingCategory { get; set; } = "";
     public int Position { get; set; }
     public string ArticleNumber { get; set; } = "";
     public string Ean { get; set; } = "";
@@ -32,6 +33,7 @@ public class AllocationItemDto
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; }
+    public string AccountingCategory { get; set; } = "";
     public string ArticleNumber { get; set; } = "";
     public string Description { get; set; } = "";
     public string Unit { get; set; } = "";
@@ -62,10 +64,25 @@ public class SaveInvoiceRequest
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public string SupplierName { get; set; } = "";
+    public string AccountingCategory { get; set; } = "MaterialAndGoods";
     public string SourcePdfPath { get; set; } = "";
+    public string OriginalPdfFileName { get; set; } = "";
+    public string? PdfContentBase64 { get; set; }
     [Required]
     public string ContentHash { get; set; } = "";
     public List<SaveInvoiceLineRequest> Lines { get; set; } = new();
+}
+
+public class InvoiceListItemDto
+{
+    public int InvoiceId { get; set; }
+    public string InvoiceNumber { get; set; } = "";
+    public DateTime InvoiceDate { get; set; }
+    public string SupplierName { get; set; } = "";
+    public bool HasSupplierInvoice { get; set; }
+    public string AccountingCategory { get; set; } = "";
+    public string OriginalPdfFileName { get; set; } = "";
+    public bool HasStoredPdf { get; set; }
 }
 
 public class SaveInvoiceLineRequest
@@ -128,6 +145,7 @@ public class AnalyticsResponseDto
     public decimal OpenRevenue { get; set; }
     public List<AnalyticsMonthDto> Monthly { get; set; } = new();
     public List<ProjectAnalyticsRowDto> Projects { get; set; } = new();
+    public List<ExpenseCategoryTotalDto> ExpenseCategories { get; set; } = new();
 }
 
 public class AnalyticsMonthDto
@@ -147,4 +165,10 @@ public class ProjectAnalyticsRowDto
     public decimal OpenRevenue { get; set; }
     public decimal LoggedHours { get; set; }
     public int OpenItemCount { get; set; }
+}
+
+public class ExpenseCategoryTotalDto
+{
+    public string AccountingCategory { get; set; } = "";
+    public decimal Amount { get; set; }
 }

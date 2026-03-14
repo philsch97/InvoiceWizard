@@ -22,5 +22,8 @@ public class InvoiceLineEntity
     public bool HasSupplierInvoice => Invoice?.HasSupplierInvoice ?? true;
     public string InvoiceDisplayNumber => Invoice?.DisplayNumber ?? "";
     public string ExpenseStatus => Invoice?.ExpenseStatus ?? "Mit Rechnung";
+    public string AccountingCategory => Invoice?.AccountingCategory ?? "MaterialAndGoods";
+    public string AccountingCategoryLabel => Invoice?.AccountingCategoryLabel ?? "Material und Waren";
+    public bool IsProjectAllocatable => string.Equals(AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase);
     public List<LineAllocationEntity> Allocations { get; set; } = new();
 }

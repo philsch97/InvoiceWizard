@@ -12,6 +12,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
@@ -30,6 +31,7 @@
 
                     <WrapPanel Grid.Row="1" Margin="0,18,0,0">
                         <Button Width="180" Height="40" Margin="0,0,10,0" Content="ZUGFeRD-PDF laden" Click="ChoosePdf_Click"/>
+                        <Button Width="180" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF-Rechnung laden" Click="ChooseClassicPdf_Click"/>
                         <Button Width="190" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte Position loeschen" Click="RemoveSelectedLine_Click"/>
                         <Button Width="190" Height="40" Content="Rechnung speichern" Click="SaveInvoice_Click"/>
                     </WrapPanel>
@@ -52,6 +54,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
@@ -70,6 +73,11 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,16,0,0">
+                            <TextBlock Text="Kategorie * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
+                            <ComboBox x:Name="AccountingCategoryCombo"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,16,0,0">
                             <TextBlock Text="Quelle optional" Style="{StaticResource MutedLabelStyle}"/>
                             <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
                                 <TextBlock x:Name="SourceInfoText" Text="Manuelle Erfassung" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
@@ -77,7 +85,7 @@
                         </StackPanel>
 
                         <CheckBox x:Name="NoSupplierInvoiceCheckBox"
-                                  Grid.Row="2"
+                                  Grid.Row="3"
                                   Grid.ColumnSpan="2"
                                   Margin="0,16,0,0"
                                   Content="Ohne Lieferantenrechnung erfassen (Altbestand / manuell hinzugefuegt)"
@@ -178,6 +186,42 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Rechnungsarchiv" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                    <WrapPanel Grid.Column="1" Margin="0,18,18,0">
+                        <Button Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung ansehen" Click="OpenStoredPdf_Click"/>
+                        <Button Width="180" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="PDFs in Ordner exportieren" Click="ExportStoredPdfs_Click"/>
+                    </WrapPanel>
+                    <DataGrid x:Name="InvoicesGrid"
+                              Grid.Row="1"
+                              Grid.ColumnSpan="2"
+                              Margin="0,16,0,0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              SelectionMode="Extended"
+                              MinHeight="180">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Rechnung" Binding="{Binding DisplayNumber}" Width="160"/>
+                            <DataGridTextColumn Header="Datum" Binding="{Binding InvoiceDate, StringFormat=dd.MM.yyyy}" Width="110"/>
+                            <DataGridTextColumn Header="Lieferant" Binding="{Binding SupplierName}" Width="180"/>
+                            <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategoryLabel}" Width="150"/>
+                            <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="120"/>
+                            <DataGridCheckBoxColumn Header="PDF" Binding="{Binding HasStoredPdf}" Width="70"/>
+                            <DataGridTextColumn Header="Datei" Binding="{Binding OriginalPdfFileName}" Width="220"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
                     <TextBlock Text="Positionen der aktuellen Erfassung" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
                     <DataGrid x:Name="ManualLinesGrid"
                               Grid.Row="1"
@@ -201,7 +245,7 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <Border x:Name="StatusBorder" Grid.Row="5" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>

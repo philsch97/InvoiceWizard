@@ -17,6 +17,7 @@ public class InvoiceLineRow
     public string ArticleNumber => Line.ArticleNumber;
     public string Ean => Line.Ean;
     public string Description => Line.Description;
+    public string AccountingCategory => Line.AccountingCategoryLabel;
     public decimal Quantity => Line.Quantity;
     public string Unit => Line.Unit;
     public decimal GrossListPrice => Line.GrossListPrice;
@@ -27,6 +28,7 @@ public class InvoiceLineRow
     public decimal EffectivePurchaseUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
     public decimal AllocatedQuantity => Line.Allocations?.Sum(a => a.AllocatedQuantity) ?? 0m;
     public decimal RemainingQuantity => Quantity - AllocatedQuantity;
+    public bool IsProjectAllocatable => Line.IsProjectAllocatable;
     public string AllocationSummary =>
         Line.Allocations == null || Line.Allocations.Count == 0
             ? ""

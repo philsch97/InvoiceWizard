@@ -47,6 +47,12 @@ public partial class DataHandling : Page
         }
 
         var selectedRow = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().First();
+        if (!selectedRow.IsProjectAllocatable)
+        {
+            SetStatus("Nur Rechnungen der Kategorie 'Material und Waren' koennen Projekten zugewiesen werden.", StatusMessageType.Warning);
+            return;
+        }
+
         var defaultUnitPrice = PricingHelper.NormalizeUnitPrice(selectedRow.Line.NetUnitPrice, selectedRow.Line.MetalSurcharge, selectedRow.Line.PriceBasisQuantity);
         var hasCustomPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice);
 
@@ -105,6 +111,13 @@ public partial class DataHandling : Page
         if (selectedRows.Count == 0)
         {
             SetStatus("Bitte mindestens eine Position markieren.", StatusMessageType.Warning);
+            return;
+        }
+
+        var blockedRows = selectedRows.Where(r => !r.IsProjectAllocatable).ToList();
+        if (blockedRows.Count > 0)
+        {
+            SetStatus("Es koennen nur Rechnungen der Kategorie 'Material und Waren' komplett zugewiesen werden.", StatusMessageType.Warning);
             return;
         }
 

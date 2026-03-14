@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using InvoiceWizard.Backend.Contracts;
 using InvoiceWizard.Backend.Data;
 using InvoiceWizard.Backend.Domain;
@@ -10,7 +11,7 @@ namespace InvoiceWizard.Backend.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/invoices")]
-public class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
+public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor, IWebHostEnvironment environment) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> SaveInvoice([FromBody] SaveInvoiceRequest request)
@@ -30,7 +31,9 @@ public class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? fallbackNumber : request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
             SupplierName = request.SupplierName.Trim(),
+            AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory),
             SourcePdfPath = request.SourcePdfPath.Trim(),
+            OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim(),
             ContentHash = request.ContentHash.Trim(),
             Lines = request.Lines.Select(line => new InvoiceLine
             {
@@ -51,7 +54,96 @@ public class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccesso
 
         db.Invoices.Add(invoice);
         await db.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(request.PdfContentBase64))
+        {
+            invoice.StoredPdfPath = await SavePdfAsync(tenantId, invoice.InvoiceId, invoice.OriginalPdfFileName, request.PdfContentBase64, HttpContext.RequestAborted);
+            await db.SaveChangesAsync();
+        }
+
         return Ok(new { invoice.InvoiceId, lineCount = invoice.Lines.Count });
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<InvoiceListItemDto>>> GetInvoices()
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var items = await db.Invoices
+            .Where(x => x.TenantId == tenantId)
+            .OrderByDescending(x => x.InvoiceDate)
+            .ThenByDescending(x => x.InvoiceId)
+            .Select(x => new InvoiceListItemDto
+            {
+                InvoiceId = x.InvoiceId,
+                InvoiceNumber = x.InvoiceNumber,
+                InvoiceDate = x.InvoiceDate,
+                SupplierName = x.SupplierName,
+                HasSupplierInvoice = x.HasSupplierInvoice,
+                AccountingCategory = x.AccountingCategory,
+                OriginalPdfFileName = x.OriginalPdfFileName,
+                HasStoredPdf = !string.IsNullOrWhiteSpace(x.StoredPdfPath)
+            })
+            .ToListAsync();
+
+        return Ok(items);
+    }
+
+    [HttpGet("{invoiceId:int}/pdf")]
+    public async Task<IActionResult> DownloadPdf(int invoiceId)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices.FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(invoice.StoredPdfPath) || !System.IO.File.Exists(invoice.StoredPdfPath))
+        {
+            return NotFound(new { message = "Fuer diese Rechnung ist keine gespeicherte PDF vorhanden." });
+        }
+
+        var fileName = string.IsNullOrWhiteSpace(invoice.OriginalPdfFileName)
+            ? $"{SanitizeFileName(invoice.InvoiceNumber)}.pdf"
+            : invoice.OriginalPdfFileName;
+        var bytes = await System.IO.File.ReadAllBytesAsync(invoice.StoredPdfPath, HttpContext.RequestAborted);
+        return File(bytes, "application/pdf", fileName);
+    }
+
+    private async Task<string> SavePdfAsync(int tenantId, int invoiceId, string originalPdfFileName, string pdfContentBase64, CancellationToken cancellationToken)
+    {
+        var storageRoot = Path.Combine(environment.ContentRootPath, "storage", "invoices", tenantId.ToString());
+        Directory.CreateDirectory(storageRoot);
+        var safeName = string.IsNullOrWhiteSpace(originalPdfFileName)
+            ? $"invoice_{invoiceId}.pdf"
+            : $"{Path.GetFileNameWithoutExtension(SanitizeFileName(originalPdfFileName))}.pdf";
+        var finalPath = Path.Combine(storageRoot, $"{invoiceId}_{safeName}");
+        var bytes = Convert.FromBase64String(pdfContentBase64);
+        await System.IO.File.WriteAllBytesAsync(finalPath, bytes, cancellationToken);
+        return finalPath;
+    }
+
+    private static string NormalizeAccountingCategory(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized switch
+        {
+            "Tools" => "Tools",
+            "Services" => "Services",
+            "Office" => "Office",
+            "Vehicle" => "Vehicle",
+            "Other" => "Other",
+            _ => "MaterialAndGoods"
+        };
+    }
+
+    [GeneratedRegex("[^A-Za-z0-9._-]+", RegexOptions.Compiled)]
+    private static partial Regex InvalidFileNameCharactersRegex();
+
+    private static string SanitizeFileName(string value)
+    {
+        var sanitized = InvalidFileNameCharactersRegex().Replace(value, "_").Trim('_');
+        return string.IsNullOrWhiteSpace(sanitized) ? "rechnung" : sanitized;
     }
 }
 
@@ -106,6 +198,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             InvoiceNumber = line.Invoice.InvoiceNumber,
             InvoiceDate = line.Invoice.InvoiceDate,
             HasSupplierInvoice = line.Invoice.HasSupplierInvoice,
+            AccountingCategory = line.Invoice.AccountingCategory,
             Position = line.Position,
             ArticleNumber = line.ArticleNumber,
             Ean = line.Ean,
@@ -132,6 +225,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             InvoiceNumber = allocation.InvoiceLine.Invoice.InvoiceNumber,
             InvoiceDate = allocation.InvoiceLine.Invoice.InvoiceDate,
             HasSupplierInvoice = allocation.InvoiceLine.Invoice.HasSupplierInvoice,
+            AccountingCategory = allocation.InvoiceLine.Invoice.AccountingCategory,
             ArticleNumber = allocation.InvoiceLine.ArticleNumber,
             Description = allocation.InvoiceLine.Description,
             Unit = allocation.InvoiceLine.Unit,
@@ -192,6 +286,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
                 HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,
+                AccountingCategory = x.InvoiceLine.Invoice.AccountingCategory,
                 ArticleNumber = x.InvoiceLine.ArticleNumber,
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
@@ -227,6 +322,12 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
         if (line is null)
         {
             return NotFound();
+        }
+
+        await db.Entry(line).Reference(x => x.Invoice).LoadAsync(HttpContext.RequestAborted);
+        if (!string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Rechnungen der Kategorie 'Material und Waren' koennen Projekten zugewiesen werden.");
         }
 
         var customerExists = await db.Customers.AnyAsync(x => x.CustomerId == request.CustomerId && x.TenantId == tenantId);
@@ -276,6 +377,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
                 HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,
+                AccountingCategory = x.InvoiceLine.Invoice.AccountingCategory,
                 ArticleNumber = x.InvoiceLine.ArticleNumber,
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
@@ -449,16 +551,36 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
             + workEntries.Where(x => !x.IsPaid).Sum(x => x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer));
 
         decimal expenses;
+        List<ExpenseCategoryTotalDto> expenseCategories;
         if (!customerId.HasValue && !projectId.HasValue)
         {
             expenses = await db.InvoiceLines
                 .Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
                 .Select(x => x.LineTotal)
                 .SumAsync();
+            expenseCategories = await db.InvoiceLines
+                .Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
+                .GroupBy(x => x.Invoice.AccountingCategory)
+                .Select(g => new ExpenseCategoryTotalDto
+                {
+                    AccountingCategory = g.Key,
+                    Amount = g.Sum(x => x.LineTotal)
+                })
+                .OrderByDescending(x => x.Amount)
+                .ToListAsync();
         }
         else
         {
             expenses = allocations.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine));
+            expenseCategories = allocations
+                .GroupBy(x => x.InvoiceLine.Invoice.AccountingCategory)
+                .Select(g => new ExpenseCategoryTotalDto
+                {
+                    AccountingCategory = g.Key,
+                    Amount = g.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine))
+                })
+                .OrderByDescending(x => x.Amount)
+                .ToList();
         }
 
         var revenue = paidAllocationRevenue + paidWorkRevenue;
@@ -532,7 +654,8 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
                     + project.WorkTimeEntries.Where(w => !w.IsPaid).Sum(w => w.ExportedLineTotal > 0m ? w.ExportedLineTotal : (w.HoursWorked * w.HourlyRate) + (w.TravelKilometers * w.TravelRatePerKilometer)),
                 LoggedHours = project.WorkTimeEntries.Sum(w => w.HoursWorked),
                 OpenItemCount = project.Allocations.Count(a => !a.IsPaid) + project.WorkTimeEntries.Count(w => !w.IsPaid)
-            }).OrderBy(x => x.CustomerName).ThenBy(x => x.ProjectName).ToList()
+            }).OrderBy(x => x.CustomerName).ThenBy(x => x.ProjectName).ToList(),
+            ExpenseCategories = expenseCategories
         });
     }
 

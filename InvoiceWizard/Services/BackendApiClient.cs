@@ -384,7 +384,7 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task SaveInvoiceAsync(string invoiceNumber, DateTime invoiceDate, string supplierName, string sourcePdfPath, string contentHash, IEnumerable<ManualInvoiceLineInput> lines, bool hasSupplierInvoice = true)
+    public async Task SaveInvoiceAsync(string invoiceNumber, DateTime invoiceDate, string supplierName, string accountingCategory, string sourcePdfPath, string originalPdfFileName, string? pdfContentBase64, string contentHash, IEnumerable<ManualInvoiceLineInput> lines, bool hasSupplierInvoice = true)
     {
         var response = await _httpClient.PostAsJsonAsync("api/invoices", new
         {
@@ -392,7 +392,10 @@ public partial class BackendApiClient
             invoiceNumber,
             invoiceDate,
             supplierName,
+            accountingCategory,
             sourcePdfPath,
+            originalPdfFileName,
+            pdfContentBase64,
             contentHash,
             lines = lines.Select(line => new
             {
@@ -411,6 +414,25 @@ public partial class BackendApiClient
         });
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task<List<InvoiceEntity>> GetInvoicesAsync()
+    {
+        var items = await _httpClient.GetFromJsonAsync<List<InvoiceListDto>>("api/invoices", _jsonOptions) ?? [];
+        return items.Select(x => new InvoiceEntity
+        {
+            InvoiceId = x.InvoiceId,
+            InvoiceNumber = x.InvoiceNumber,
+            InvoiceDate = x.InvoiceDate,
+            SupplierName = x.SupplierName,
+            HasSupplierInvoice = x.HasSupplierInvoice,
+            AccountingCategory = x.AccountingCategory,
+            OriginalPdfFileName = x.OriginalPdfFileName,
+            HasStoredPdf = x.HasStoredPdf
+        }).ToList();
+    }
+
+    public Task<byte[]> DownloadInvoicePdfAsync(int invoiceId)
+        => _httpClient.GetByteArrayAsync($"api/invoices/{invoiceId}/pdf");
 
     public async Task<AnalyticsResponseDto> GetAnalyticsAsync(int? customerId = null, int? projectId = null)
     {
@@ -598,7 +620,7 @@ public partial class BackendApiClient
 
     private static InvoiceLineEntity MapInvoiceLine(InvoiceLineDto item)
     {
-        var invoice = new InvoiceEntity { InvoiceId = item.InvoiceId, InvoiceNumber = item.InvoiceNumber, InvoiceDate = item.InvoiceDate, HasSupplierInvoice = item.HasSupplierInvoice };
+        var invoice = new InvoiceEntity { InvoiceId = item.InvoiceId, InvoiceNumber = item.InvoiceNumber, InvoiceDate = item.InvoiceDate, HasSupplierInvoice = item.HasSupplierInvoice, AccountingCategory = item.AccountingCategory };
         var line = new InvoiceLineEntity
         {
             InvoiceLineId = item.InvoiceLineId,
@@ -643,7 +665,7 @@ public partial class BackendApiClient
                 NetUnitPrice = item.NetUnitPrice,
                 MetalSurcharge = item.MetalSurcharge,
                 PriceBasisQuantity = item.PriceBasisQuantity,
-                Invoice = new InvoiceEntity { InvoiceNumber = item.InvoiceNumber, InvoiceDate = item.InvoiceDate, HasSupplierInvoice = item.HasSupplierInvoice }
+                Invoice = new InvoiceEntity { InvoiceNumber = item.InvoiceNumber, InvoiceDate = item.InvoiceDate, HasSupplierInvoice = item.HasSupplierInvoice, AccountingCategory = item.AccountingCategory }
             },
             CustomerId = item.CustomerId,
             Customer = new CustomerEntity { CustomerId = item.CustomerId, Name = item.CustomerName },
@@ -800,8 +822,9 @@ public partial class BackendApiClient
     private class TodoListDto { public int TodoListId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public string Title { get; set; } = ""; public DateTime CreatedAt { get; set; } public DateTime UpdatedAt { get; set; } public int OpenItemCount { get; set; } public int CompletedItemCount { get; set; } public List<TodoItemDto> Items { get; set; } = []; public List<TodoAttachmentDto> Attachments { get; set; } = []; }
     private class TodoItemDto { public int TodoItemId { get; set; } public int TodoListId { get; set; } public int? ParentTodoItemId { get; set; } public string Text { get; set; } = ""; public bool IsCompleted { get; set; } public int SortOrder { get; set; } public List<TodoItemDto> Children { get; set; } = []; }
     private class TodoAttachmentDto { public int TodoAttachmentId { get; set; } public string FileName { get; set; } = ""; public string ContentType { get; set; } = ""; public string Caption { get; set; } = ""; public long FileSize { get; set; } public DateTime UploadedAt { get; set; } public string DownloadUrl { get; set; } = ""; }
-    private class InvoiceLineDto { public int InvoiceLineId { get; set; } public int InvoiceId { get; set; } public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public int Position { get; set; } public string ArticleNumber { get; set; } = ""; public string Ean { get; set; } = ""; public string Description { get; set; } = ""; public decimal Quantity { get; set; } public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal GrossListPrice { get; set; } public decimal PriceBasisQuantity { get; set; } public decimal LineTotal { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public List<AllocationDto> Allocations { get; set; } = []; }
-    private class AllocationDto { public int LineAllocationId { get; set; } public int InvoiceLineId { get; set; } public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public string ArticleNumber { get; set; } = ""; public string Description { get; set; } = ""; public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal PriceBasisQuantity { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public decimal AllocatedQuantity { get; set; } public decimal CustomerUnitPrice { get; set; } public bool IsSmallMaterial { get; set; } public DateTime AllocatedAt { get; set; } public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public decimal ExportedMarkupPercent { get; set; } public decimal ExportedUnitPrice { get; set; } public decimal ExportedLineTotal { get; set; } public DateTime? LastExportedAt { get; set; } }
+    private class InvoiceLineDto { public int InvoiceLineId { get; set; } public int InvoiceId { get; set; } public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public int Position { get; set; } public string ArticleNumber { get; set; } = ""; public string Ean { get; set; } = ""; public string Description { get; set; } = ""; public decimal Quantity { get; set; } public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal GrossListPrice { get; set; } public decimal PriceBasisQuantity { get; set; } public decimal LineTotal { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public List<AllocationDto> Allocations { get; set; } = []; }
+    private class AllocationDto { public int LineAllocationId { get; set; } public int InvoiceLineId { get; set; } public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public string ArticleNumber { get; set; } = ""; public string Description { get; set; } = ""; public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal PriceBasisQuantity { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public decimal AllocatedQuantity { get; set; } public decimal CustomerUnitPrice { get; set; } public bool IsSmallMaterial { get; set; } public DateTime AllocatedAt { get; set; } public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public decimal ExportedMarkupPercent { get; set; } public decimal ExportedUnitPrice { get; set; } public decimal ExportedLineTotal { get; set; } public DateTime? LastExportedAt { get; set; } }
+    private class InvoiceListDto { public int InvoiceId { get; set; } public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public string SupplierName { get; set; } = ""; public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public string OriginalPdfFileName { get; set; } = ""; public bool HasStoredPdf { get; set; } }
 }
 
 public class AnalyticsResponseDto
@@ -812,6 +835,7 @@ public class AnalyticsResponseDto
     public decimal OpenRevenue { get; set; }
     public List<AnalyticsMonthViewModel> Monthly { get; set; } = new();
     public List<ProjectAnalyticsRow> Projects { get; set; } = new();
+    public List<ExpenseCategoryAnalyticsRow> ExpenseCategories { get; set; } = new();
 }
 
 

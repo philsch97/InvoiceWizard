@@ -15,6 +15,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
@@ -105,7 +106,23 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="0">
+            <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Ausgaben nach Kategorie" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                    <DataGrid x:Name="ExpenseCategoryGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="180">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategoryLabel}" Width="*"/>
+                            <DataGridTextColumn Header="Betrag" Binding="{Binding Amount}" Width="160"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="5" Style="{StaticResource CardStyle}" Padding="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -127,7 +144,7 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="StatusBorder" Grid.Row="5" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12" Margin="0,16,0,0">
+            <Border x:Name="StatusBorder" Grid.Row="6" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12" Margin="0,16,0,0">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>

@@ -88,8 +88,9 @@ public partial class AnalyticsPage : Page
         OpenRevenueText.Text = analytics.OpenRevenue.ToString("0.00 EUR", CultureInfo.GetCultureInfo("de-DE"));
 
         MonthlyChart.ItemsSource = analytics.Monthly;
+        ExpenseCategoryGrid.ItemsSource = analytics.ExpenseCategories;
         ProjectAnalyticsGrid.ItemsSource = analytics.Projects;
-        SetStatus($"Auswertung aktualisiert. {analytics.Projects.Count} Projekt(e) in der aktuellen Filterung.", StatusMessageType.Info);
+        SetStatus($"Auswertung aktualisiert. {analytics.Projects.Count} Projekt(e) und {analytics.ExpenseCategories.Count} Ausgabenkategorie(n) in der aktuellen Filterung.", StatusMessageType.Info);
     }
 
     private void SetStatus(string message, StatusMessageType type)

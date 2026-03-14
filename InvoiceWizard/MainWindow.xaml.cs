@@ -9,57 +9,27 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         ApplySessionInfo();
-        NavigateTo(new Datenimport(), ImportButton);
+        NavigateTo(CreateMaterialSection(), MaterialButton);
     }
 
-    private void Datenimport_Click(object sender, RoutedEventArgs e)
+    private void Material_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(new Datenimport(), ImportButton);
+        NavigateTo(CreateMaterialSection(), MaterialButton);
     }
 
-    private void Datenhandling_Click(object sender, RoutedEventArgs e)
+    private void MasterData_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(new DataHandling(), AllocationButton);
+        NavigateTo(CreateMasterDataSection(), MasterDataButton);
     }
 
-    private void CustomerHandling_Click(object sender, RoutedEventArgs e)
+    private void Organisation_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(new CustomerHandling(), CustomerButton);
+        NavigateTo(CreateOrganisationSection(), OrganisationButton);
     }
 
-    private void BillingExport_Click(object sender, RoutedEventArgs e)
+    private void Admin_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(new BillingExportPage(), BillingExportButton);
-    }
-
-    private void ProjectContacts_Click(object sender, RoutedEventArgs e)
-    {
-        NavigateTo(new ProjectContactsPage(), ProjectContactsButton);
-    }
-
-    private void WorkTime_Click(object sender, RoutedEventArgs e)
-    {
-        NavigateTo(new WorkTimePage(), WorkTimeButton);
-    }
-
-    private void Calendar_Click(object sender, RoutedEventArgs e)
-    {
-        NavigateTo(new CalendarPage(), CalendarButton);
-    }
-
-    private void Notes_Click(object sender, RoutedEventArgs e)
-    {
-        NavigateTo(new NotesPage(), NotesButton);
-    }
-
-    private void TenantUsers_Click(object sender, RoutedEventArgs e)
-    {
-        NavigateTo(new TenantUsersPage(), TenantUsersButton);
-    }
-
-    private void Subscription_Click(object sender, RoutedEventArgs e)
-    {
-        NavigateTo(new SubscriptionPage(), SubscriptionButton);
+        NavigateTo(CreateAdminSection(), AdminButton);
     }
 
     private void Analytics_Click(object sender, RoutedEventArgs e)
@@ -76,11 +46,61 @@ public partial class MainWindow : Window
         {
             ApplySessionInfo();
             Show();
-            NavigateTo(new Datenimport(), ImportButton);
+            NavigateTo(CreateMaterialSection(), MaterialButton);
             return;
         }
 
         Close();
+    }
+
+    private SectionHostPage CreateMaterialSection()
+    {
+        return new SectionHostPage(
+            "Material",
+            "Hier findest du alle Bereiche rund um Materialimport, Zuordnung, Export und Arbeitszeit.",
+            new[]
+            {
+                new SectionNavigationItem { Title = "Rechnungsimport", CreatePage = () => new Datenimport() },
+                new SectionNavigationItem { Title = "Positionen zuweisen", CreatePage = () => new DataHandling() },
+                new SectionNavigationItem { Title = "Abrechnung / Export", CreatePage = () => new BillingExportPage() },
+                new SectionNavigationItem { Title = "Arbeitszeit", CreatePage = () => new WorkTimePage() }
+            });
+    }
+
+    private SectionHostPage CreateMasterDataSection()
+    {
+        return new SectionHostPage(
+            "Stammdaten",
+            "Kunden, Projekte und die dazugehoerigen Stammdaten verwaltest du gesammelt in diesem Bereich.",
+            new[]
+            {
+                new SectionNavigationItem { Title = "Kundenpflege", CreatePage = () => new CustomerHandling() },
+                new SectionNavigationItem { Title = "Projektdaten", CreatePage = () => new ProjectContactsPage() }
+            });
+    }
+
+    private SectionHostPage CreateOrganisationSection()
+    {
+        return new SectionHostPage(
+            "Organisation",
+            "Plane Termine und sammle Notizen an einer Stelle.",
+            new[]
+            {
+                new SectionNavigationItem { Title = "Kalender", CreatePage = () => new CalendarPage() },
+                new SectionNavigationItem { Title = "Notizen", CreatePage = () => new NotesPage() }
+            });
+    }
+
+    private SectionHostPage CreateAdminSection()
+    {
+        return new SectionHostPage(
+            "Admin",
+            "Hier verwaltest du dein Abo und die Benutzer deiner Firma.",
+            new[]
+            {
+                new SectionNavigationItem { Title = "Abo / Lizenz", CreatePage = () => new SubscriptionPage() },
+                new SectionNavigationItem { Title = "Benutzer", CreatePage = () => new TenantUsersPage() }
+            });
     }
 
     private void NavigateTo(Page page, Button activeButton)
@@ -98,9 +118,7 @@ public partial class MainWindow : Window
             : $"{session.User.DisplayName} | {session.User.Role}";
 
         var isAdmin = string.Equals(session?.User?.Role, "Admin", StringComparison.OrdinalIgnoreCase);
-        AdminGroupBorder.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
-        TenantUsersButton.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
-        SubscriptionButton.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
+        AdminButton.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateNavigationState(Button activeButton)
@@ -108,7 +126,7 @@ public partial class MainWindow : Window
         var primaryStyle = (Style)FindResource(typeof(Button));
         var secondaryStyle = (Style)FindResource("SecondaryButtonStyle");
 
-        foreach (var button in new[] { ImportButton, AllocationButton, CustomerButton, BillingExportButton, ProjectContactsButton, WorkTimeButton, CalendarButton, NotesButton, SubscriptionButton, TenantUsersButton, AnalyticsButton })
+        foreach (var button in new[] { MaterialButton, MasterDataButton, OrganisationButton, AdminButton, AnalyticsButton })
         {
             if (button.Visibility != Visibility.Visible)
             {
