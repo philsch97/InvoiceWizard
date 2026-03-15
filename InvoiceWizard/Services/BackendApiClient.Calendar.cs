@@ -30,6 +30,7 @@ public partial class BackendApiClient
         var payload = new
         {
             entryDate = entry.EntryDate,
+            customerId = entry.CustomerId,
             startTime = entry.StartTime,
             endTime = entry.EndTime,
             title = entry.Title,
@@ -70,6 +71,12 @@ public partial class BackendApiClient
             CalendarEntryId = item.CalendarEntryId,
             AppUserId = item.AppUserId,
             UserDisplayName = item.UserDisplayName,
+            CustomerId = item.CustomerId,
+            CustomerName = item.CustomerName ?? "",
+            CustomerStreet = item.CustomerStreet ?? "",
+            CustomerHouseNumber = item.CustomerHouseNumber ?? "",
+            CustomerPostalCode = item.CustomerPostalCode ?? "",
+            CustomerCity = item.CustomerCity ?? "",
             EntryDate = item.EntryDate,
             StartTime = item.StartTime,
             EndTime = item.EndTime,
@@ -95,6 +102,12 @@ public partial class BackendApiClient
         public int CalendarEntryId { get; set; }
         public int AppUserId { get; set; }
         public string UserDisplayName { get; set; } = "";
+        public int? CustomerId { get; set; }
+        public string? CustomerName { get; set; }
+        public string? CustomerStreet { get; set; }
+        public string? CustomerHouseNumber { get; set; }
+        public string? CustomerPostalCode { get; set; }
+        public string? CustomerCity { get; set; }
         public DateTime EntryDate { get; set; }
         public TimeSpan StartTime { get; set; }
         public TimeSpan EndTime { get; set; }

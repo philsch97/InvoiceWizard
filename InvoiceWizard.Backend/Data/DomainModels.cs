@@ -209,6 +209,8 @@ public class CalendarEntry
     public Tenant Tenant { get; set; } = null!;
     public int AppUserId { get; set; }
     public AppUser AppUser { get; set; } = null!;
+    public int? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
     public DateTime EntryDate { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }

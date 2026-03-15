@@ -10,6 +10,7 @@ public partial class CalendarPage : Page
 {
     private readonly List<CalendarDayCardViewModel> _weekCards = new();
     private List<CalendarUserEntity> _users = new();
+    private List<CustomerEntity> _customers = new();
     private List<CalendarEntryEntity> _weekEntries = new();
     private List<CalendarEntryEntity> _dayEntries = new();
     private bool _isLoading;
@@ -33,9 +34,11 @@ public partial class CalendarPage : Page
             _isLoading = true;
             SelectedDatePicker.SelectedDate ??= DateTime.Today;
             _users = await App.Api.GetCalendarUsersAsync();
+            _customers = await App.Api.GetCustomersAsync();
             UserCombo.ItemsSource = _users;
             UserCombo.SelectedItem = _users.FirstOrDefault(x => x.IsCurrentUser) ?? _users.FirstOrDefault();
             await ReloadAllAsync();
+            UpdateEntryDetails(DayEntriesGrid.SelectedItem as CalendarEntryEntity);
             SetStatus("Kalenderdaten geladen.", StatusMessageType.Info);
         }
         catch (Exception ex)
@@ -125,8 +128,14 @@ public partial class CalendarPage : Page
     {
         if (sender is Button button && button.Tag is CalendarEntryEntity entry)
         {
+            DayEntriesGrid.SelectedItem = entry;
             await OpenEntryDialogAsync(entry.EntryDate, entry);
         }
+    }
+
+    private void DayEntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateEntryDetails(DayEntriesGrid.SelectedItem as CalendarEntryEntity);
     }
 
     private async void DeleteEntry_Click(object sender, RoutedEventArgs e)
@@ -168,7 +177,7 @@ public partial class CalendarPage : Page
             return;
         }
 
-        var dialog = new CalendarEntryDialog(date, existingEntry)
+        var dialog = new CalendarEntryDialog(date, _customers, existingEntry)
         {
             Owner = Window.GetWindow(this)
         };
@@ -208,6 +217,7 @@ public partial class CalendarPage : Page
         _dayEntries = _weekEntries.Where(x => x.EntryDate.Date == selectedDate).OrderBy(x => x.StartTime).ToList();
 
         DayEntriesGrid.ItemsSource = _dayEntries;
+        DayEntriesGrid.SelectedItem = _dayEntries.FirstOrDefault();
         DayEntriesTitleText.Text = $"Termine am {selectedDate:dd.MM.yyyy}";
         WeekRangeText.Text = $"Woche {weekStart:dd.MM.yyyy} - {weekStart.AddDays(6):dd.MM.yyyy}";
         CalendarModeInfoText.Text = _viewMode == CalendarViewMode.Week ? "Wochenansicht" : "Tagesansicht";
@@ -219,6 +229,7 @@ public partial class CalendarPage : Page
         NewEntryButton.Visibility = selectedUser.CanEdit ? Visibility.Visible : Visibility.Collapsed;
 
         BuildWeekCards(weekStart, selectedDate);
+        UpdateEntryDetails(DayEntriesGrid.SelectedItem as CalendarEntryEntity);
     }
 
     private void BuildWeekCards(DateTime weekStart, DateTime selectedDate)
@@ -251,6 +262,31 @@ public partial class CalendarPage : Page
     {
         var diff = ((int)date.DayOfWeek + 6) % 7;
         return date.AddDays(-diff).Date;
+    }
+
+    private void UpdateEntryDetails(CalendarEntryEntity? entry)
+    {
+        if (entry is null)
+        {
+            EntryDetailsTitleText.Text = "Noch kein Termin ausgewaehlt.";
+            EntryDetailsMetaText.Text = "Waehle unten einen Termin aus, um die Details zu sehen.";
+            EntryDetailsCustomerText.Text = string.Empty;
+            EntryDetailsAddressText.Text = string.Empty;
+            EntryDetailsDescriptionText.Text = string.Empty;
+            return;
+        }
+
+        EntryDetailsTitleText.Text = entry.Title;
+        EntryDetailsMetaText.Text = $"{entry.DayLabel} | {entry.TimeRange} | {entry.UserDisplayName}";
+        EntryDetailsCustomerText.Text = string.IsNullOrWhiteSpace(entry.CustomerName)
+            ? "Kein Kunde verknuepft."
+            : $"Kunde: {entry.CustomerName}";
+        EntryDetailsAddressText.Text = string.IsNullOrWhiteSpace(entry.CustomerName)
+            ? string.Empty
+            : $"Adresse: {entry.CustomerAddress}";
+        EntryDetailsDescriptionText.Text = string.IsNullOrWhiteSpace(entry.Description)
+            ? (string.IsNullOrWhiteSpace(entry.Location) ? string.Empty : $"Ort: {entry.Location}")
+            : $"{(string.IsNullOrWhiteSpace(entry.Location) ? string.Empty : $"Ort: {entry.Location}\n")}{entry.Description}";
     }
 
     private void SetStatus(string message, StatusMessageType type)

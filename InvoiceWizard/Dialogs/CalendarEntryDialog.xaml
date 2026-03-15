@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Termin"
         Width="560"
-        Height="440"
+        Height="540"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
     <Grid Margin="18">
@@ -20,6 +20,7 @@
 
         <Grid Grid.Row="1" Margin="0,18,0,18">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -55,7 +56,12 @@
                 <TextBox x:Name="EndTimeText" Text="09:00"/>
             </StackPanel>
 
-            <StackPanel Grid.Row="3" Grid.ColumnSpan="2">
+            <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                <TextBlock Text="Kunde optional" Style="{StaticResource MutedLabelStyle}"/>
+                <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="4" Grid.ColumnSpan="2">
                 <TextBlock Text="Beschreibung optional" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="DescriptionText" AcceptsReturn="True" TextWrapping="Wrap" Height="120" VerticalScrollBarVisibility="Auto"/>
             </StackPanel>

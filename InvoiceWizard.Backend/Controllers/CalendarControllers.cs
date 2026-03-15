@@ -57,6 +57,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             .AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.AppUserId == targetUserId && x.EntryDate >= from && x.EntryDate <= to)
             .Include(x => x.AppUser)
+            .Include(x => x.Customer)
             .OrderBy(x => x.EntryDate)
             .ThenBy(x => x.StartTime)
             .Select(x => new CalendarEntryDto
@@ -64,6 +65,12 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 CalendarEntryId = x.CalendarEntryId,
                 AppUserId = x.AppUserId,
                 UserDisplayName = x.AppUser.DisplayName,
+                CustomerId = x.CustomerId,
+                CustomerName = x.Customer != null ? x.Customer.Name : null,
+                CustomerStreet = x.Customer != null ? x.Customer.Street : null,
+                CustomerHouseNumber = x.Customer != null ? x.Customer.HouseNumber : null,
+                CustomerPostalCode = x.Customer != null ? x.Customer.PostalCode : null,
+                CustomerCity = x.Customer != null ? x.Customer.City : null,
                 EntryDate = x.EntryDate,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
@@ -90,6 +97,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             .AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.EntryDate >= start && x.EntryDate <= end)
             .Include(x => x.AppUser)
+            .Include(x => x.Customer)
             .OrderBy(x => x.EntryDate)
             .ThenBy(x => x.StartTime)
             .ThenBy(x => x.AppUser.DisplayName)
@@ -98,6 +106,12 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 CalendarEntryId = x.CalendarEntryId,
                 AppUserId = x.AppUserId,
                 UserDisplayName = x.AppUser.DisplayName,
+                CustomerId = x.CustomerId,
+                CustomerName = x.Customer != null ? x.Customer.Name : null,
+                CustomerStreet = x.Customer != null ? x.Customer.Street : null,
+                CustomerHouseNumber = x.Customer != null ? x.Customer.HouseNumber : null,
+                CustomerPostalCode = x.Customer != null ? x.Customer.PostalCode : null,
+                CustomerCity = x.Customer != null ? x.Customer.City : null,
                 EntryDate = x.EntryDate,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
@@ -123,10 +137,20 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             return ValidationProblem(validationError);
         }
 
+        if (request.CustomerId.HasValue)
+        {
+            var customerExists = await db.Customers.AnyAsync(x => x.TenantId == tenantId && x.CustomerId == request.CustomerId.Value, cancellationToken);
+            if (!customerExists)
+            {
+                return ValidationProblem("Der ausgewaehlte Kunde wurde nicht gefunden.");
+            }
+        }
+
         var entry = new CalendarEntry
         {
             TenantId = tenantId,
             AppUserId = currentUserId,
+            CustomerId = request.CustomerId,
             EntryDate = request.EntryDate.Date,
             StartTime = request.StartTime,
             EndTime = request.EndTime,
@@ -152,6 +176,15 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             return ValidationProblem(validationError);
         }
 
+        if (request.CustomerId.HasValue)
+        {
+            var customerExists = await db.Customers.AnyAsync(x => x.TenantId == tenantId && x.CustomerId == request.CustomerId.Value, cancellationToken);
+            if (!customerExists)
+            {
+                return ValidationProblem("Der ausgewaehlte Kunde wurde nicht gefunden.");
+            }
+        }
+
         var entry = await db.CalendarEntries.FirstOrDefaultAsync(x => x.CalendarEntryId == calendarEntryId && x.TenantId == tenantId, cancellationToken);
         if (entry is null)
         {
@@ -164,6 +197,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         }
 
         entry.EntryDate = request.EntryDate.Date;
+        entry.CustomerId = request.CustomerId;
         entry.StartTime = request.StartTime;
         entry.EndTime = request.EndTime;
         entry.Title = request.Title.Trim();
@@ -202,11 +236,18 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             .AsNoTracking()
             .Where(x => x.CalendarEntryId == calendarEntryId && x.TenantId == tenantId)
             .Include(x => x.AppUser)
+            .Include(x => x.Customer)
             .Select(x => new CalendarEntryDto
             {
                 CalendarEntryId = x.CalendarEntryId,
                 AppUserId = x.AppUserId,
                 UserDisplayName = x.AppUser.DisplayName,
+                CustomerId = x.CustomerId,
+                CustomerName = x.Customer != null ? x.Customer.Name : null,
+                CustomerStreet = x.Customer != null ? x.Customer.Street : null,
+                CustomerHouseNumber = x.Customer != null ? x.Customer.HouseNumber : null,
+                CustomerPostalCode = x.Customer != null ? x.Customer.PostalCode : null,
+                CustomerCity = x.Customer != null ? x.Customer.City : null,
                 EntryDate = x.EntryDate,
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
@@ -229,6 +270,11 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         if (request.EndTime <= request.StartTime)
         {
             return "Die Endzeit muss nach der Startzeit liegen.";
+        }
+
+        if (request.CustomerId.HasValue && request.CustomerId.Value <= 0)
+        {
+            return "Bitte einen gueltigen Kunden auswaehlen.";
         }
 
         return null;

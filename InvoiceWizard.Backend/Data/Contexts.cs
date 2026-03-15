@@ -94,6 +94,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<TodoItem>().HasOne(x => x.ParentTodoItem).WithMany(x => x.Children).HasForeignKey(x => x.ParentTodoItemId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoAttachment>().HasOne(x => x.TodoList).WithMany(x => x.Attachments).HasForeignKey(x => x.TodoListId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<CalendarEntry>().HasOne(x => x.AppUser).WithMany().HasForeignKey(x => x.AppUserId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<CalendarEntry>().HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BankTransaction>().HasOne(x => x.BankStatementImport).WithMany(x => x.Transactions).HasForeignKey(x => x.BankStatementImportId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.BankTransaction).WithMany(x => x.Assignments).HasForeignKey(x => x.BankTransactionId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.SupplierInvoice).WithMany().HasForeignKey(x => x.SupplierInvoiceId).OnDelete(DeleteBehavior.Restrict);
@@ -167,6 +168,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<TodoItem>().HasIndex(x => new { x.TenantId, x.TodoListId, x.ParentTodoItemId, x.SortOrder });
         modelBuilder.Entity<TenantLicense>().HasIndex(x => new { x.TenantId, x.IsActive });
         modelBuilder.Entity<CalendarEntry>().HasIndex(x => new { x.TenantId, x.AppUserId, x.EntryDate, x.StartTime });
+        modelBuilder.Entity<CalendarEntry>().HasIndex(x => new { x.TenantId, x.CustomerId });
         modelBuilder.Entity<BankTransaction>().HasIndex(x => new { x.TenantId, x.BookingDate, x.Amount });
         modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => new { x.TenantId, x.BankTransactionId });
         modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => new { x.TenantId, x.SupplierInvoiceId });

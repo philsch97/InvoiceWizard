@@ -6,12 +6,14 @@
       mc:Ignorable="d"
       d:DesignHeight="860" d:DesignWidth="1280"
       Title="Kalender">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -104,10 +106,11 @@
                         <TextBlock x:Name="DayEntriesTitleText" Style="{StaticResource SectionTitleStyle}" DockPanel.Dock="Left"/>
                         <Button x:Name="NewEntryButton" Width="170" Height="40" DockPanel.Dock="Right" Content="Termin an diesem Tag" Click="NewEntry_Click"/>
                     </DockPanel>
-                    <DataGrid x:Name="DayEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single">
+                    <DataGrid x:Name="DayEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="DayEntriesGrid_SelectionChanged" MinHeight="260">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Zeit" Binding="{Binding TimeRange}" Width="110"/>
                             <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="190"/>
+                            <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerName}" Width="180"/>
                             <DataGridTextColumn Header="Ort" Binding="{Binding Location}" Width="160"/>
                             <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
                             <DataGridTemplateColumn Header="Aktionen" Width="210">
@@ -126,8 +129,20 @@
             </Border>
         </Grid>
 
-        <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+        <Border Grid.Row="4" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="Termindetails" Style="{StaticResource SectionTitleStyle}"/>
+                <TextBlock x:Name="EntryDetailsTitleText" Margin="0,12,0,0" FontWeight="SemiBold" Text="Noch kein Termin ausgewaehlt."/>
+                <TextBlock x:Name="EntryDetailsMetaText" Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                <TextBlock x:Name="EntryDetailsCustomerText" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="EntryDetailsAddressText" Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                <TextBlock x:Name="EntryDetailsDescriptionText" Margin="0,12,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="StatusBorder" Grid.Row="5" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
             <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
         </Border>
     </Grid>
+    </ScrollViewer>
 </Page>
