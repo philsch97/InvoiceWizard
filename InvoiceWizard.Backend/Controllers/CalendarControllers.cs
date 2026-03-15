@@ -71,7 +71,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 CustomerHouseNumber = x.Customer != null ? x.Customer.HouseNumber : null,
                 CustomerPostalCode = x.Customer != null ? x.Customer.PostalCode : null,
                 CustomerCity = x.Customer != null ? x.Customer.City : null,
-                EntryDate = x.EntryDate,
+                EntryDate = NormalizeCalendarDate(x.EntryDate),
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
                 Title = x.Title,
@@ -112,7 +112,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 CustomerHouseNumber = x.Customer != null ? x.Customer.HouseNumber : null,
                 CustomerPostalCode = x.Customer != null ? x.Customer.PostalCode : null,
                 CustomerCity = x.Customer != null ? x.Customer.City : null,
-                EntryDate = x.EntryDate,
+                EntryDate = NormalizeCalendarDate(x.EntryDate),
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
                 Title = x.Title,
@@ -151,7 +151,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             TenantId = tenantId,
             AppUserId = currentUserId,
             CustomerId = request.CustomerId,
-            EntryDate = request.EntryDate.Date,
+            EntryDate = NormalizeCalendarDate(request.EntryDate),
             StartTime = request.StartTime,
             EndTime = request.EndTime,
             Title = request.Title.Trim(),
@@ -196,7 +196,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             return Forbid();
         }
 
-        entry.EntryDate = request.EntryDate.Date;
+        entry.EntryDate = NormalizeCalendarDate(request.EntryDate);
         entry.CustomerId = request.CustomerId;
         entry.StartTime = request.StartTime;
         entry.EndTime = request.EndTime;
@@ -248,7 +248,7 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 CustomerHouseNumber = x.Customer != null ? x.Customer.HouseNumber : null,
                 CustomerPostalCode = x.Customer != null ? x.Customer.PostalCode : null,
                 CustomerCity = x.Customer != null ? x.Customer.City : null,
-                EntryDate = x.EntryDate,
+                EntryDate = NormalizeCalendarDate(x.EntryDate),
                 StartTime = x.StartTime,
                 EndTime = x.EndTime,
                 Title = x.Title,
@@ -278,6 +278,11 @@ public class CalendarController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         }
 
         return null;
+    }
+
+    private static DateTime NormalizeCalendarDate(DateTime date)
+    {
+        return DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified);
     }
 
     private int GetCurrentUserId()

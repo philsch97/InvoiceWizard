@@ -13,6 +13,7 @@ public partial class CalendarPage : Page
     private List<CustomerEntity> _customers = new();
     private List<CalendarEntryEntity> _weekEntries = new();
     private List<CalendarEntryEntity> _dayEntries = new();
+    private CalendarEntryEntity? _selectedEntry;
     private bool _isLoading;
     private CalendarViewMode _viewMode = CalendarViewMode.Week;
 
@@ -38,7 +39,6 @@ public partial class CalendarPage : Page
             UserCombo.ItemsSource = _users;
             UserCombo.SelectedItem = _users.FirstOrDefault(x => x.IsCurrentUser) ?? _users.FirstOrDefault();
             await ReloadAllAsync();
-            UpdateEntryDetails(DayEntriesGrid.SelectedItem as CalendarEntryEntity);
             SetStatus("Kalenderdaten geladen.", StatusMessageType.Info);
         }
         catch (Exception ex)
@@ -103,11 +103,6 @@ public partial class CalendarPage : Page
         await ReloadAllAsync();
     }
 
-    private async void NewEntry_Click(object sender, RoutedEventArgs e)
-    {
-        await OpenEntryDialogAsync((SelectedDatePicker.SelectedDate ?? DateTime.Today).Date, null);
-    }
-
     private async void WeekDayCard_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not DateTime date)
@@ -117,55 +112,27 @@ public partial class CalendarPage : Page
 
         SelectedDatePicker.SelectedDate = date.Date;
         await ReloadAllAsync();
-
-        if ((UserCombo.SelectedItem as CalendarUserEntity)?.CanEdit == true)
-        {
-            await OpenEntryDialogAsync(date.Date, null);
-        }
     }
 
-    private async void EditEntry_Click(object sender, RoutedEventArgs e)
+    private async void NewEntryForDay_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button button && button.Tag is CalendarEntryEntity entry)
+        if (sender is not Button button || button.Tag is not DateTime date)
         {
-            DayEntriesGrid.SelectedItem = entry;
-            await OpenEntryDialogAsync(entry.EntryDate, entry);
+            return;
         }
+
+        await OpenEntryDialogAsync(date.Date, null);
     }
 
-    private void DayEntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        UpdateEntryDetails(DayEntriesGrid.SelectedItem as CalendarEntryEntity);
-    }
-
-    private async void DeleteEntry_Click(object sender, RoutedEventArgs e)
+    private void CalendarEntryCard_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not CalendarEntryEntity entry)
         {
             return;
         }
 
-        if (!entry.CanEdit)
-        {
-            SetStatus("Dieser Termin ist schreibgeschuetzt.", StatusMessageType.Warning);
-            return;
-        }
-
-        if (MessageBox.Show("Soll der Termin wirklich geloescht werden?", "Termin loeschen", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await App.Api.DeleteCalendarEntryAsync(entry.CalendarEntryId);
-            await ReloadAllAsync();
-            SetStatus("Termin geloescht.", StatusMessageType.Success);
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Termin konnte nicht geloescht werden: {ex.Message}", StatusMessageType.Error);
-        }
+        _selectedEntry = entry;
+        UpdateEntryDetails(entry);
     }
 
     private async Task OpenEntryDialogAsync(DateTime date, CalendarEntryEntity? existingEntry)
@@ -195,6 +162,10 @@ public partial class CalendarPage : Page
             await App.Api.SaveCalendarEntryAsync(payload);
             SelectedDatePicker.SelectedDate = payload.EntryDate.Date;
             await ReloadAllAsync();
+            _selectedEntry = existingEntry is null
+                ? _dayEntries.OrderByDescending(x => x.CalendarEntryId).FirstOrDefault(x => x.EntryDate.Date == payload.EntryDate.Date)
+                : _dayEntries.FirstOrDefault(x => x.CalendarEntryId == existingEntry.CalendarEntryId);
+            UpdateEntryDetails(_selectedEntry);
             SetStatus(existingEntry is null ? "Termin erstellt." : "Termin gespeichert.", StatusMessageType.Success);
         }
         catch (Exception ex)
@@ -215,21 +186,30 @@ public partial class CalendarPage : Page
         var weekStart = GetWeekStart(selectedDate);
         _weekEntries = await App.Api.GetCalendarEntriesAsync(selectedUser.AppUserId, weekStart, weekStart.AddDays(6));
         _dayEntries = _weekEntries.Where(x => x.EntryDate.Date == selectedDate).OrderBy(x => x.StartTime).ToList();
-
-        DayEntriesGrid.ItemsSource = _dayEntries;
-        DayEntriesGrid.SelectedItem = _dayEntries.FirstOrDefault();
-        DayEntriesTitleText.Text = $"Termine am {selectedDate:dd.MM.yyyy}";
         WeekRangeText.Text = $"Woche {weekStart:dd.MM.yyyy} - {weekStart.AddDays(6):dd.MM.yyyy}";
         CalendarModeInfoText.Text = _viewMode == CalendarViewMode.Week ? "Wochenansicht" : "Tagesansicht";
         SelectedCalendarInfoText.Text = selectedUser.CanEdit
             ? $"Du bearbeitest deinen Kalender fuer den {selectedDate:dd.MM.yyyy}."
             : $"Du siehst den Kalender von {selectedUser.DisplayName} im Lesemodus.";
-
-        WeekCardsBorder.Visibility = _viewMode == CalendarViewMode.Week ? Visibility.Visible : Visibility.Collapsed;
-        NewEntryButton.Visibility = selectedUser.CanEdit ? Visibility.Visible : Visibility.Collapsed;
+        CalendarCardsHintText.Text = _viewMode == CalendarViewMode.Week
+            ? "Termine werden direkt in den Tageskarten angezeigt. Ein Klick auf einen Termin zeigt die Details."
+            : "Die Tagesansicht zeigt alle Termine direkt im ausgewaehlten Tag. Mit dem Plus legst du neue Termine sofort am richtigen Datum an.";
+        WeekDaysItemsControl.Visibility = _viewMode == CalendarViewMode.Week ? Visibility.Visible : Visibility.Collapsed;
+        DayCardScrollViewer.Visibility = _viewMode == CalendarViewMode.Day ? Visibility.Visible : Visibility.Collapsed;
 
         BuildWeekCards(weekStart, selectedDate);
-        UpdateEntryDetails(DayEntriesGrid.SelectedItem as CalendarEntryEntity);
+        BuildDayCard(selectedDate);
+
+        _selectedEntry = _selectedEntry is not null
+            ? _weekEntries.FirstOrDefault(x => x.CalendarEntryId == _selectedEntry.CalendarEntryId)
+            : null;
+
+        if (_selectedEntry is null)
+        {
+            _selectedEntry = _dayEntries.FirstOrDefault();
+        }
+
+        UpdateEntryDetails(_selectedEntry);
     }
 
     private void BuildWeekCards(DateTime weekStart, DateTime selectedDate)
@@ -244,18 +224,64 @@ public partial class CalendarPage : Page
                 Date = day,
                 Title = day.ToString("dddd"),
                 Subtitle = day.ToString("dd.MM.yyyy"),
-                PreviewLines = entries.Take(3).Select(x => new CalendarPreviewLine
-                {
-                    Primary = $"{x.StartTime:hh\\:mm} {x.Title}",
-                    Secondary = string.IsNullOrWhiteSpace(x.Location) ? x.Description : x.Location
-                }).ToList(),
-                IsSelected = day == selectedDate,
-                EntryCount = entries.Count
+                Entries = entries.Select(CreateEntryCard).ToList(),
+                EmptyText = day == selectedDate
+                    ? "Noch keine Termine fuer den ausgewaehlten Tag."
+                    : "Keine Termine.",
+                EmptyVisibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed,
+                NewEntryButtonVisibility = (UserCombo.SelectedItem as CalendarUserEntity)?.CanEdit == true ? Visibility.Visible : Visibility.Collapsed
             });
         }
 
         WeekDaysItemsControl.ItemsSource = null;
         WeekDaysItemsControl.ItemsSource = _weekCards;
+    }
+
+    private void BuildDayCard(DateTime selectedDate)
+    {
+        var selectedUser = UserCombo.SelectedItem as CalendarUserEntity;
+        var entries = _dayEntries.OrderBy(x => x.StartTime).ToList();
+        var dayCards = new List<CalendarDayCardViewModel>
+        {
+            new()
+            {
+                Date = selectedDate,
+                Title = selectedDate.ToString("dddd"),
+                Subtitle = selectedDate.ToString("dd.MM.yyyy"),
+                Entries = entries.Select(CreateEntryCard).ToList(),
+                EmptyText = "Noch keine Termine fuer diesen Tag.",
+                EmptyVisibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed,
+                NewEntryButtonVisibility = selectedUser?.CanEdit == true ? Visibility.Visible : Visibility.Collapsed
+            }
+        };
+
+        DayCardsItemsControl.ItemsSource = null;
+        DayCardsItemsControl.ItemsSource = dayCards;
+    }
+
+    private static CalendarEntryCardViewModel CreateEntryCard(CalendarEntryEntity entry)
+    {
+        var secondaryParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(entry.Location))
+        {
+            secondaryParts.Add(entry.Location);
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.CustomerName))
+        {
+            secondaryParts.Add(entry.CustomerName);
+        }
+
+        var tertiary = string.IsNullOrWhiteSpace(entry.Description) ? string.Empty : entry.Description;
+
+        return new CalendarEntryCardViewModel
+        {
+            Entry = entry,
+            Primary = $"{entry.TimeRange} {entry.Title}".Trim(),
+            Secondary = secondaryParts.Count == 0 ? "Ohne weiteren Hinweis" : string.Join(" | ", secondaryParts),
+            Tertiary = tertiary,
+            TertiaryVisibility = string.IsNullOrWhiteSpace(tertiary) ? Visibility.Collapsed : Visibility.Visible
+        };
     }
 
     private static DateTime GetWeekStart(DateTime date)
@@ -269,10 +295,12 @@ public partial class CalendarPage : Page
         if (entry is null)
         {
             EntryDetailsTitleText.Text = "Noch kein Termin ausgewaehlt.";
-            EntryDetailsMetaText.Text = "Waehle unten einen Termin aus, um die Details zu sehen.";
+            EntryDetailsMetaText.Text = "Waehle einen Termin direkt in der Tageskarte aus, um die Details zu sehen.";
             EntryDetailsCustomerText.Text = string.Empty;
             EntryDetailsAddressText.Text = string.Empty;
             EntryDetailsDescriptionText.Text = string.Empty;
+            DetailEditButton.IsEnabled = false;
+            DetailDeleteButton.IsEnabled = false;
             return;
         }
 
@@ -287,6 +315,51 @@ public partial class CalendarPage : Page
         EntryDetailsDescriptionText.Text = string.IsNullOrWhiteSpace(entry.Description)
             ? (string.IsNullOrWhiteSpace(entry.Location) ? string.Empty : $"Ort: {entry.Location}")
             : $"{(string.IsNullOrWhiteSpace(entry.Location) ? string.Empty : $"Ort: {entry.Location}\n")}{entry.Description}";
+        DetailEditButton.IsEnabled = entry.CanEdit;
+        DetailDeleteButton.IsEnabled = entry.CanEdit;
+    }
+
+    private async void EditSelectedEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedEntry is null)
+        {
+            SetStatus("Bitte zuerst einen Termin auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        await OpenEntryDialogAsync(_selectedEntry.EntryDate, _selectedEntry);
+    }
+
+    private async void DeleteSelectedEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedEntry is null)
+        {
+            SetStatus("Bitte zuerst einen Termin auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (!_selectedEntry.CanEdit)
+        {
+            SetStatus("Dieser Termin ist schreibgeschuetzt.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (MessageBox.Show("Soll der Termin wirklich geloescht werden?", "Termin loeschen", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            await App.Api.DeleteCalendarEntryAsync(_selectedEntry.CalendarEntryId);
+            _selectedEntry = null;
+            await ReloadAllAsync();
+            SetStatus("Termin geloescht.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Termin konnte nicht geloescht werden: {ex.Message}", StatusMessageType.Error);
+        }
     }
 
     private void SetStatus(string message, StatusMessageType type)
@@ -321,14 +394,18 @@ public partial class CalendarPage : Page
         public DateTime Date { get; set; }
         public string Title { get; set; } = "";
         public string Subtitle { get; set; } = "";
-        public int EntryCount { get; set; }
-        public bool IsSelected { get; set; }
-        public List<CalendarPreviewLine> PreviewLines { get; set; } = new();
+        public string EmptyText { get; set; } = "";
+        public Visibility EmptyVisibility { get; set; } = Visibility.Collapsed;
+        public Visibility NewEntryButtonVisibility { get; set; } = Visibility.Collapsed;
+        public List<CalendarEntryCardViewModel> Entries { get; set; } = new();
     }
 
-    private sealed class CalendarPreviewLine
+    private sealed class CalendarEntryCardViewModel
     {
+        public CalendarEntryEntity Entry { get; set; } = new();
         public string Primary { get; set; } = "";
         public string Secondary { get; set; } = "";
+        public string Tertiary { get; set; } = "";
+        public Visibility TertiaryVisibility { get; set; } = Visibility.Collapsed;
     }
 }

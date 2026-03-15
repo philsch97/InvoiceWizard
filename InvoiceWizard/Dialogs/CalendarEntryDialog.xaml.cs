@@ -6,12 +6,16 @@ namespace InvoiceWizard.Dialogs;
 
 public partial class CalendarEntryDialog : Window
 {
+    private readonly DateTime _initialDate;
+
     public CalendarEntryDialog(DateTime date, IReadOnlyList<CustomerEntity> customers, CalendarEntryEntity? existingEntry = null)
     {
         InitializeComponent();
+        _initialDate = date.Date;
         DialogTitleText.Text = existingEntry is null ? "Termin erstellen" : "Termin bearbeiten";
         CustomerCombo.ItemsSource = customers.OrderBy(x => x.Name).ToList();
         EntryDatePicker.SelectedDate = existingEntry?.EntryDate ?? date.Date;
+        EntryDatePicker.IsEnabled = existingEntry is not null;
         TitleText.Text = existingEntry?.Title ?? string.Empty;
         LocationText.Text = existingEntry?.Location ?? string.Empty;
         StartTimeText.Text = (existingEntry?.StartTime ?? TimeSpan.FromHours(8)).ToString("hh\\:mm");
@@ -61,7 +65,7 @@ public partial class CalendarEntryDialog : Window
         {
             CalendarEntryId = ExistingEntryId,
             CustomerId = CustomerCombo.SelectedValue is int customerId ? customerId : null,
-            EntryDate = EntryDatePicker.SelectedDate.Value.Date,
+            EntryDate = ExistingEntryId > 0 ? EntryDatePicker.SelectedDate.Value.Date : _initialDate,
             StartTime = startTime,
             EndTime = endTime,
             Title = title,

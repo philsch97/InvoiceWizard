@@ -51,81 +51,84 @@
         </Border>
 
         <Grid Grid.Row="3" Margin="0,0,0,16">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <Border x:Name="WeekCardsBorder" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <Border x:Name="WeekCardsBorder" Style="{StaticResource CardStyle}">
                 <StackPanel>
                     <TextBlock x:Name="WeekRangeText" Text="Woche" Style="{StaticResource SectionTitleStyle}"/>
-                    <TextBlock Text="Klicke auf einen Tag, um ihn zu oeffnen. In deinem eigenen Kalender startet dadurch direkt der Termin-Dialog." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="CalendarCardsHintText" Text="Termine werden direkt in den Tageskarten angezeigt. Ein Klick auf einen Termin zeigt die Details." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="620">
                         <ItemsControl x:Name="WeekDaysItemsControl">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Rows="1" Columns="7"/>
+                                    <WrapPanel ItemWidth="220" ItemHeight="320"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Click="WeekDayCard_Click" Tag="{Binding Date}" Margin="0,0,10,0" Padding="0" Background="Transparent" BorderThickness="0">
-                                        <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="12" MinWidth="155" Height="240">
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,12"/>
-                                                <ItemsControl ItemsSource="{Binding PreviewLines}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Background="#16202A" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="10" Padding="8" Margin="0,0,0,8">
+                                    <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="12" Margin="0,0,12,12" Width="208" Height="308">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="False">
+                                                <Button Click="WeekDayCard_Click" Tag="{Binding Date}" Style="{StaticResource SecondaryButtonStyle}" Height="34" MinWidth="112" DockPanel.Dock="Left" Content="{Binding Title}"/>
+                                                <Button Click="NewEntryForDay_Click" Tag="{Binding Date}" Width="34" Height="34" Margin="8,0,0,0" Content="+" Visibility="{Binding NewEntryButtonVisibility}" DockPanel.Dock="Right"/>
+                                            </DockPanel>
+                                            <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,12"/>
+                                            <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource MutedTextBrush}" Visibility="{Binding EmptyVisibility}" Margin="0,4,0,0"/>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="228">
+                                            <ItemsControl ItemsSource="{Binding Entries}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Click="CalendarEntryCard_Click" Tag="{Binding Entry}" Margin="0,0,0,8" Padding="0" Background="Transparent" BorderThickness="0">
+                                                            <Border Background="#16202A" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="10" Padding="8">
                                                                 <StackPanel>
                                                                     <TextBlock Text="{Binding Primary}" TextWrapping="Wrap"/>
                                                                     <TextBlock Text="{Binding Secondary}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="{Binding Tertiary}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap" Visibility="{Binding TertiaryVisibility}"/>
                                                                 </StackPanel>
                                                             </Border>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            </ScrollViewer>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <ScrollViewer x:Name="DayCardScrollViewer" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" MaxHeight="560" Visibility="Collapsed">
+                        <ItemsControl x:Name="DayCardsItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="16">
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="False">
+                                                    <Button Click="WeekDayCard_Click" Tag="{Binding Date}" Style="{StaticResource SecondaryButtonStyle}" Height="36" MinWidth="140" DockPanel.Dock="Left" Content="{Binding Title}"/>
+                                                    <Button Click="NewEntryForDay_Click" Tag="{Binding Date}" Width="160" Height="36" Margin="10,0,0,0" Content="Termin an diesem Tag" Visibility="{Binding NewEntryButtonVisibility}" DockPanel.Dock="Right"/>
+                                                </DockPanel>
+                                                <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16"/>
+                                                <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource MutedTextBrush}" Visibility="{Binding EmptyVisibility}" Margin="0,4,0,0"/>
+                                                <ItemsControl ItemsSource="{Binding Entries}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Click="CalendarEntryCard_Click" Tag="{Binding Entry}" Margin="0,0,0,10" Padding="0" Background="Transparent" BorderThickness="0">
+                                                                <Border Background="#16202A" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="10" Padding="10">
+                                                                    <StackPanel>
+                                                                        <TextBlock Text="{Binding Primary}" TextWrapping="Wrap"/>
+                                                                        <TextBlock Text="{Binding Secondary}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                                                        <TextBlock Text="{Binding Tertiary}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap" Visibility="{Binding TertiaryVisibility}"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </Button>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                             </StackPanel>
-                                        </Border>
-                                    </Button>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
                 </StackPanel>
-            </Border>
-
-            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <DockPanel Margin="18,18,18,0">
-                        <TextBlock x:Name="DayEntriesTitleText" Style="{StaticResource SectionTitleStyle}" DockPanel.Dock="Left"/>
-                        <Button x:Name="NewEntryButton" Width="170" Height="40" DockPanel.Dock="Right" Content="Termin an diesem Tag" Click="NewEntry_Click"/>
-                    </DockPanel>
-                    <DataGrid x:Name="DayEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="DayEntriesGrid_SelectionChanged" MinHeight="260">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Zeit" Binding="{Binding TimeRange}" Width="110"/>
-                            <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="190"/>
-                            <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerName}" Width="180"/>
-                            <DataGridTextColumn Header="Ort" Binding="{Binding Location}" Width="160"/>
-                            <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
-                            <DataGridTemplateColumn Header="Aktionen" Width="210">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Width="90" Height="34" Margin="0,0,8,0" Content="Bearbeiten" Click="EditEntry_Click" Tag="{Binding}" IsEnabled="{Binding CanEdit}"/>
-                                            <Button Width="90" Height="34" Style="{StaticResource SecondaryButtonStyle}" Content="Loeschen" Click="DeleteEntry_Click" Tag="{Binding}" IsEnabled="{Binding CanEdit}"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
             </Border>
         </Grid>
 
@@ -137,6 +140,10 @@
                 <TextBlock x:Name="EntryDetailsCustomerText" Margin="0,12,0,0" TextWrapping="Wrap"/>
                 <TextBlock x:Name="EntryDetailsAddressText" Margin="0,6,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
                 <TextBlock x:Name="EntryDetailsDescriptionText" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                <WrapPanel Margin="0,16,0,0">
+                    <Button x:Name="DetailEditButton" Width="120" Height="36" Margin="0,0,10,0" Content="Bearbeiten" Click="EditSelectedEntry_Click"/>
+                    <Button x:Name="DetailDeleteButton" Width="120" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="Loeschen" Click="DeleteSelectedEntry_Click"/>
+                </WrapPanel>
             </StackPanel>
         </Border>
 

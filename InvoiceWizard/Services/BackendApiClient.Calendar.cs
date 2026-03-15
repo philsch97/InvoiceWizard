@@ -29,7 +29,7 @@ public partial class BackendApiClient
     {
         var payload = new
         {
-            entryDate = entry.EntryDate,
+            entryDate = entry.EntryDate.ToString("yyyy-MM-dd"),
             customerId = entry.CustomerId,
             startTime = entry.StartTime,
             endTime = entry.EndTime,
@@ -77,7 +77,7 @@ public partial class BackendApiClient
             CustomerHouseNumber = item.CustomerHouseNumber ?? "",
             CustomerPostalCode = item.CustomerPostalCode ?? "",
             CustomerCity = item.CustomerCity ?? "",
-            EntryDate = item.EntryDate,
+            EntryDate = DateTime.SpecifyKind(item.EntryDate.Date, DateTimeKind.Unspecified),
             StartTime = item.StartTime,
             EndTime = item.EndTime,
             Title = item.Title,
