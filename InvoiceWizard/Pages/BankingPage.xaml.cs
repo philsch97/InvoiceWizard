@@ -97,7 +97,7 @@ public partial class BankingPage : Page
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "CSV-Datei (*.csv)|*.csv|Textdatei (*.txt)|*.txt|Alle Dateien (*.*)|*.*"
+            Filter = "Kontoauszug (*.zip;*.xml;*.csv;*.txt)|*.zip;*.xml;*.csv;*.txt|ZIP-Datei (*.zip)|*.zip|XML-Datei (*.xml)|*.xml|CSV-Datei (*.csv)|*.csv|Textdatei (*.txt)|*.txt|Alle Dateien (*.*)|*.*"
         };
         if (dialog.ShowDialog() != true)
         {
@@ -107,14 +107,14 @@ public partial class BankingPage : Page
         try
         {
             var bytes = await File.ReadAllBytesAsync(dialog.FileName);
-            var result = await App.Api.ImportBankStatementCsvAsync(Path.GetFileName(dialog.FileName), bytes);
+            var result = await App.Api.ImportBankStatementFileAsync(Path.GetFileName(dialog.FileName), bytes);
             await ReloadAsync();
             var warningText = result.Warnings.Count == 0 ? string.Empty : $" Hinweise: {string.Join(" | ", result.Warnings)}";
             SetStatus($"{result.ImportedTransactions} Buchung(en) importiert, {result.SkippedTransactions} Duplikat(e) uebersprungen.{warningText}", StatusMessageType.Success);
         }
         catch (Exception ex)
         {
-            SetStatus($"CSV-Import fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+            SetStatus($"Kontoauszug-Import fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
         }
     }
 

@@ -18,7 +18,7 @@ internal sealed class BankStatementCsvParser
         ["purpose"] = ["verwendungszweck", "buchungstext", "purpose", "beschreibung", "textschluessel", "buchungstextauftraggeber"],
         ["counterparty"] = ["beguenstigterzahlungspflichtiger", "zahlungspflichtigerbeguenstigter", "auftraggeberbeguenstigter", "auftraggeber", "beguenstigter", "empfaenger", "name"],
         ["counterpartyIban"] = ["kontonummeriban", "gegenkonto", "gegenkontoiban", "iban"],
-        ["reference"] = ["referenz", "kundenreferenz", "mandatsreferenz", "endtoendref"],
+        ["reference"] = ["referenz", "kundenreferenz", "mandatsreferenz", "endtoendref", "sammlerreferenz", "glaeubigerid"],
         ["type"] = ["umsatzart", "typ", "buchungstyp"],
         ["accountIban"] = ["auftragskonto", "konto", "accountiban"]
     };
@@ -127,7 +127,7 @@ internal sealed class BankStatementCsvParser
         }
     }
 
-    private static (string delimiter, int headerIndex, Dictionary<string, int> headers) FindHeader(string[] lines)
+    private static (string delimiter, int headerIndex, Dictionary<string, List<int>> headers) FindHeader(string[] lines)
     {
         for (var i = 0; i < Math.Min(lines.Length, 20); i++)
         {
@@ -147,12 +147,12 @@ internal sealed class BankStatementCsvParser
             }
         }
 
-        return (";", -1, new Dictionary<string, int>());
+        return (";", -1, new Dictionary<string, List<int>>());
     }
 
-    private static Dictionary<string, int> BuildHeaderMap(IReadOnlyList<string> fields)
+    private static Dictionary<string, List<int>> BuildHeaderMap(IReadOnlyList<string> fields)
     {
-        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < fields.Count; index++)
         {
             var normalized = NormalizeHeader(fields[index]);
@@ -160,7 +160,13 @@ internal sealed class BankStatementCsvParser
             {
                 if (pair.Value.Any(alias => normalized.Contains(alias, StringComparison.OrdinalIgnoreCase)))
                 {
-                    result.TryAdd(pair.Key, index);
+                    if (!result.TryGetValue(pair.Key, out var indexes))
+                    {
+                        indexes = [];
+                        result[pair.Key] = indexes;
+                    }
+
+                    indexes.Add(index);
                 }
             }
         }
@@ -186,12 +192,29 @@ internal sealed class BankStatementCsvParser
         return parser.EndOfData ? [] : (parser.ReadFields() ?? []).ToList();
     }
 
-    private static Dictionary<string, string> ToRowDictionary(Dictionary<string, int> headers, IReadOnlyList<string> row)
+    private static Dictionary<string, string> ToRowDictionary(Dictionary<string, List<int>> headers, IReadOnlyList<string> row)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var header in headers)
         {
-            result[header.Key] = header.Value < row.Count ? (row[header.Value] ?? string.Empty).Trim() : string.Empty;
+            var values = header.Value
+                .Where(index => index < row.Count)
+                .Select(index => row[index]?.Trim() ?? string.Empty)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (string.Equals(header.Key, "purpose", StringComparison.OrdinalIgnoreCase))
+            {
+                var bookingText = values.FirstOrDefault(value => value.Equals(value.ToUpperInvariant(), StringComparison.Ordinal));
+                if (!string.IsNullOrWhiteSpace(bookingText))
+                {
+                    values.Remove(bookingText);
+                    values.Insert(0, bookingText);
+                }
+            }
+
+            result[header.Key] = string.Join(" | ", values);
         }
 
         return result;
@@ -288,6 +311,7 @@ internal sealed class ParsedBankStatement
     public string AccountName { get; set; } = "";
     public string AccountIban { get; set; } = "";
     public string Currency { get; set; } = "EUR";
+    public decimal? CurrentBalance { get; set; }
     public List<string> Warnings { get; set; } = [];
     public List<ParsedBankTransaction> Transactions { get; set; } = [];
 }

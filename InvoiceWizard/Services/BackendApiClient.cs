@@ -347,9 +347,9 @@ public partial class BackendApiClient
         };
     }
 
-    public async Task<BankImportResultEntity> ImportBankStatementCsvAsync(string fileName, byte[] fileBytes)
+    public async Task<BankImportResultEntity> ImportBankStatementFileAsync(string fileName, byte[] fileBytes)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/banking/imports/csv", new
+        var response = await _httpClient.PostAsJsonAsync("api/banking/imports/file", new
         {
             fileName,
             csvContentBase64 = Convert.ToBase64String(fileBytes)

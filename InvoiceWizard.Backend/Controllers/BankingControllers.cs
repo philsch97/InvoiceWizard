@@ -37,8 +37,9 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         });
     }
 
+    [HttpPost("imports/file")]
     [HttpPost("imports/csv")]
-    public async Task<ActionResult<ImportBankStatementCsvResponseDto>> ImportCsv([FromBody] ImportBankStatementCsvRequest request)
+    public async Task<ActionResult<ImportBankStatementCsvResponseDto>> ImportFile([FromBody] ImportBankStatementCsvRequest request)
     {
         if (!User.IsInRole(TenantRoles.Admin))
         {
@@ -46,21 +47,31 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         }
 
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        var parser = new BankStatementCsvParser();
         ParsedBankStatement parsed;
 
         try
         {
-            parsed = parser.Parse(Convert.FromBase64String(request.CsvContentBase64), request.FileName.Trim());
+            var fileBytes = Convert.FromBase64String(request.CsvContentBase64);
+            var fileName = request.FileName.Trim();
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            parsed = extension switch
+            {
+                ".zip" or ".xml" => new BankStatementCamtParser().Parse(fileBytes, fileName),
+                _ => new BankStatementCsvParser().Parse(fileBytes, fileName)
+            };
         }
         catch (FormatException)
         {
-            return ValidationProblem("Die CSV-Datei konnte nicht gelesen werden.");
+            return ValidationProblem("Die Datei konnte nicht gelesen werden.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ValidationProblem(ex.Message);
         }
 
         if (parsed.Transactions.Count == 0)
         {
-            return ValidationProblem("In der CSV-Datei wurden keine Buchungen erkannt.");
+            return ValidationProblem("In der Datei wurden keine Buchungen erkannt.");
         }
 
         var import = new BankStatementImport
@@ -123,7 +134,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             Currency = import.Currency,
             ImportedTransactions = importedCount,
             SkippedTransactions = skippedCount,
-            CurrentBalance = parsed.Transactions
+            CurrentBalance = parsed.CurrentBalance ?? parsed.Transactions
                 .Where(x => x.BalanceAfterBooking.HasValue)
                 .OrderByDescending(x => x.BookingDate)
                 .ThenByDescending(x => x.ValueDate)
