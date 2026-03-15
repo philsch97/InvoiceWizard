@@ -9,10 +9,15 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Border Style="{StaticResource CardStyle}" Padding="20" Margin="0,0,0,18">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -36,11 +41,32 @@
                 </WrapPanel>
 
                 <Button Grid.Column="3" Width="120" Height="42" Content="Abmelden" Style="{StaticResource SecondaryButtonStyle}" Click="Logout_Click"/>
+
+                <WrapPanel x:Name="SubNavigationPanel"
+                           Grid.Row="1"
+                           Grid.Column="2"
+                           Grid.ColumnSpan="2"
+                           Margin="0,16,0,0"
+                           HorizontalAlignment="Right"/>
             </Grid>
         </Border>
 
         <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
             <Frame x:Name="MainFrame" NavigationUIVisibility="Hidden" Background="Transparent"/>
+        </Border>
+
+        <Border x:Name="GlobalStatusBorder"
+                Grid.Row="2"
+                Margin="0,18,0,0"
+                Background="{StaticResource StatusInfoBackgroundBrush}"
+                BorderBrush="{StaticResource StatusInfoBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="16,12"
+                Visibility="Collapsed">
+            <TextBlock x:Name="GlobalStatusText"
+                       Foreground="{StaticResource StatusInfoTextBrush}"
+                       TextWrapping="Wrap"/>
         </Border>
     </Grid>
 </Window>

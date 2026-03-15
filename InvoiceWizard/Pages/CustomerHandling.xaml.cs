@@ -128,6 +128,7 @@ public partial class CustomerHandling : Page
     private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var customer = CustomerCombo.SelectedItem as CustomerEntity;
+        App.SetSelectedCustomer(customer?.CustomerId);
         FillCustomerForm(customer);
         await LoadProjectsAsync(customer);
     }
@@ -154,9 +155,11 @@ public partial class CustomerHandling : Page
             customerToSelect = customers.FirstOrDefault(c => c.Name == selectCustomerName);
         }
 
+        customerToSelect ??= App.SelectedCustomerId.HasValue ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value) : null;
         customerToSelect ??= selectedCustomerId.HasValue ? customers.FirstOrDefault(c => c.CustomerId == selectedCustomerId.Value) : null;
         customerToSelect ??= customers[0];
         CustomerCombo.SelectedItem = customerToSelect;
+        App.SetSelectedCustomer(customerToSelect.CustomerId);
         FillCustomerForm(customerToSelect);
 
         if (customerToSelect is not null)

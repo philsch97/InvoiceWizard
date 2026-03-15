@@ -89,7 +89,20 @@
                             <TextBlock Text="Listen" Style="{StaticResource SectionTitleStyle}" DockPanel.Dock="Left"/>
                             <Button Width="130" Height="34" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Liste loeschen" Click="DeleteTodoList_Click"/>
                         </DockPanel>
-                        <ListBox x:Name="TodoListsBox" SelectionChanged="TodoListsBox_SelectionChanged">
+                        <ListBox x:Name="TodoListsBox"
+                                 SelectionChanged="TodoListsBox_SelectionChanged"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="0">
+                            <ListBox.Template>
+                                <ControlTemplate TargetType="ListBox">
+                                    <Border Background="Transparent" BorderThickness="0" Padding="0">
+                                        <ScrollViewer Background="Transparent" BorderThickness="0" Focusable="False">
+                                            <ItemsPresenter/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </ControlTemplate>
+                            </ListBox.Template>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,10">
@@ -163,6 +176,15 @@
                             </WrapPanel>
 
                             <ListBox Grid.Row="1" x:Name="AttachmentsListBox" BorderThickness="0" Background="Transparent" SelectionChanged="AttachmentsListBox_SelectionChanged">
+                                <ListBox.Template>
+                                    <ControlTemplate TargetType="ListBox">
+                                        <Border Background="Transparent" BorderThickness="0" Padding="0">
+                                            <ScrollViewer Background="Transparent" BorderThickness="0" Focusable="False">
+                                                <ItemsPresenter/>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ListBox.Template>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="10" Margin="0,0,0,10">

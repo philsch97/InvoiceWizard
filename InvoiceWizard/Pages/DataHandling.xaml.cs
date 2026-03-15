@@ -173,6 +173,7 @@ public partial class DataHandling : Page
 
     private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        App.SetSelectedCustomer((CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId);
         await LoadProjectsAsync(CustomerCombo.SelectedItem as CustomerEntity);
     }
 
@@ -187,8 +188,10 @@ public partial class DataHandling : Page
             return;
         }
 
-        var customer = selectedCustomerId.HasValue ? customers.FirstOrDefault(c => c.CustomerId == selectedCustomerId.Value) ?? customers[0] : customers[0];
+        var preferredCustomerId = App.SelectedCustomerId ?? selectedCustomerId;
+        var customer = preferredCustomerId.HasValue ? customers.FirstOrDefault(c => c.CustomerId == preferredCustomerId.Value) ?? customers[0] : customers[0];
         CustomerCombo.SelectedItem = customer;
+        App.SetSelectedCustomer(customer.CustomerId);
         await LoadProjectsAsync(customer);
     }
 

@@ -68,7 +68,7 @@ public static class CustomerInvoicePdfService
             .SetMarginTop(18)
             .SetMarginBottom(18));
         document.Add(BuildLinesTable(invoice, bold, font, accent));
-        document.Add(BuildSummarySection(invoice, bold, font));
+        document.Add(BuildSummarySection(invoice, pdf, bold, font));
 
         if (invoice.ApplySmallBusinessRegulation)
         {
@@ -81,6 +81,7 @@ public static class CustomerInvoicePdfService
 
         document.Add(BuildFooter(invoice, bold, font, muted));
 
+        document.Close();
         return stream.ToArray();
     }
 
@@ -90,7 +91,7 @@ public static class CustomerInvoicePdfService
         table.SetBorder(Border.NO_BORDER);
 
         var customerAddress = new Paragraph()
-            .Add(new Text(invoice.Customer.Name).SetFont(bold))
+            .Add(new Text(Safe(invoice.Customer.Name)).SetFont(bold))
             .Add($"\n{BuildAddressLine(invoice.Customer.Street, invoice.Customer.HouseNumber)}")
             .Add($"\n{BuildAddressLine(invoice.Customer.PostalCode, invoice.Customer.City)}")
             .SetFont(font)
@@ -98,7 +99,7 @@ public static class CustomerInvoicePdfService
             .SetMargin(0);
 
         var companyAddress = new Paragraph()
-            .Add(new Text(invoice.Company.CompanyName).SetFont(bold))
+            .Add(new Text(Safe(invoice.Company.CompanyName)).SetFont(bold))
             .Add($"\n{BuildAddressLine(invoice.Company.CompanyStreet, invoice.Company.CompanyHouseNumber)}")
             .Add($"\n{BuildAddressLine(invoice.Company.CompanyPostalCode, invoice.Company.CompanyCity)}")
             .Add(string.IsNullOrWhiteSpace(invoice.Company.CompanyPhoneNumber) ? string.Empty : $"\nTelefon {invoice.Company.CompanyPhoneNumber}")
@@ -121,7 +122,7 @@ public static class CustomerInvoicePdfService
 
         var left = new Paragraph()
             .Add(new Text("Kundennummer: ").SetFont(bold))
-            .Add(invoice.CustomerNumber)
+            .Add(Safe(invoice.CustomerNumber))
             .SetFont(font)
             .SetFontSize(10)
             .SetMargin(0);
@@ -164,14 +165,14 @@ public static class CustomerInvoicePdfService
         return table;
     }
 
-    private static IBlockElement BuildSummarySection(InvoiceDocument invoice, PdfFont bold, PdfFont font)
+    private static IBlockElement BuildSummarySection(InvoiceDocument invoice, PdfDocument pdf, PdfFont bold, PdfFont font)
     {
         var table = new Table(UnitValue.CreatePercentArray(new float[] { 1.6f, 0.8f })).UseAllAvailableWidth();
         table.SetBorder(Border.NO_BORDER);
         table.SetMarginTop(14);
 
         var qrText = BuildEpcQrPayload(invoice);
-        var qr = new BarcodeQRCode(qrText).CreateFormXObject(ColorConstants.BLACK, null);
+        var qr = new BarcodeQRCode(qrText).CreateFormXObject(ColorConstants.BLACK, pdf);
         var image = new Image(qr).ScaleToFit(110, 110);
 
         var left = new Paragraph("Bitte ueberweisen Sie den Rechnungsbetrag unter Angabe von Kundennummer und Rechnungsnummer.")
@@ -261,8 +262,8 @@ public static class CustomerInvoicePdfService
             "1",
             "SCT",
             invoice.Company.BankBic ?? string.Empty,
-            invoice.Company.CompanyName,
-            invoice.Company.BankIban,
+            Safe(invoice.Company.CompanyName),
+            Safe(invoice.Company.BankIban),
             $"EUR{amount}",
             string.Empty,
             remittance,
@@ -270,9 +271,14 @@ public static class CustomerInvoicePdfService
         });
     }
 
-    private static string BuildAddressLine(string first, string second)
+    private static string BuildAddressLine(string? first, string? second)
     {
         return string.Join(" ", new[] { first, second }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string Safe(string? value)
+    {
+        return value ?? string.Empty;
     }
 
     private static string FormatCurrency(decimal value)

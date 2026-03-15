@@ -25,6 +25,7 @@ public partial class NotesPage : Page
 
     private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        App.SetSelectedCustomer((CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId);
         await LoadProjectsAsync(CustomerCombo.SelectedItem as CustomerEntity);
         await LoadTodoListsAsync();
     }
@@ -230,8 +231,12 @@ public partial class NotesPage : Page
             return;
         }
 
-        CustomerCombo.SelectedItem = customers[0];
-        await LoadProjectsAsync(customers[0]);
+        var customer = App.SelectedCustomerId.HasValue
+            ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value) ?? customers[0]
+            : customers[0];
+        CustomerCombo.SelectedItem = customer;
+        App.SetSelectedCustomer(customer.CustomerId);
+        await LoadProjectsAsync(customer);
         await LoadTodoListsAsync();
     }
 

@@ -23,12 +23,23 @@ public partial class BillingExportPage : Page
     private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var customer = CustomerCombo.SelectedItem as CustomerEntity;
+        App.SetSelectedCustomer(customer?.CustomerId);
         await LoadProjectsAsync(customer);
         await LoadCustomerDataAsync();
     }
 
     private async void ProjectFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        await LoadCustomerDataAsync();
+    }
+
+    private async void ShowLinkedItemsCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
         await LoadCustomerDataAsync();
     }
 
@@ -42,7 +53,6 @@ public partial class BillingExportPage : Page
         if (AllocationsGrid.SelectedItem is LineAllocationEntity allocation)
         {
             EditAllocationQtyText.Text = allocation.AllocatedQuantity.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
-            CustomerInvoiceNumberText.Text = allocation.CustomerInvoiceNumber ?? string.Empty;
         }
     }
 
@@ -51,11 +61,6 @@ public partial class BillingExportPage : Page
         if (WorkEntriesGrid.SelectedItems.Count > 0 && AllocationsGrid.SelectedItems.Count > 0)
         {
             AllocationsGrid.SelectedItems.Clear();
-        }
-
-        if (WorkEntriesGrid.SelectedItem is WorkTimeEntryEntity workEntry)
-        {
-            CustomerInvoiceNumberText.Text = workEntry.CustomerInvoiceNumber ?? string.Empty;
         }
     }
 
@@ -83,62 +88,6 @@ public partial class BillingExportPage : Page
         {
             SetStatus($"Aenderung fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
         }
-    }
-
-    private async void MarkSelectedAsInvoiced_Click(object sender, RoutedEventArgs e)
-    {
-        var selectedAllocations = AllocationsGrid.SelectedItems.OfType<LineAllocationEntity>().ToList();
-        var selectedWorkEntries = WorkEntriesGrid.SelectedItems.OfType<WorkTimeEntryEntity>().ToList();
-        if (selectedAllocations.Count == 0 && selectedWorkEntries.Count == 0)
-        {
-            SetStatus("Bitte mindestens eine Material- oder Arbeitszeitposition markieren.", StatusMessageType.Warning);
-            return;
-        }
-
-        var invoiceNumber = (CustomerInvoiceNumberText.Text ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(invoiceNumber))
-        {
-            SetStatus("Bitte eine Kunden-Rechnungsnummer eingeben.", StatusMessageType.Error);
-            return;
-        }
-
-        foreach (var allocation in selectedAllocations)
-        {
-            await App.Api.UpdateAllocationStatusAsync(allocation.LineAllocationId, invoiceNumber, true, false);
-        }
-
-        foreach (var workEntry in selectedWorkEntries)
-        {
-            await App.Api.UpdateWorkTimeStatusAsync(workEntry.WorkTimeEntryId, invoiceNumber, true, false);
-        }
-
-        await LoadCustomerDataAsync();
-        SetStatus($"{selectedAllocations.Count} Materialposition(en) und {selectedWorkEntries.Count} Arbeitszeitposition(en) wurden der Kundenrechnung {invoiceNumber} zugeordnet.", StatusMessageType.Success);
-    }
-
-    private async void MarkSelectedAsPaid_Click(object sender, RoutedEventArgs e)
-    {
-        var selectedAllocations = AllocationsGrid.SelectedItems.OfType<LineAllocationEntity>().ToList();
-        var selectedWorkEntries = WorkEntriesGrid.SelectedItems.OfType<WorkTimeEntryEntity>().ToList();
-        if (selectedAllocations.Count == 0 && selectedWorkEntries.Count == 0)
-        {
-            SetStatus("Bitte mindestens eine Material- oder Arbeitszeitposition markieren.", StatusMessageType.Warning);
-            return;
-        }
-
-        var invoiceNumber = (CustomerInvoiceNumberText.Text ?? string.Empty).Trim();
-        foreach (var allocation in selectedAllocations)
-        {
-            await App.Api.UpdateAllocationStatusAsync(allocation.LineAllocationId, invoiceNumber, false, true);
-        }
-
-        foreach (var workEntry in selectedWorkEntries)
-        {
-            await App.Api.UpdateWorkTimeStatusAsync(workEntry.WorkTimeEntryId, invoiceNumber, false, true);
-        }
-
-        await LoadCustomerDataAsync();
-        SetStatus($"{selectedAllocations.Count} Materialposition(en) und {selectedWorkEntries.Count} Arbeitszeitposition(en) wurden als bezahlt markiert.", StatusMessageType.Success);
     }
 
     private async void RemoveSelectedAllocations_Click(object sender, RoutedEventArgs e)
@@ -387,7 +336,16 @@ public partial class BillingExportPage : Page
                 }
             }
 
-            var invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, selectedProjectName);
+            List<GeneratedInvoiceLine> invoiceLines;
+            try
+            {
+                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, selectedProjectName);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Die Rechnungspositionen konnten nicht aufgebaut werden: {ex.Message}", ex);
+            }
+
             if (invoiceLines.Count == 0)
             {
                 SetStatus("Es konnten keine berechenbaren Positionen fuer die Rechnung erstellt werden.", StatusMessageType.Warning);
@@ -405,72 +363,94 @@ public partial class BillingExportPage : Page
                 return;
             }
 
-            var pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
+            byte[] pdfBytes;
+            try
             {
-                Company = companyProfile,
-                Customer = customer,
-                InvoiceNumber = dialog.Result.InvoiceNumber,
-                CustomerNumber = dialog.Result.CustomerNumber,
-                InvoiceDate = dialog.Result.InvoiceDate.Date,
-                DeliveryDate = dialog.Result.DeliveryDate.Date,
-                Subject = dialog.Result.Subject,
-                IsDraft = saveAsDraft,
-                ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
-                Lines = invoiceLines.Select(x => new CustomerInvoicePdfService.InvoiceLine
+                pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
                 {
-                    Position = x.Position,
-                    Description = x.Description,
-                    Quantity = x.Quantity,
-                    Unit = x.Unit,
-                    UnitPrice = x.UnitPrice,
-                    LineTotal = x.LineTotal
-                }).ToList()
-            });
+                    Company = companyProfile,
+                    Customer = customer,
+                    InvoiceNumber = dialog.Result.InvoiceNumber,
+                    CustomerNumber = dialog.Result.CustomerNumber,
+                    InvoiceDate = dialog.Result.InvoiceDate.Date,
+                    DeliveryDate = dialog.Result.DeliveryDate.Date,
+                    Subject = dialog.Result.Subject,
+                    IsDraft = saveAsDraft,
+                    ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
+                    Lines = invoiceLines.Select(x => new CustomerInvoicePdfService.InvoiceLine
+                    {
+                        Position = x.Position,
+                        Description = x.Description,
+                        Quantity = x.Quantity,
+                        Unit = x.Unit,
+                        UnitPrice = x.UnitPrice,
+                        LineTotal = x.LineTotal
+                    }).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Das Rechnungs-PDF konnte nicht erzeugt werden: {ex.Message}", ex);
+            }
 
             await File.WriteAllBytesAsync(saveDialog.FileName, pdfBytes);
 
-            var invoiceId = await App.Api.SaveInvoiceAsync(
-                "Revenue",
-                saveAsDraft ? "Draft" : "Finalized",
-                dialog.Result.InvoiceNumber,
-                dialog.Result.InvoiceDate.Date,
-                dialog.Result.DeliveryDate.Date,
-                customer.CustomerId,
-                customer.Name,
-                "Other",
-                dialog.Result.Subject,
-                dialog.Result.ApplySmallBusinessRegulation,
-                invoiceLines.Sum(x => x.LineTotal),
-                saveDialog.FileName,
-                Path.GetFileName(saveDialog.FileName),
-                Convert.ToBase64String(pdfBytes),
-                ComputeSha256(pdfBytes),
-                invoiceLines.Select(x => new ManualInvoiceLineInput
+            int invoiceId;
+            try
+            {
+                invoiceId = await App.Api.SaveInvoiceAsync(
+                    "Revenue",
+                    saveAsDraft ? "Draft" : "Finalized",
+                    dialog.Result.InvoiceNumber,
+                    dialog.Result.InvoiceDate.Date,
+                    dialog.Result.DeliveryDate.Date,
+                    customer.CustomerId,
+                    customer.Name,
+                    "Other",
+                    dialog.Result.Subject,
+                    dialog.Result.ApplySmallBusinessRegulation,
+                    invoiceLines.Sum(x => x.LineTotal),
+                    saveDialog.FileName,
+                    Path.GetFileName(saveDialog.FileName),
+                    Convert.ToBase64String(pdfBytes),
+                    ComputeSha256(pdfBytes),
+                    invoiceLines.Select(x => new ManualInvoiceLineInput
+                    {
+                        Position = x.Position,
+                        Description = x.Description,
+                        Quantity = x.Quantity,
+                        Unit = x.Unit,
+                        NetUnitPrice = x.UnitPrice,
+                        MetalSurcharge = 0m,
+                        GrossListPrice = 0m,
+                        PriceBasisQuantity = 1m
+                    }),
+                    hasSupplierInvoice: true);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Die Rechnung konnte nicht gespeichert werden: {ex.Message}", ex);
+            }
+
+            try
+            {
+                foreach (var allocation in allocations)
                 {
-                    Position = x.Position,
-                    Description = x.Description,
-                    Quantity = x.Quantity,
-                    Unit = x.Unit,
-                    NetUnitPrice = x.UnitPrice,
-                    MetalSurcharge = 0m,
-                    GrossListPrice = 0m,
-                    PriceBasisQuantity = 1m
-                }),
-                hasSupplierInvoice: true);
+                    await App.Api.UpdateAllocationExportAsync(allocation.LineAllocationId, allocation.ExportedMarkupPercent, allocation.ExportedUnitPrice, allocation.ExportedLineTotal);
+                    await App.Api.UpdateAllocationRevenueLinkAsync(allocation.LineAllocationId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                }
 
-            foreach (var allocation in allocations)
+                foreach (var workEntry in workEntries)
+                {
+                    await App.Api.UpdateWorkTimeExportAsync(workEntry.WorkTimeEntryId, workEntry.ExportedUnitPrice, workEntry.ExportedLineTotal);
+                    await App.Api.UpdateWorkTimeRevenueLinkAsync(workEntry.WorkTimeEntryId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                }
+            }
+            catch (Exception ex)
             {
-                await App.Api.UpdateAllocationExportAsync(allocation.LineAllocationId, allocation.ExportedMarkupPercent, allocation.ExportedUnitPrice, allocation.ExportedLineTotal);
-                await App.Api.UpdateAllocationRevenueLinkAsync(allocation.LineAllocationId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                throw new InvalidOperationException($"Die offenen Positionen konnten nicht mit der Rechnung verknuepft werden: {ex.Message}", ex);
             }
 
-            foreach (var workEntry in workEntries)
-            {
-                await App.Api.UpdateWorkTimeExportAsync(workEntry.WorkTimeEntryId, workEntry.ExportedUnitPrice, workEntry.ExportedLineTotal);
-                await App.Api.UpdateWorkTimeRevenueLinkAsync(workEntry.WorkTimeEntryId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
-            }
-
-            CustomerInvoiceNumberText.Text = dialog.Result.InvoiceNumber;
             await LoadCustomerDataAsync();
             SetStatus(saveAsDraft
                 ? $"Entwurf {dialog.Result.InvoiceNumber} wurde gespeichert und mit den offenen Positionen verknuepft."
@@ -892,7 +872,6 @@ public partial class BillingExportPage : Page
             AllocationsGrid.ItemsSource = null;
             WorkEntriesGrid.ItemsSource = null;
             EditAllocationQtyText.Clear();
-            CustomerInvoiceNumberText.Clear();
             SetStatus("Noch keine Kunden vorhanden.", StatusMessageType.Info);
             return;
         }
@@ -903,9 +882,11 @@ public partial class BillingExportPage : Page
             customerToSelect = customers.FirstOrDefault(c => c.Name == selectCustomerName);
         }
 
+        customerToSelect ??= App.SelectedCustomerId.HasValue ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value) : null;
         customerToSelect ??= selectedCustomerId.HasValue ? customers.FirstOrDefault(c => c.CustomerId == selectedCustomerId.Value) : null;
         customerToSelect ??= customers[0];
         CustomerCombo.SelectedItem = customerToSelect;
+        App.SetSelectedCustomer(customerToSelect.CustomerId);
         if (customerToSelect is not null)
         {
             await LoadProjectsAsync(customerToSelect, null, selectedProjectId);
@@ -941,16 +922,26 @@ public partial class BillingExportPage : Page
             AllocationsGrid.ItemsSource = null;
             WorkEntriesGrid.ItemsSource = null;
             EditAllocationQtyText.Clear();
-            CustomerInvoiceNumberText.Clear();
             SetStatus("Kein Kunde ausgewaehlt.", StatusMessageType.Info);
             return;
         }
 
         var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
         ExportMarkupText.Text = customer.DefaultMarkupPercent.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
+        var showLinked = ShowLinkedItemsCheckBox.IsChecked == true;
 
         var allocations = await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId);
         var workEntries = await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId);
+        if (!showLinked)
+        {
+            allocations = allocations
+                .Where(a => string.IsNullOrWhiteSpace(a.CustomerInvoiceNumber) && !a.RevenueInvoiceId.HasValue)
+                .ToList();
+            workEntries = workEntries
+                .Where(w => string.IsNullOrWhiteSpace(w.CustomerInvoiceNumber) && !w.RevenueInvoiceId.HasValue)
+                .ToList();
+        }
+
         allocations = allocations.OrderByDescending(a => a.AllocatedAt).ToList();
         workEntries = workEntries.OrderByDescending(w => w.WorkDate).ThenByDescending(w => w.StartTime).ToList();
 
@@ -963,13 +954,13 @@ public partial class BillingExportPage : Page
 
         if (allocations.Count == 0 && workEntries.Count == 0)
         {
-            CustomerInvoiceNumberText.Clear();
             SetStatus("Keine Material- oder Arbeitszeitpositionen fuer die ausgewaehlte Kunden-/Projektansicht gefunden.", StatusMessageType.Info);
             return;
         }
 
         var smallMaterialCount = allocations.Count(a => a.IsSmallMaterial);
-        SetStatus($"{allocations.Count} Materialposition(en), davon {smallMaterialCount} Kleinmaterial, und {workEntries.Count} Arbeitszeitposition(en) geladen.", StatusMessageType.Info);
+        var statusPrefix = showLinked ? "Auch bereits verknuepfte Positionen werden angezeigt." : "Es werden nur offene Positionen angezeigt.";
+        SetStatus($"{statusPrefix} {allocations.Count} Materialposition(en), davon {smallMaterialCount} Kleinmaterial, und {workEntries.Count} Arbeitszeitposition(en) geladen.", StatusMessageType.Info);
     }
 
     private static bool TryParseDecimal(string? text, out decimal value)

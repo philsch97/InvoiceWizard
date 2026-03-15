@@ -19,6 +19,7 @@ namespace InvoiceWizard;
 
 public partial class Datenimport : Page
 {
+    private static readonly XNamespace rsm = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100";
     private static readonly XNamespace ram = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100";
     private static readonly XNamespace udt = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100";
     private static readonly Regex MetalSurchargeRegex = new(@"(?i)\b(metall(?:zuschlag)?|cu(?:-?zuschlag)?|kupfer(?:zuschlag)?)\b", RegexOptions.Compiled);
@@ -872,17 +873,101 @@ public partial class Datenimport : Page
     }
 
     private static string ExtractInvoiceNumberFromXml(XDocument doc)
-        => doc.Descendants(ram + "ID").FirstOrDefault()?.Value ?? "";
+    {
+        var exchangedDocument = FindFirstByLocalName(doc.Root, "ExchangedDocument");
+        var candidates = new List<string?>();
+
+        if (exchangedDocument != null)
+        {
+            candidates.Add(FindChildValueByLocalName(exchangedDocument, "ID"));
+            candidates.Add(FindChildValueByLocalName(exchangedDocument, "IssuerAssignedID"));
+            candidates.AddRange(
+                exchangedDocument
+                    .Elements()
+                    .Where(x => x.Name.LocalName.Contains("ID", StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.Value));
+        }
+
+        candidates.Add(FindFirstValueByLocalName(doc.Root, "InvoiceReferencedDocument"));
+        candidates.Add(FindFirstValueByLocalName(doc.Root, "BuyerOrderReferencedDocument"));
+        candidates.Add(FindFirstValueByLocalName(doc.Root, "IssuerAssignedID"));
+        candidates.Add(FindFirstValueByLocalName(doc.Root, "ID"));
+
+        foreach (var candidate in candidates)
+        {
+            var normalized = NormalizeInvoiceNumberCandidate(candidate);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
+        }
+
+        return string.Empty;
+    }
 
     private static DateTime ExtractInvoiceDateFromXml(XDocument doc)
     {
-        var value = doc.Descendants(udt + "DateTimeString").FirstOrDefault()?.Value;
+        var exchangedDocument = FindFirstByLocalName(doc.Root, "ExchangedDocument");
+        var issueDateTime = FindFirstByLocalName(exchangedDocument, "IssueDateTime")
+            ?? FindFirstByLocalName(doc.Root, "IssueDateTime");
+        var value = FindChildValueByLocalName(issueDateTime, "DateTimeString");
         if (string.IsNullOrWhiteSpace(value))
         {
             return DateTime.Today;
         }
 
         return DateTime.TryParseExact(value.Trim(), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : DateTime.Today;
+    }
+
+    private static string NormalizeInvoiceNumberCandidate(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return string.Empty;
+        }
+
+        var normalized = candidate.Trim();
+        if (normalized.StartsWith("urn:", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        if (normalized.Contains("EN16931", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        if (normalized.Equals("Elektronische Rechnung nach EN16931", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        if (normalized.Length < 4)
+        {
+            return string.Empty;
+        }
+
+        return normalized;
+    }
+
+    private static XElement? FindFirstByLocalName(XContainer? container, string localName)
+    {
+        if (container == null)
+        {
+            return null;
+        }
+
+        return container.Descendants().FirstOrDefault(x => x.Name.LocalName == localName);
+    }
+
+    private static string? FindChildValueByLocalName(XElement? element, string localName)
+    {
+        return element?.Elements().FirstOrDefault(x => x.Name.LocalName == localName)?.Value;
+    }
+
+    private static string? FindFirstValueByLocalName(XContainer? container, string localName)
+    {
+        return FindFirstByLocalName(container, localName)?.Value;
     }
 
     private static string ExtractSupplierNameFromXml(XDocument doc)

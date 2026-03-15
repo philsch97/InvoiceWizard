@@ -1,39 +1,49 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using InvoiceWizard.Converters;
 
 namespace InvoiceWizard;
 
 public partial class MainWindow : Window
 {
+    private readonly Dictionary<Button, SectionDefinition> _sections = new();
+    private readonly Dictionary<Button, SectionNavigationItem> _subNavigationButtons = new();
+    private SectionDefinition? _activeSection;
+
     public MainWindow()
     {
         InitializeComponent();
+        MainFrame.Navigated += MainFrame_Navigated;
+        BuildSections();
         ApplySessionInfo();
-        NavigateTo(CreateMaterialSection(), MaterialButton);
+        NavigateToSection(MaterialButton);
     }
 
     private void Material_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(CreateMaterialSection(), MaterialButton);
+        NavigateToSection(MaterialButton);
     }
 
     private void MasterData_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(CreateMasterDataSection(), MasterDataButton);
+        NavigateToSection(MasterDataButton);
     }
 
     private void Organisation_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(CreateOrganisationSection(), OrganisationButton);
+        NavigateToSection(OrganisationButton);
     }
 
     private void Admin_Click(object sender, RoutedEventArgs e)
     {
-        NavigateTo(CreateAdminSection(), AdminButton);
+        NavigateToSection(AdminButton);
     }
 
     private void Analytics_Click(object sender, RoutedEventArgs e)
     {
+        _activeSection = null;
+        BuildSubNavigation(Array.Empty<SectionNavigationItem>(), null);
         NavigateTo(new AnalyticsPage(), AnalyticsButton);
     }
 
@@ -46,56 +56,44 @@ public partial class MainWindow : Window
         {
             ApplySessionInfo();
             Show();
-            NavigateTo(CreateMaterialSection(), MaterialButton);
+            NavigateToSection(MaterialButton);
             return;
         }
 
         Close();
     }
 
-    private SectionHostPage CreateMaterialSection()
+    private void BuildSections()
     {
-        return new SectionHostPage(
+        _sections[MaterialButton] = new SectionDefinition(
             "Material",
-            "Hier findest du alle Bereiche rund um Materialimport, Zuordnung, Export und Arbeitszeit.",
             new[]
             {
                 new SectionNavigationItem { Title = "Rechnungsimport", CreatePage = () => new Datenimport() },
+                new SectionNavigationItem { Title = "Rechnungsarchiv", CreatePage = () => new InvoiceArchivePage() },
                 new SectionNavigationItem { Title = "Positionen zuweisen", CreatePage = () => new DataHandling() },
                 new SectionNavigationItem { Title = "Abrechnung / Export", CreatePage = () => new BillingExportPage() },
                 new SectionNavigationItem { Title = "Arbeitszeit", CreatePage = () => new WorkTimePage() }
             });
-    }
 
-    private SectionHostPage CreateMasterDataSection()
-    {
-        return new SectionHostPage(
+        _sections[MasterDataButton] = new SectionDefinition(
             "Stammdaten",
-            "Kunden, Projekte und die dazugehoerigen Stammdaten verwaltest du gesammelt in diesem Bereich.",
             new[]
             {
                 new SectionNavigationItem { Title = "Kundenpflege", CreatePage = () => new CustomerHandling() },
                 new SectionNavigationItem { Title = "Projektdaten", CreatePage = () => new ProjectContactsPage() }
             });
-    }
 
-    private SectionHostPage CreateOrganisationSection()
-    {
-        return new SectionHostPage(
+        _sections[OrganisationButton] = new SectionDefinition(
             "Organisation",
-            "Plane Termine und sammle Notizen an einer Stelle.",
             new[]
             {
                 new SectionNavigationItem { Title = "Kalender", CreatePage = () => new CalendarPage() },
                 new SectionNavigationItem { Title = "Notizen", CreatePage = () => new NotesPage() }
             });
-    }
 
-    private SectionHostPage CreateAdminSection()
-    {
-        return new SectionHostPage(
+        _sections[AdminButton] = new SectionDefinition(
             "Admin",
-            "Hier verwaltest du dein Abo, Benutzer und die Finanzthemen deiner Firma.",
             new[]
             {
                 new SectionNavigationItem { Title = "Firmendaten", CreatePage = () => new CompanyProfilePage() },
@@ -123,6 +121,60 @@ public partial class MainWindow : Window
         AdminButton.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void NavigateToSection(Button sectionButton)
+    {
+        if (!_sections.TryGetValue(sectionButton, out var section))
+        {
+            return;
+        }
+
+        _activeSection = section;
+        var initialItem = section.Items.FirstOrDefault();
+        BuildSubNavigation(section.Items, initialItem);
+
+        if (initialItem is not null)
+        {
+            NavigateTo(initialItem.CreatePage(), sectionButton);
+        }
+    }
+
+    private void BuildSubNavigation(IEnumerable<SectionNavigationItem> items, SectionNavigationItem? activeItem)
+    {
+        SubNavigationPanel.Children.Clear();
+        _subNavigationButtons.Clear();
+
+        foreach (var item in items)
+        {
+            var button = new Button
+            {
+                Content = item.Title,
+                MinWidth = 150,
+                Height = 38,
+                Margin = new Thickness(0, 0, 10, 0),
+                Padding = new Thickness(16, 8, 16, 8),
+                Style = (Style)FindResource(item == activeItem ? typeof(Button) : "SecondaryButtonStyle"),
+                Opacity = item == activeItem ? 1.0 : 0.92
+            };
+            button.Click += (_, _) => NavigateToSubSection(item, button);
+            SubNavigationPanel.Children.Add(button);
+            _subNavigationButtons[button] = item;
+        }
+
+        SubNavigationPanel.Visibility = _subNavigationButtons.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void NavigateToSubSection(SectionNavigationItem item, Button activeButton)
+    {
+        MainFrame.Navigate(item.CreatePage());
+        UpdateNavigationState(GetPrimaryButtonForActiveSection());
+        UpdateSubNavigationState(activeButton);
+    }
+
+    private Button GetPrimaryButtonForActiveSection()
+    {
+        return _sections.FirstOrDefault(pair => pair.Value == _activeSection).Key ?? MaterialButton;
+    }
+
     private void UpdateNavigationState(Button activeButton)
     {
         var primaryStyle = (Style)FindResource(typeof(Button));
@@ -139,4 +191,75 @@ public partial class MainWindow : Window
             button.Opacity = button == activeButton ? 1.0 : 0.92;
         }
     }
+
+    private void UpdateSubNavigationState(Button activeButton)
+    {
+        var primaryStyle = (Style)FindResource(typeof(Button));
+        var secondaryStyle = (Style)FindResource("SecondaryButtonStyle");
+
+        foreach (var button in _subNavigationButtons.Keys)
+        {
+            button.Style = button == activeButton ? primaryStyle : secondaryStyle;
+            button.Opacity = button == activeButton ? 1.0 : 0.92;
+        }
+    }
+
+    private void MainFrame_Navigated(object? sender, System.Windows.Navigation.NavigationEventArgs e)
+    {
+        if (e.Content is not Page page)
+        {
+            ClearGlobalStatusBindings();
+            return;
+        }
+
+        BindGlobalStatus(page);
+    }
+
+    private void BindGlobalStatus(Page page)
+    {
+        ClearGlobalStatusBindings();
+
+        if (page.FindName("StatusBorder") is not Border pageStatusBorder ||
+            page.FindName("StatusText") is not TextBlock pageStatusText)
+        {
+            GlobalStatusBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        pageStatusBorder.Visibility = Visibility.Collapsed;
+
+        BindingOperations.SetBinding(GlobalStatusBorder, Border.BackgroundProperty, new Binding(nameof(Border.Background)) { Source = pageStatusBorder });
+        BindingOperations.SetBinding(GlobalStatusBorder, Border.BorderBrushProperty, new Binding(nameof(Border.BorderBrush)) { Source = pageStatusBorder });
+        BindingOperations.SetBinding(GlobalStatusText, TextBlock.TextProperty, new Binding(nameof(TextBlock.Text)) { Source = pageStatusText });
+        BindingOperations.SetBinding(GlobalStatusText, TextBlock.ForegroundProperty, new Binding(nameof(TextBlock.Foreground)) { Source = pageStatusText });
+        BindingOperations.SetBinding(GlobalStatusBorder, VisibilityProperty, new Binding(nameof(TextBlock.Text))
+        {
+            Source = pageStatusText,
+            Converter = new StringHasContentToVisibilityConverter()
+        });
+    }
+
+    private void ClearGlobalStatusBindings()
+    {
+        BindingOperations.ClearAllBindings(GlobalStatusBorder);
+        BindingOperations.ClearAllBindings(GlobalStatusText);
+
+        GlobalStatusBorder.Background = (System.Windows.Media.Brush)FindResource("StatusInfoBackgroundBrush");
+        GlobalStatusBorder.BorderBrush = (System.Windows.Media.Brush)FindResource("StatusInfoBorderBrush");
+        GlobalStatusText.Foreground = (System.Windows.Media.Brush)FindResource("StatusInfoTextBrush");
+        GlobalStatusText.Text = string.Empty;
+        GlobalStatusBorder.Visibility = Visibility.Collapsed;
+    }
+}
+
+public sealed class SectionDefinition
+{
+    public SectionDefinition(string title, IEnumerable<SectionNavigationItem> items)
+    {
+        Title = title;
+        Items = items.ToList();
+    }
+
+    public string Title { get; }
+    public IReadOnlyList<SectionNavigationItem> Items { get; }
 }

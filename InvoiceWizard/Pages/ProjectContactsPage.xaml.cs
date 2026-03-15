@@ -16,6 +16,7 @@ public partial class ProjectContactsPage : Page
 
     private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        App.SetSelectedCustomer((CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId);
         await LoadProjectsAsync(CustomerCombo.SelectedItem as CustomerEntity);
         ApplySameAsCustomerForms();
     }
@@ -90,7 +91,11 @@ public partial class ProjectContactsPage : Page
     {
         var customers = await App.Api.GetCustomersAsync();
         CustomerCombo.ItemsSource = customers;
-        CustomerCombo.SelectedItem = customers.FirstOrDefault();
+        var selected = App.SelectedCustomerId.HasValue
+            ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value)
+            : customers.FirstOrDefault();
+        CustomerCombo.SelectedItem = selected ?? customers.FirstOrDefault();
+        App.SetSelectedCustomer((CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId);
         if (customers.Count == 0)
         {
             ClearProjectForm();

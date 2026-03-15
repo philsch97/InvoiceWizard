@@ -31,12 +31,15 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.2*"/>
                             <ColumnDefinition Width="1.1*"/>
-                            <ColumnDefinition Width="180"/>
                             <ColumnDefinition Width="110"/>
                             <ColumnDefinition Width="110"/>
                             <ColumnDefinition Width="180"/>
                             <ColumnDefinition Width="120"/>
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
                         <StackPanel Margin="0,0,14,0">
                             <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
@@ -47,18 +50,14 @@
                             <ComboBox x:Name="ProjectFilterCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId" SelectionChanged="ProjectFilterCombo_SelectionChanged"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2" Margin="0,0,14,0">
-                            <TextBlock Text="Kunden-Rechnungsnr." Style="{StaticResource MutedLabelStyle}"/>
-                            <TextBox x:Name="CustomerInvoiceNumberText"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="3" Margin="0,0,14,0">
                             <TextBlock Text="Neue Menge" Style="{StaticResource MutedLabelStyle}"/>
                             <TextBox x:Name="EditAllocationQtyText"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="4" Margin="0,0,14,0">
+                        <StackPanel Grid.Column="3" Margin="0,0,14,0">
                             <TextBlock Text="Export-Zuschlag %" Style="{StaticResource MutedLabelStyle}"/>
                             <TextBox x:Name="ExportMarkupText" Text="0"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="5" Margin="0,0,14,0">
+                        <StackPanel Grid.Column="4" Margin="0,0,14,0">
                             <TextBlock Text="Kleinmaterial" Style="{StaticResource MutedLabelStyle}"/>
                             <ComboBox x:Name="SmallMaterialModeCombo" SelectedIndex="1">
                                 <ComboBoxItem Content="Einzeln berechnen"/>
@@ -66,10 +65,18 @@
                                 <ComboBoxItem Content="Nicht berechnen"/>
                             </ComboBox>
                         </StackPanel>
-                        <StackPanel Grid.Column="6">
+                        <StackPanel Grid.Column="5">
                             <TextBlock Text="KM-Pauschale" Style="{StaticResource MutedLabelStyle}"/>
                             <TextBox x:Name="SmallMaterialFlatFeeText" Text="0"/>
                         </StackPanel>
+
+                        <CheckBox x:Name="ShowLinkedItemsCheckBox"
+                                  Grid.Row="1"
+                                  Grid.ColumnSpan="3"
+                                  Margin="0,14,0,0"
+                                  Content="Bereits mit Entwurf oder Rechnung verknuepfte Positionen anzeigen"
+                                  Checked="ShowLinkedItemsCheckBox_Changed"
+                                  Unchecked="ShowLinkedItemsCheckBox_Changed"/>
                     </Grid>
                 </StackPanel>
             </Border>

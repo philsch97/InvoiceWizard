@@ -26,6 +26,7 @@ public partial class AnalyticsPage : Page
     private async void ResetFilters_Click(object sender, RoutedEventArgs e)
     {
         CustomerFilterCombo.SelectedIndex = 0;
+        App.SetSelectedCustomer(null);
         await LoadProjectsAsync();
         ProjectFilterCombo.SelectedIndex = 0;
         await LoadAnalyticsAsync();
@@ -38,6 +39,7 @@ public partial class AnalyticsPage : Page
             return;
         }
 
+        App.SetSelectedCustomer((CustomerFilterCombo.SelectedItem as CustomerSelectionItem)?.CustomerId);
         await LoadProjectsAsync();
         await LoadAnalyticsAsync();
     }
@@ -57,7 +59,10 @@ public partial class AnalyticsPage : Page
         var customers = new List<CustomerSelectionItem> { new() { CustomerId = null, Name = "Alle Kunden" } };
         customers.AddRange((await App.Api.GetCustomersAsync()).Select(c => new CustomerSelectionItem { CustomerId = c.CustomerId, Name = c.Name }));
         CustomerFilterCombo.ItemsSource = customers;
-        CustomerFilterCombo.SelectedIndex = 0;
+        var selected = App.SelectedCustomerId.HasValue
+            ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value)
+            : customers[0];
+        CustomerFilterCombo.SelectedItem = selected ?? customers[0];
         await LoadProjectsAsync();
     }
 

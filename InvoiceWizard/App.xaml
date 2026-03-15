@@ -49,7 +49,11 @@
         <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#F3F6FB"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#335A80"/>
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#F3F6FB"/>
-
+        <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#9AA6B2"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightBrushKey}" Color="#1F2630"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlLightLightBrushKey}" Color="#263445"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkBrushKey}" Color="#2E3742"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlDarkDarkBrushKey}" Color="#2E3742"/>
         <LinearGradientBrush x:Key="WindowGradientBrush" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#0B1016" Offset="0"/>
             <GradientStop Color="#121B26" Offset="0.55"/>
@@ -269,12 +273,84 @@
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
             <Setter Property="TextElement.Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CalendarStyle">
+                <Setter.Value>
+                    <Style TargetType="Calendar">
+                        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
+                        <Setter Property="TextElement.Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                        <Style.Resources>
+                            <Style TargetType="CalendarDayButton">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
+                            </Style>
+                            <Style TargetType="CalendarButton">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            </Style>
+                            <Style TargetType="primitives:CalendarItem">
+                                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                            </Style>
+                        </Style.Resources>
+                    </Style>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="ListBox">
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+
+        <Style TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#244566"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#1A2A3A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollViewer">
+            <Setter Property="CanContentScroll" Value="False"/>
+            <Setter Property="PanningMode" Value="VerticalFirst"/>
+            <EventSetter Event="PreviewMouseWheel" Handler="HandleScrollViewerPreviewMouseWheel"/>
         </Style>
 
         <Style TargetType="GroupBox">
