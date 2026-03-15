@@ -79,8 +79,6 @@
                     <TextBlock Text="Aktionen" Style="{StaticResource SectionTitleStyle}"/>
                     <WrapPanel Margin="0,16,0,0">
                         <Button Width="160" Height="40" Margin="0,0,10,10" Content="Menge aendern" Click="UpdateSelectedAllocation_Click"/>
-                        <Button Width="190" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte als verrechnet" Click="MarkSelectedAsInvoiced_Click"/>
-                        <Button Width="150" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte bezahlt" Click="MarkSelectedAsPaid_Click"/>
                         <Button Width="170" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Auswahl entfernen" Click="RemoveSelectedAllocations_Click"/>
                         <Button Width="170" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Entwurf speichern" Click="SaveDraftInvoice_Click"/>
                         <Button Width="180" Height="40" Margin="0,0,10,10" Content="Rechnung erzeugen" Click="GenerateInvoice_Click"/>

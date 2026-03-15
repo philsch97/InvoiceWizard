@@ -372,6 +372,21 @@ public partial class BillingExportPage : Page
                 return;
             }
 
+            if (!saveAsDraft)
+            {
+                var confirmation = MessageBox.Show(
+                    "Diese Rechnung wird jetzt final erstellt und kann danach nicht mehr bearbeitet werden.\n\nWenn spaeter ein Fehler auffaellt, muss die Rechnung storniert werden.\n\nWillst du die Rechnung jetzt verbindlich erzeugen?",
+                    "Rechnung verbindlich erzeugen",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (confirmation != MessageBoxResult.Yes)
+                {
+                    SetStatus("Rechnungserzeugung abgebrochen. Du kannst stattdessen auch zuerst einen Entwurf speichern.", StatusMessageType.Info);
+                    return;
+                }
+            }
+
             var invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, selectedProjectName);
             if (invoiceLines.Count == 0)
             {
