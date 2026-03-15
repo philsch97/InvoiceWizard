@@ -140,6 +140,67 @@ namespace InvoiceWizard.Backend.Migrations
                 nullable: false,
                 defaultValue: "");
 
+            migrationBuilder.Sql(
+                """
+                WITH duplicate_invoices AS (
+                    SELECT
+                        "InvoiceId",
+                        ROW_NUMBER() OVER (
+                            PARTITION BY "TenantId", "InvoiceDirection", "InvoiceNumber"
+                            ORDER BY "InvoiceId"
+                        ) AS rn
+                    FROM "Invoices"
+                )
+                UPDATE "Invoices" i
+                SET "InvoiceNumber" = i."InvoiceNumber" || '-DUP-' || i."InvoiceId"
+                FROM duplicate_invoices d
+                WHERE i."InvoiceId" = d."InvoiceId"
+                  AND d.rn > 1;
+                """);
+
+            migrationBuilder.Sql(
+                """
+                UPDATE "Customers"
+                SET "CustomerNumber" = 'K-' || LPAD("CustomerId"::text, 5, '0')
+                WHERE COALESCE(TRIM("CustomerNumber"), '') = '';
+                """);
+
+            migrationBuilder.Sql(
+                """
+                WITH duplicate_customers AS (
+                    SELECT
+                        "CustomerId",
+                        ROW_NUMBER() OVER (
+                            PARTITION BY "TenantId", "CustomerNumber"
+                            ORDER BY "CustomerId"
+                        ) AS rn
+                    FROM "Customers"
+                )
+                UPDATE "Customers" c
+                SET "CustomerNumber" = c."CustomerNumber" || '-DUP-' || c."CustomerId"
+                FROM duplicate_customers d
+                WHERE c."CustomerId" = d."CustomerId"
+                  AND d.rn > 1;
+                """);
+
+            migrationBuilder.Sql(
+                """
+                UPDATE "Tenants" t
+                SET "NextCustomerNumber" = GREATEST(
+                    1,
+                    COALESCE((SELECT COUNT(*) + 1 FROM "Customers" c WHERE c."TenantId" = t."TenantId"), 1)
+                );
+                """);
+
+            migrationBuilder.Sql(
+                """
+                UPDATE "Tenants" t
+                SET "NextRevenueInvoiceNumber" = GREATEST(
+                    1,
+                    COALESCE((SELECT COUNT(*) + 1 FROM "Invoices" i WHERE i."TenantId" = t."TenantId" AND i."InvoiceDirection" = 'Revenue'), 1)
+                );
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_Invoices_CustomerId",
                 table: "Invoices",
