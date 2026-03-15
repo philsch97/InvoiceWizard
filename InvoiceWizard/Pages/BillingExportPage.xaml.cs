@@ -344,8 +344,8 @@ public partial class BillingExportPage : Page
             var selectedProjectName = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.Name;
             var allocations = (await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId))
                 .Where(a => string.IsNullOrWhiteSpace(a.CustomerInvoiceNumber) && !a.RevenueInvoiceId.HasValue)
-                .OrderBy(a => a.InvoiceLine.Invoice.InvoiceDate)
-                .ThenBy(a => a.InvoiceLine.Position)
+                .OrderBy(GetAllocationInvoiceDate)
+                .ThenBy(GetAllocationPosition)
                 .ToList();
             var workEntries = (await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId))
                 .Where(w => string.IsNullOrWhiteSpace(w.CustomerInvoiceNumber) && !w.RevenueInvoiceId.HasValue)
@@ -461,9 +461,16 @@ public partial class BillingExportPage : Page
                 ? $"Entwurf {dialog.Result.InvoiceNumber} wurde gespeichert und mit den offenen Positionen verknuepft."
                 : $"Rechnung {dialog.Result.InvoiceNumber} wurde erstellt und als PDF gespeichert.", StatusMessageType.Success);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             SetStatus($"{(saveAsDraft ? "Entwurf" : "Rechnung")} konnte nicht erzeugt werden: {ex.Message}", StatusMessageType.Error);
+        }
+        catch (Exception ex)
+        {
+            var fallbackMessage = ex is NullReferenceException
+                ? "Mindestens eine verknuepfte Position enthaelt noch unvollstaendige Daten. Bitte Auswahl aktualisieren und die betroffenen Materialpositionen pruefen."
+                : ex.Message;
+            SetStatus($"{(saveAsDraft ? "Entwurf" : "Rechnung")} konnte nicht erzeugt werden: {fallbackMessage}", StatusMessageType.Error);
         }
     }
 
@@ -478,12 +485,12 @@ public partial class BillingExportPage : Page
         allocation.LastExportedAt = DateTime.Now;
         rows.Add(new ExcelExportService.ExportRow
         {
-            SupplierInvoiceNumber = allocation.InvoiceLine.InvoiceDisplayNumber,
-            ArticleNumber = allocation.InvoiceLine.ArticleNumber,
-            Ean = allocation.InvoiceLine.Ean,
-            Description = $"[{projectLabel}] {allocation.InvoiceLine.Description}",
+            SupplierInvoiceNumber = GetAllocationInvoiceDisplayNumber(allocation),
+            ArticleNumber = GetAllocationArticleNumber(allocation),
+            Ean = GetAllocationEan(allocation),
+            Description = $"[{projectLabel}] {GetAllocationDescription(allocation)}",
             Quantity = allocation.AllocatedQuantity,
-            Unit = allocation.InvoiceLine.Unit,
+            Unit = GetAllocationUnit(allocation),
             PurchaseUnitPrice = purchaseUnitPrice,
             MarkupPercent = markupPercent,
             SalesUnitPrice = salesUnitPrice,
@@ -504,12 +511,12 @@ public partial class BillingExportPage : Page
             allocation.LastExportedAt = DateTime.Now;
             rows.Add(new ExcelExportService.ExportRow
             {
-                SupplierInvoiceNumber = allocation.InvoiceLine.InvoiceDisplayNumber,
-                ArticleNumber = string.IsNullOrWhiteSpace(allocation.InvoiceLine.ArticleNumber) ? "KLEINMAT" : allocation.InvoiceLine.ArticleNumber,
-                Ean = allocation.InvoiceLine.Ean,
-                Description = $"[{projectLabel}] Kleinmaterial: {allocation.InvoiceLine.Description}",
+                SupplierInvoiceNumber = GetAllocationInvoiceDisplayNumber(allocation),
+                ArticleNumber = string.IsNullOrWhiteSpace(GetAllocationArticleNumber(allocation)) ? "KLEINMAT" : GetAllocationArticleNumber(allocation),
+                Ean = GetAllocationEan(allocation),
+                Description = $"[{projectLabel}] Kleinmaterial: {GetAllocationDescription(allocation)}",
                 Quantity = allocation.AllocatedQuantity,
-                Unit = allocation.InvoiceLine.Unit,
+                Unit = GetAllocationUnit(allocation),
                 PurchaseUnitPrice = purchaseUnitPrice,
                 MarkupPercent = markupPercent,
                 SalesUnitPrice = salesUnitPrice,
@@ -595,7 +602,20 @@ public partial class BillingExportPage : Page
 
     private decimal GetPurchaseUnitPrice(LineAllocationEntity allocation)
     {
-        return allocation.CustomerUnitPrice > 0m ? allocation.CustomerUnitPrice : PricingHelper.NormalizeUnitPrice(allocation.InvoiceLine.NetUnitPrice, allocation.InvoiceLine.MetalSurcharge, allocation.InvoiceLine.PriceBasisQuantity);
+        if (allocation.CustomerUnitPrice > 0m)
+        {
+            return allocation.CustomerUnitPrice;
+        }
+
+        if (allocation.InvoiceLine is null)
+        {
+            return 0m;
+        }
+
+        return PricingHelper.NormalizeUnitPrice(
+            allocation.InvoiceLine.NetUnitPrice,
+            allocation.InvoiceLine.MetalSurcharge,
+            allocation.InvoiceLine.PriceBasisQuantity);
     }
 
     private List<GeneratedInvoiceLine> BuildGeneratedInvoiceLines(
@@ -676,6 +696,7 @@ public partial class BillingExportPage : Page
 
     private GeneratedInvoiceLine BuildRegularAllocationLine(LineAllocationEntity allocation, decimal markupPercent, int position)
     {
+        EnsureAllocationCanBeBilled(allocation);
         var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
         var salesUnitPrice = PricingHelper.ApplyMarkup(purchaseUnitPrice, markupPercent);
         allocation.ExportedMarkupPercent = markupPercent;
@@ -686,10 +707,10 @@ public partial class BillingExportPage : Page
         {
             Position = position,
             Description = allocation.Project is null
-                ? allocation.InvoiceLine.Description
-                : $"[{allocation.Project.Name}] {allocation.InvoiceLine.Description}",
+                ? GetAllocationDescription(allocation)
+                : $"[{allocation.Project.Name}] {GetAllocationDescription(allocation)}",
             Quantity = allocation.AllocatedQuantity,
-            Unit = allocation.InvoiceLine.Unit,
+            Unit = GetAllocationUnit(allocation),
             UnitPrice = salesUnitPrice,
             LineTotal = allocation.ExportedLineTotal
         };
@@ -697,6 +718,7 @@ public partial class BillingExportPage : Page
 
     private GeneratedInvoiceLine BuildSmallMaterialSingleLine(LineAllocationEntity allocation, decimal markupPercent, int position)
     {
+        EnsureAllocationCanBeBilled(allocation);
         var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
         var salesUnitPrice = PricingHelper.ApplyMarkup(purchaseUnitPrice, markupPercent);
         allocation.ExportedMarkupPercent = markupPercent;
@@ -707,10 +729,10 @@ public partial class BillingExportPage : Page
         {
             Position = position,
             Description = allocation.Project is null
-                ? $"Kleinmaterial: {allocation.InvoiceLine.Description}"
-                : $"[{allocation.Project.Name}] Kleinmaterial: {allocation.InvoiceLine.Description}",
+                ? $"Kleinmaterial: {GetAllocationDescription(allocation)}"
+                : $"[{allocation.Project.Name}] Kleinmaterial: {GetAllocationDescription(allocation)}",
             Quantity = allocation.AllocatedQuantity,
-            Unit = allocation.InvoiceLine.Unit,
+            Unit = GetAllocationUnit(allocation),
             UnitPrice = salesUnitPrice,
             LineTotal = allocation.ExportedLineTotal
         };
@@ -781,6 +803,55 @@ public partial class BillingExportPage : Page
             UnitPrice = flatFee,
             LineTotal = flatFee
         };
+    }
+
+    private static DateTime GetAllocationInvoiceDate(LineAllocationEntity allocation)
+    {
+        return allocation.InvoiceLine?.Invoice?.InvoiceDate ?? allocation.AllocatedAt.Date;
+    }
+
+    private static int GetAllocationPosition(LineAllocationEntity allocation)
+    {
+        return allocation.InvoiceLine?.Position ?? int.MaxValue;
+    }
+
+    private static string GetAllocationDescription(LineAllocationEntity allocation)
+    {
+        return string.IsNullOrWhiteSpace(allocation.InvoiceLine?.Description)
+            ? "Materialposition"
+            : allocation.InvoiceLine.Description;
+    }
+
+    private static string GetAllocationUnit(LineAllocationEntity allocation)
+    {
+        return string.IsNullOrWhiteSpace(allocation.InvoiceLine?.Unit)
+            ? "Stk"
+            : allocation.InvoiceLine.Unit;
+    }
+
+    private static string GetAllocationArticleNumber(LineAllocationEntity allocation)
+    {
+        return allocation.InvoiceLine?.ArticleNumber ?? string.Empty;
+    }
+
+    private static string GetAllocationEan(LineAllocationEntity allocation)
+    {
+        return allocation.InvoiceLine?.Ean ?? string.Empty;
+    }
+
+    private static string GetAllocationInvoiceDisplayNumber(LineAllocationEntity allocation)
+    {
+        return string.IsNullOrWhiteSpace(allocation.InvoiceLine?.InvoiceDisplayNumber)
+            ? "Keine Rechnung"
+            : allocation.InvoiceLine.InvoiceDisplayNumber;
+    }
+
+    private static void EnsureAllocationCanBeBilled(LineAllocationEntity allocation)
+    {
+        if (allocation.InvoiceLine is null && allocation.CustomerUnitPrice <= 0m)
+        {
+            throw new InvalidOperationException("Mindestens eine zugewiesene Materialposition hat weder Rechnungszeile noch hinterlegten EK/Stk.");
+        }
     }
 
     private string GetSelectedSmallMaterialMode()
