@@ -8,100 +8,97 @@
     <div class="section-heading">
         <div>
             <h2>Kalender</h2>
-            <p>Sieh deinen Kalender, bearbeite deine Termine mobil und pruefe die Wochenuebersicht aller Benutzer.</p>
+            <p>Wechsle zwischen Tages- und Wochenansicht. Auf dem Smartphone bleibt der Editor nur als Dialog offen, wenn du ihn wirklich brauchst.</p>
         </div>
         <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(StatusMessage))
     {
-        <div class="inline-status">@StatusMessage</div>
+        <div class="inline-status @(StatusIsWarning ? "warning" : string.Empty)">@StatusMessage</div>
     }
 
-    <div class="split-grid two-columns">
-        <article class="feature-card">
-            <div class="table-header compact">
-                <div>
-                    <h3>Mein Termin</h3>
-                    <p>@(EditingEntryId.HasValue ? "Termin wird bearbeitet" : "Neuen Termin anlegen")</p>
-                </div>
-                @if (SelectedUser?.CanEdit == true)
-                {
-                    <span class="pill success">Bearbeitbar</span>
-                }
-                else
-                {
-                    <span class="pill">Nur Ansicht</span>
-                }
+    <article class="feature-card">
+        <div class="form-grid">
+            <label>
+                <span>Kalender</span>
+                <select @bind="SelectedUserId" @bind:after="OnUserChangedAsync">
+                    @foreach (var user in Users)
+                    {
+                        <option value="@user.AppUserId">@user.DisplayName</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Tag</span>
+                <input type="date" value="@SelectedDateText" @onchange="OnSelectedDateChanged" />
+            </label>
+        </div>
+
+        <div class="row-actions wrap-mobile">
+            <button class="ghost-button @(ViewMode == CalendarViewMode.Day ? "active-pill" : string.Empty)" @onclick="() => ChangeViewAsync(CalendarViewMode.Day)">Tag</button>
+            <button class="ghost-button @(ViewMode == CalendarViewMode.Week ? "active-pill" : string.Empty)" @onclick="() => ChangeViewAsync(CalendarViewMode.Week)">Woche</button>
+            <button class="ghost-button" @onclick="MoveBackwardAsync">Zurueck</button>
+            <button class="ghost-button" @onclick="MoveForwardAsync">Weiter</button>
+            <button class="ghost-button" @onclick="GoToTodayAsync">Heute</button>
+        </div>
+
+        <p class="empty-hint">
+            @(CanEditSelectedUser
+                ? "Dein Kalender ist bearbeitbar. Ein Klick auf einen Tag oeffnet den Termin-Dialog."
+                : $"Du siehst den Kalender von {SelectedUser?.DisplayName ?? "dem Team"} im Lesemodus.")
+        </p>
+    </article>
+
+    @if (ViewMode == CalendarViewMode.Week)
+    {
+        <article class="list-card">
+            <div class="table-header">
+                <h3>Woche @WeekStart.ToString("dd.MM.") - @WeekStart.AddDays(6).ToString("dd.MM.yyyy")</h3>
+                <span>@WeekCards.Sum(x => x.Entries.Count) Termine</span>
             </div>
 
-            <div class="form-grid">
-                <label>
-                    <span>Kalender</span>
-                    <select @bind="SelectedUserId" @bind:after="OnUserChangedAsync">
-                        @foreach (var user in Users)
+            <div class="calendar-week-grid">
+                @foreach (var day in WeekCards)
+                {
+                    <button type="button" class="calendar-day-card @(day.Date.Date == SelectedDate.Date ? "selected-day" : string.Empty)" @onclick="() => SelectDayAsync(day.Date)">
+                        <strong>@day.Date.ToString("ddd")</strong>
+                        <span>@day.Date.ToString("dd.MM.")</span>
+                        @if (day.Entries.Count == 0)
                         {
-                            <option value="@user.AppUserId">@user.DisplayName</option>
+                            <span class="empty-hint">Keine Termine</span>
                         }
-                    </select>
-                </label>
-                <label><span>Datum</span><input type="date" value="@EntryDateText" @onchange="OnEntryDateChanged" disabled="@(!CanEditSelectedUser)" /></label>
-                <label><span>Start</span><input type="time" value="@StartTimeText" @onchange="OnStartTimeChanged" disabled="@(!CanEditSelectedUser)" /></label>
-                <label><span>Ende</span><input type="time" value="@EndTimeText" @onchange="OnEndTimeChanged" disabled="@(!CanEditSelectedUser)" /></label>
-                <label class="wide"><span>Titel</span><input @bind="Form.Title" disabled="@(!CanEditSelectedUser)" /></label>
-                <label class="wide"><span>Ort</span><input @bind="Form.Location" disabled="@(!CanEditSelectedUser)" /></label>
-                <label class="wide"><span>Beschreibung</span><textarea rows="4" @bind="Form.Description" disabled="@(!CanEditSelectedUser)"></textarea></label>
-            </div>
-
-            @if (CanEditSelectedUser)
-            {
-                <div class="row-actions wrap-mobile">
-                    <button class="action-button" @onclick="SaveEntryAsync">@(EditingEntryId.HasValue ? "Termin speichern" : "Termin anlegen")</button>
-                    <button class="ghost-button" @onclick="ResetForm">Formular leeren</button>
-                </div>
-            }
-        </article>
-
-        <article class="feature-card">
-            <div class="table-header compact">
-                <div>
-                    <h3>Wochenuebersicht</h3>
-                    <p>Alle Termine aller Benutzer fuer die aktuelle Woche.</p>
-                </div>
-                <span class="pill">@WeekStart.ToString("dd.MM.") - @WeekStart.AddDays(6).ToString("dd.MM.yyyy")</span>
-            </div>
-
-            @if (WeeklyEntries.Count == 0)
-            {
-                <p class="empty-hint">Keine Termine in dieser Woche vorhanden.</p>
-            }
-            else
-            {
-                @foreach (var entry in WeeklyEntries)
-                {
-                    <div class="entry-card compact-card">
-                        <div class="entry-header">
-                            <div>
-                                <strong>@entry.Title</strong>
-                                <p>@entry.UserDisplayName · @entry.EntryDate.ToString("dd.MM.yyyy")</p>
-                            </div>
-                            <span class="pill">@entry.StartTime.ToString(@"hh\:mm") - @entry.EndTime.ToString(@"hh\:mm")</span>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(entry.Location))
+                        else
                         {
-                            <p class="entry-comment">@entry.Location</p>
+                            @foreach (var entry in day.Entries.Take(3))
+                            {
+                                <div class="calendar-chip">
+                                    <strong>@entry.StartTime.ToString(@"hh\:mm")</strong>
+                                    <span>@entry.Title</span>
+                                </div>
+                            }
                         }
-                    </div>
+                    </button>
                 }
-            }
+            </div>
         </article>
-    </div>
+    }
 
     <article class="list-card">
-        <div class="table-header"><h3>Termine im ausgewaehlten Kalender</h3><span>@Entries.Count Eintraege</span></div>
+        <div class="table-header">
+            <div>
+                <h3>Termine am @SelectedDate.ToString("dd.MM.yyyy")</h3>
+                <p>@Entries.Count Eintraege</p>
+            </div>
+            @if (CanEditSelectedUser)
+            {
+                <button class="action-button" @onclick="() => OpenCreateDialog(SelectedDate)">Termin anlegen</button>
+            }
+        </div>
+
         @if (Entries.Count == 0)
         {
-            <p class="empty-hint">Keine Termine im ausgewaehlten Zeitraum gefunden.</p>
+            <p class="empty-hint">Keine Termine fuer diesen Tag vorhanden.</p>
         }
         else
         {
@@ -111,9 +108,9 @@
                     <div class="entry-header">
                         <div>
                             <strong>@entry.Title</strong>
-                            <p>@entry.EntryDate.ToString("dd.MM.yyyy") · @entry.UserDisplayName</p>
+                            <p>@entry.StartTime.ToString(@"hh\:mm") - @entry.EndTime.ToString(@"hh\:mm") · @entry.UserDisplayName</p>
                         </div>
-                        <span class="pill">@entry.StartTime.ToString(@"hh\:mm") - @entry.EndTime.ToString(@"hh\:mm")</span>
+                        <span class="pill">@entry.EntryDate.ToString("dd.MM.yyyy")</span>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(entry.Location))
                     {
@@ -126,7 +123,7 @@
                     @if (entry.CanEdit)
                     {
                         <div class="status-update">
-                            <button class="ghost-button" @onclick="() => EditEntry(entry)">Bearbeiten</button>
+                            <button class="ghost-button" @onclick="() => OpenEditDialog(entry)">Bearbeiten</button>
                             <button class="ghost-button danger" @onclick="() => DeleteEntryAsync(entry.CalendarEntryId)">Loeschen</button>
                         </div>
                     }
@@ -136,36 +133,55 @@
     </article>
 </section>
 
+@if (ShowEntryDialog)
+{
+    <div class="modal-backdrop" @onclick="CloseEntryDialog">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>@(EditingEntryId.HasValue ? "Termin bearbeiten" : "Termin erstellen")</h3>
+                    <p>Speichert nur dann Platz, wenn du ihn wirklich brauchst.</p>
+                </div>
+            </div>
+
+            <div class="form-grid compact-grid">
+                <label class="wide"><span>Titel</span><input @bind="Form.Title" /></label>
+                <label><span>Datum</span><input type="date" value="@EntryDateText" @onchange="OnEntryDateChanged" /></label>
+                <label><span>Ort</span><input @bind="Form.Location" /></label>
+                <label><span>Start</span><input type="time" value="@StartTimeText" @onchange="OnStartTimeChanged" /></label>
+                <label><span>Ende</span><input type="time" value="@EndTimeText" @onchange="OnEndTimeChanged" /></label>
+                <label class="wide"><span>Beschreibung</span><textarea rows="4" @bind="Form.Description"></textarea></label>
+            </div>
+
+            <div class="row-actions wrap-mobile">
+                <button class="action-button" @onclick="SaveEntryAsync">Termin speichern</button>
+                <button class="ghost-button" @onclick="CloseEntryDialog">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<CalendarUserItem> Users { get; set; } = [];
     private List<CalendarEntryItem> Entries { get; set; } = [];
-    private List<CalendarEntryItem> WeeklyEntries { get; set; } = [];
+    private List<CalendarDayItem> WeekCards { get; set; } = [];
     private SaveCalendarEntryModel Form { get; set; } = new();
+    private CalendarViewMode ViewMode { get; set; } = CalendarViewMode.Week;
     private int? SelectedUserId { get; set; }
     private int? EditingEntryId { get; set; }
+    private bool ShowEntryDialog { get; set; }
+    private bool StatusIsWarning { get; set; }
     private string? StatusMessage { get; set; }
-    private DateTime WeekStart { get; set; } = GetWeekStart(DateTime.Today);
+    private DateTime SelectedDate { get; set; } = DateTime.Today;
+    private DateTime WeekStart => GetWeekStart(SelectedDate);
 
     private CalendarUserItem? SelectedUser => SelectedUserId.HasValue ? Users.FirstOrDefault(x => x.AppUserId == SelectedUserId.Value) : null;
     private bool CanEditSelectedUser => SelectedUser?.CanEdit == true;
 
-    private string EntryDateText
-    {
-        get => Form.EntryDate.ToString("yyyy-MM-dd");
-        set => Form.EntryDate = DateTime.TryParse(value, out var date) ? date.Date : DateTime.Today;
-    }
-
-    private string StartTimeText
-    {
-        get => Form.StartTime.ToString(@"hh\:mm");
-        set => Form.StartTime = TimeSpan.TryParse(value, out var time) ? time : new TimeSpan(8, 0, 0);
-    }
-
-    private string EndTimeText
-    {
-        get => Form.EndTime.ToString(@"hh\:mm");
-        set => Form.EndTime = TimeSpan.TryParse(value, out var time) ? time : new TimeSpan(9, 0, 0);
-    }
+    private string SelectedDateText => SelectedDate.ToString("yyyy-MM-dd");
+    private string EntryDateText => Form.EntryDate.ToString("yyyy-MM-dd");
+    private string StartTimeText => Form.StartTime.ToString(@"hh\:mm");
+    private string EndTimeText => Form.EndTime.ToString(@"hh\:mm");
 
     protected override async Task OnParametersSetAsync()
     {
@@ -173,7 +189,7 @@
         {
             Users = [];
             Entries = [];
-            WeeklyEntries = [];
+            WeekCards = [];
             SelectedUserId = null;
             return;
         }
@@ -189,18 +205,11 @@
             SelectedUserId = Users.FirstOrDefault(x => x.IsCurrentUser)?.AppUserId ?? Users.FirstOrDefault()?.AppUserId;
         }
 
-        await LoadEntriesAsync();
-        WeeklyEntries = (await Api.GetCalendarWeeklyOverviewAsync(WeekStart)).ToList();
+        await ReloadEntriesAsync();
+        await ReloadWeekAsync();
     }
 
-    private async Task OnUserChangedAsync()
-    {
-        EditingEntryId = null;
-        ResetForm();
-        await LoadEntriesAsync();
-    }
-
-    private async Task LoadEntriesAsync()
+    private async Task ReloadEntriesAsync()
     {
         if (!SelectedUserId.HasValue)
         {
@@ -208,81 +217,193 @@
             return;
         }
 
-        var from = DateTime.Today.AddDays(-14);
-        var to = DateTime.Today.AddDays(30);
-        Entries = (await Api.GetCalendarEntriesAsync(SelectedUserId.Value, from, to)).ToList();
+        Entries = (await Api.GetCalendarEntriesAsync(SelectedUserId.Value, SelectedDate, SelectedDate))
+            .OrderBy(x => x.StartTime)
+            .ToList();
     }
 
-    private void OnEntryDateChanged(ChangeEventArgs args)
+    private async Task ReloadWeekAsync()
     {
-        var value = args.Value?.ToString();
-        Form.EntryDate = DateTime.TryParse(value, out var date) ? date.Date : DateTime.Today;
-    }
-
-    private void OnStartTimeChanged(ChangeEventArgs args)
-    {
-        var value = args.Value?.ToString();
-        Form.StartTime = TimeSpan.TryParse(value, out var time) ? time : new TimeSpan(8, 0, 0);
-    }
-
-    private void OnEndTimeChanged(ChangeEventArgs args)
-    {
-        var value = args.Value?.ToString();
-        Form.EndTime = TimeSpan.TryParse(value, out var time) ? time : new TimeSpan(9, 0, 0);
-    }
-
-    private async Task SaveEntryAsync()
-    {
-        if (!CanEditSelectedUser)
+        if (!SelectedUserId.HasValue)
         {
-            StatusMessage = "Du kannst nur deinen eigenen Kalender bearbeiten.";
+            WeekCards = [];
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(Form.Title))
-        {
-            StatusMessage = "Bitte einen Titel eingeben.";
-            return;
-        }
+        var entries = (await Api.GetCalendarEntriesAsync(SelectedUserId.Value, WeekStart, WeekStart.AddDays(6))).ToList();
+        WeekCards = Enumerable.Range(0, 7)
+            .Select(offset =>
+            {
+                var day = WeekStart.AddDays(offset).Date;
+                return new CalendarDayItem
+                {
+                    Date = day,
+                    Entries = entries.Where(x => x.EntryDate.Date == day).OrderBy(x => x.StartTime).ToList()
+                };
+            })
+            .ToList();
+    }
 
-        var saved = await Api.SaveCalendarEntryAsync(Form, EditingEntryId);
+    private async Task OnUserChangedAsync()
+    {
         EditingEntryId = null;
-        ResetForm();
-        StatusMessage = $"Termin {saved.Title} gespeichert.";
+        CloseEntryDialog();
         await ReloadAsync();
     }
 
-    private void EditEntry(CalendarEntryItem entry)
+    private async Task ChangeViewAsync(CalendarViewMode mode)
     {
-        EditingEntryId = entry.CalendarEntryId;
-        SelectedUserId = entry.AppUserId;
+        ViewMode = mode;
+        await ReloadAsync();
+    }
+
+    private async Task MoveBackwardAsync()
+    {
+        SelectedDate = (ViewMode == CalendarViewMode.Week ? SelectedDate.AddDays(-7) : SelectedDate.AddDays(-1)).Date;
+        await ReloadAsync();
+    }
+
+    private async Task MoveForwardAsync()
+    {
+        SelectedDate = (ViewMode == CalendarViewMode.Week ? SelectedDate.AddDays(7) : SelectedDate.AddDays(1)).Date;
+        await ReloadAsync();
+    }
+
+    private async Task GoToTodayAsync()
+    {
+        SelectedDate = DateTime.Today;
+        await ReloadAsync();
+    }
+
+    private async Task SelectDayAsync(DateTime day)
+    {
+        SelectedDate = day.Date;
+        await ReloadEntriesAsync();
+
+        if (CanEditSelectedUser)
+        {
+            OpenCreateDialog(day);
+        }
+    }
+
+    private void OpenCreateDialog(DateTime day)
+    {
+        if (!CanEditSelectedUser)
+        {
+            SetStatus("Du kannst nur deinen eigenen Kalender bearbeiten.", true);
+            return;
+        }
+
+        EditingEntryId = null;
         Form = new SaveCalendarEntryModel
         {
-            EntryDate = entry.EntryDate,
+            EntryDate = day.Date,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(9, 0, 0),
+            Title = "",
+            Description = "",
+            Location = ""
+        };
+        ShowEntryDialog = true;
+    }
+
+    private void OpenEditDialog(CalendarEntryItem entry)
+    {
+        EditingEntryId = entry.CalendarEntryId;
+        Form = new SaveCalendarEntryModel
+        {
+            EntryDate = entry.EntryDate.Date,
             StartTime = entry.StartTime,
             EndTime = entry.EndTime,
             Title = entry.Title,
             Description = entry.Description,
             Location = entry.Location
         };
-        StatusMessage = $"Termin {entry.Title} geladen.";
+        ShowEntryDialog = true;
+    }
+
+    private void CloseEntryDialog()
+    {
+        ShowEntryDialog = false;
+        EditingEntryId = null;
+        Form = new SaveCalendarEntryModel();
+    }
+
+    private void OnSelectedDateChanged(ChangeEventArgs args)
+    {
+        SelectedDate = DateTime.TryParse(args.Value?.ToString(), out var date) ? date.Date : DateTime.Today;
+    }
+
+    private void OnEntryDateChanged(ChangeEventArgs args)
+    {
+        Form.EntryDate = DateTime.TryParse(args.Value?.ToString(), out var date) ? date.Date : SelectedDate;
+    }
+
+    private void OnStartTimeChanged(ChangeEventArgs args)
+    {
+        Form.StartTime = TimeSpan.TryParse(args.Value?.ToString(), out var time) ? time : new TimeSpan(8, 0, 0);
+    }
+
+    private void OnEndTimeChanged(ChangeEventArgs args)
+    {
+        Form.EndTime = TimeSpan.TryParse(args.Value?.ToString(), out var time) ? time : new TimeSpan(9, 0, 0);
+    }
+
+    private async Task SaveEntryAsync()
+    {
+        if (!CanEditSelectedUser)
+        {
+            SetStatus("Du kannst nur deinen eigenen Kalender bearbeiten.", true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Form.Title))
+        {
+            SetStatus("Bitte einen Titel eingeben.", true);
+            return;
+        }
+
+        if (Form.EndTime <= Form.StartTime)
+        {
+            SetStatus("Die Endzeit muss nach der Startzeit liegen.", true);
+            return;
+        }
+
+        var saved = await Api.SaveCalendarEntryAsync(Form, EditingEntryId);
+        SelectedDate = saved.EntryDate.Date;
+        CloseEntryDialog();
+        SetStatus("Termin gespeichert.", false);
+        await ReloadAsync();
     }
 
     private async Task DeleteEntryAsync(int calendarEntryId)
     {
         await Api.DeleteCalendarEntryAsync(calendarEntryId);
-        StatusMessage = "Termin geloescht.";
+        SetStatus("Termin geloescht.", false);
         await ReloadAsync();
     }
 
-    private void ResetForm()
+    private void SetStatus(string message, bool isWarning)
     {
-        Form = new SaveCalendarEntryModel();
+        StatusMessage = message;
+        StatusIsWarning = isWarning;
     }
 
     private static DateTime GetWeekStart(DateTime date)
     {
         var diff = ((int)date.DayOfWeek + 6) % 7;
         return date.Date.AddDays(-diff);
+    }
+
+    private sealed class CalendarDayItem
+    {
+        public DateTime Date { get; set; }
+        public List<CalendarEntryItem> Entries { get; set; } = [];
+    }
+
+    private enum CalendarViewMode
+    {
+        Day,
+        Week
     }
 }

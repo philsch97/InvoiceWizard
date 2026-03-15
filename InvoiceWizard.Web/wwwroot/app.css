@@ -93,6 +93,15 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .chart-bar.expenses { background: var(--danger); }
 .stats-inline-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; width: 100%; }
 .analytics-stats .stat-card strong { font-size: clamp(1.5rem, 6vw, 2.2rem); }
+.active-clock-card { display: grid; gap: 0.45rem; margin-bottom: 1rem; padding: 1rem; border-radius: 16px; background: rgba(79, 163, 255, 0.12); border: 1px solid rgba(79, 163, 255, 0.24); }
+.active-pill { border-color: rgba(79, 163, 255, 0.35); color: var(--accent-strong); }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(8, 12, 18, 0.76); display: flex; align-items: flex-end; justify-content: center; padding: 1rem; z-index: 1000; }
+.modal-card { width: min(640px, 100%); border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); padding: 1rem; }
+.calendar-week-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.9rem; }
+.calendar-day-card { display: grid; gap: 0.55rem; align-content: start; text-align: left; min-height: 180px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-alt); color: var(--text-strong); padding: 1rem; }
+.calendar-day-card.selected-day { border-color: rgba(79, 163, 255, 0.45); background: rgba(79, 163, 255, 0.14); }
+.calendar-chip { display: grid; gap: 0.2rem; padding: 0.7rem 0.75rem; border-radius: 12px; background: rgba(13, 17, 23, 0.68); border: 1px solid rgba(78, 92, 110, 0.35); }
+.calendar-chip span { color: var(--muted); font-size: 0.9rem; }
 
 @media (max-width: 720px) {
     .section-heading, .table-header, .entry-header, .list-row, .status-update { align-items: flex-start; flex-direction: column; }
@@ -100,6 +109,8 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
     .todo-item-row, .inline-editor { align-items: stretch; }
     .field-with-action { grid-template-columns: 1fr; }
     .action-button, .ghost-button { width: 100%; justify-content: center; }
+    .modal-backdrop { align-items: flex-end; padding: 0.75rem; }
+    .modal-card { max-height: 85vh; overflow: auto; }
 }
 .auth-shell {
     display: grid;

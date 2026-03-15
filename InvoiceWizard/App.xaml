@@ -237,12 +237,20 @@
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
             <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryTextBrush}"/>
+            <Setter Property="SelectionBrush" Value="#335A80"/>
         </Style>
 
         <Style TargetType="Calendar">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
+            <Setter Property="TextElement.Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+        </Style>
+
+        <Style TargetType="primitives:CalendarItem">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
         </Style>
 
         <Style TargetType="CalendarDayButton">
@@ -260,6 +268,7 @@
             <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrushTheme}"/>
+            <Setter Property="TextElement.Foreground" Value="{StaticResource PrimaryTextBrush}"/>
         </Style>
 
         <Style TargetType="CheckBox">

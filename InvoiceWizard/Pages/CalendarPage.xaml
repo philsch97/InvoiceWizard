@@ -18,7 +18,7 @@
         <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Text="Kalender" Style="{StaticResource PageTitleStyle}"/>
-                <TextBlock Text="Jeder Benutzer sieht seinen Kalender, kann aber auch die Kalender der anderen Kollegen lesen. Die Wochenansicht zeigt alle Termine der Firma gemeinsam." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                <TextBlock Text="Wechsle zwischen Tages- und Wochenansicht. Ein Klick auf einen Tag oeffnet die Terminerstellung nur dann, wenn du deinen eigenen Kalender bearbeitest." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
@@ -32,106 +32,99 @@
                     <TextBlock Text="Tag" Style="{StaticResource MutedLabelStyle}"/>
                     <DatePicker x:Name="SelectedDatePicker" SelectedDateChanged="SelectedDatePicker_SelectedDateChanged"/>
                 </StackPanel>
-                <Button Width="120" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Woche zurueck" Click="PreviousWeek_Click"/>
-                <Button Width="120" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Naechste Woche" Click="NextWeek_Click"/>
+                <Button Width="130" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Tagansicht" Click="DayView_Click"/>
+                <Button Width="130" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Wochenansicht" Click="WeekView_Click"/>
+                <Button Width="120" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Zurueck" Click="PreviousRange_Click"/>
+                <Button Width="120" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Weiter" Click="NextRange_Click"/>
                 <Button Width="120" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Heute" Click="Today_Click"/>
                 <Button Width="120" Height="40" Margin="0,24,0,0" Content="Aktualisieren" Click="Refresh_Click"/>
             </WrapPanel>
         </Border>
 
         <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.1*"/>
-                    <ColumnDefinition Width="0.9*"/>
-                </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock x:Name="CalendarModeInfoText" Style="{StaticResource SectionTitleStyle}"/>
+                <TextBlock x:Name="SelectedCalendarInfoText" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
 
-                <StackPanel Margin="0,0,16,0">
-                    <TextBlock Text="Termine des gewaehlten Tages" Style="{StaticResource SectionTitleStyle}"/>
-                    <TextBlock x:Name="SelectedCalendarInfoText" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                    <DataGrid x:Name="UserEntriesGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="UserEntriesGrid_SelectionChanged" MinHeight="220">
+        <Grid Grid.Row="3" Margin="0,0,0,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="WeekCardsBorder" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock x:Name="WeekRangeText" Text="Woche" Style="{StaticResource SectionTitleStyle}"/>
+                    <TextBlock Text="Klicke auf einen Tag, um ihn zu oeffnen. In deinem eigenen Kalender startet dadurch direkt der Termin-Dialog." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="WeekDaysItemsControl">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" Columns="7"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Click="WeekDayCard_Click" Tag="{Binding Date}" Margin="0,0,10,0" Padding="0" Background="Transparent" BorderThickness="0">
+                                        <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="12" MinWidth="155" Height="240">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,12"/>
+                                                <ItemsControl ItemsSource="{Binding PreviewLines}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="#16202A" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="10" Padding="8" Margin="0,0,0,8">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Primary}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="{Binding Secondary}" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="18,18,18,0">
+                        <TextBlock x:Name="DayEntriesTitleText" Style="{StaticResource SectionTitleStyle}" DockPanel.Dock="Left"/>
+                        <Button x:Name="NewEntryButton" Width="170" Height="40" DockPanel.Dock="Right" Content="Termin an diesem Tag" Click="NewEntry_Click"/>
+                    </DockPanel>
+                    <DataGrid x:Name="DayEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Zeit" Binding="{Binding TimeRange}" Width="110"/>
-                            <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="180"/>
-                            <DataGridTextColumn Header="Ort" Binding="{Binding Location}" Width="150"/>
+                            <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="190"/>
+                            <DataGridTextColumn Header="Ort" Binding="{Binding Location}" Width="160"/>
                             <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTemplateColumn Header="Aktionen" Width="210">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Width="90" Height="34" Margin="0,0,8,0" Content="Bearbeiten" Click="EditEntry_Click" Tag="{Binding}" IsEnabled="{Binding CanEdit}"/>
+                                            <Button Width="90" Height="34" Style="{StaticResource SecondaryButtonStyle}" Content="Loeschen" Click="DeleteEntry_Click" Tag="{Binding}" IsEnabled="{Binding CanEdit}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="Termin bearbeiten" Style="{StaticResource SectionTitleStyle}"/>
-                    <TextBlock x:Name="EditorInfoText" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,14">
-                            <TextBlock Text="Titel * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                            <TextBox x:Name="TitleText"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,14,14">
-                            <TextBlock Text="Datum * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                            <DatePicker x:Name="EntryDatePicker"/>
-                        </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14">
-                            <TextBlock Text="Ort optional" Style="{StaticResource MutedLabelStyle}"/>
-                            <TextBox x:Name="LocationText"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,14">
-                            <TextBlock Text="Start * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                            <TextBox x:Name="StartTimeText" Text="08:00"/>
-                        </StackPanel>
-                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14">
-                            <TextBlock Text="Ende * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                            <TextBox x:Name="EndTimeText" Text="09:00"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="3" Grid.ColumnSpan="2">
-                            <TextBlock Text="Beschreibung optional" Style="{StaticResource MutedLabelStyle}"/>
-                            <TextBox x:Name="DescriptionText" AcceptsReturn="True" TextWrapping="Wrap" Height="100" VerticalScrollBarVisibility="Auto"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <WrapPanel Margin="0,18,0,0">
-                        <Button Width="150" Height="40" Margin="0,0,10,0" Content="Termin speichern" Click="SaveEntry_Click"/>
-                        <Button Width="130" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Neu" Click="NewEntry_Click"/>
-                        <Button Width="130" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Loeschen" Click="DeleteEntry_Click"/>
-                    </WrapPanel>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock x:Name="WeekOverviewTitleText" Text="Wochenuebersicht aller Benutzer" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
-                <DataGrid x:Name="WeekOverviewGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Tag" Binding="{Binding DayLabel}" Width="120"/>
-                        <DataGridTextColumn Header="Zeit" Binding="{Binding TimeRange}" Width="110"/>
-                        <DataGridTextColumn Header="Benutzer" Binding="{Binding UserDisplayName}" Width="150"/>
-                        <DataGridTextColumn Header="Titel" Binding="{Binding Title}" Width="180"/>
-                        <DataGridTextColumn Header="Ort" Binding="{Binding Location}" Width="160"/>
-                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </Grid>
-        </Border>
+                </Grid>
+            </Border>
+        </Grid>
 
         <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
             <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>

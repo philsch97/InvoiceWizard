@@ -248,6 +248,50 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<WorkTimeEntryEntity?> GetActiveWorkTimeClockAsync()
+    {
+        var response = await _httpClient.GetAsync("api/worktimeentries/clock/active");
+        response.EnsureSuccessStatusCode();
+        var item = await response.Content.ReadFromJsonAsync<WorkTimeDto?>(_jsonOptions);
+        return item is null ? null : MapWorkTime(item);
+    }
+
+    public async Task<WorkTimeEntryEntity> StartWorkTimeClockAsync(int customerId, int? projectId, decimal hourlyRate, decimal travelRatePerKilometer, string description, DateTimeOffset startedAt)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/worktimeentries/clock/start", new
+        {
+            customerId,
+            projectId,
+            hourlyRate,
+            travelRatePerKilometer,
+            description,
+            startedAt
+        });
+        response.EnsureSuccessStatusCode();
+        return MapWorkTime((await response.Content.ReadFromJsonAsync<WorkTimeDto>(_jsonOptions)) ?? new WorkTimeDto());
+    }
+
+    public async Task<WorkTimeEntryEntity> StartWorkTimePauseAsync(DateTimeOffset changedAt)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/worktimeentries/clock/pause/start", new { changedAt });
+        response.EnsureSuccessStatusCode();
+        return MapWorkTime((await response.Content.ReadFromJsonAsync<WorkTimeDto>(_jsonOptions)) ?? new WorkTimeDto());
+    }
+
+    public async Task<WorkTimeEntryEntity> StopWorkTimePauseAsync(DateTimeOffset changedAt)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/worktimeentries/clock/pause/stop", new { changedAt });
+        response.EnsureSuccessStatusCode();
+        return MapWorkTime((await response.Content.ReadFromJsonAsync<WorkTimeDto>(_jsonOptions)) ?? new WorkTimeDto());
+    }
+
+    public async Task<WorkTimeEntryEntity> StopWorkTimeClockAsync(DateTimeOffset endedAt, decimal travelKilometers, string comment)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/worktimeentries/clock/stop", new { endedAt, travelKilometers, comment });
+        response.EnsureSuccessStatusCode();
+        return MapWorkTime((await response.Content.ReadFromJsonAsync<WorkTimeDto>(_jsonOptions)) ?? new WorkTimeDto());
+    }
+
     public async Task UpdateWorkTimeStatusAsync(int id, string? invoiceNumber, bool markInvoiced, bool markPaid)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/worktimeentries/{id}/status", new { customerInvoiceNumber = invoiceNumber, markInvoiced, markPaid });
@@ -563,6 +607,8 @@ public partial class BackendApiClient
         return new WorkTimeEntryEntity
         {
             WorkTimeEntryId = item.WorkTimeEntryId,
+            AppUserId = item.AppUserId,
+            UserDisplayName = item.UserDisplayName ?? "",
             CustomerId = item.CustomerId,
             Customer = new CustomerEntity { CustomerId = item.CustomerId, Name = item.CustomerName },
             ProjectId = item.ProjectId,
@@ -581,6 +627,8 @@ public partial class BackendApiClient
             CustomerInvoicedAt = item.CustomerInvoicedAt,
             IsPaid = item.IsPaid,
             PaidAt = item.PaidAt,
+            IsClockActive = item.IsClockActive,
+            PauseStartedAtUtc = item.PauseStartedAtUtc,
             ExportedLineTotal = item.LineTotal,
             ExportedUnitPrice = item.HourlyRate
         };
@@ -835,7 +883,7 @@ public partial class BackendApiClient
 
     public class ProjectDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public int OpenWorkItems { get; set; } public decimal LoggedHours { get; set; } }
     private class ProjectDetailsDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public bool ConnectionUserSameAsCustomer { get; set; } public string ConnectionUserFirstName { get; set; } = ""; public string ConnectionUserLastName { get; set; } = ""; public string ConnectionUserStreet { get; set; } = ""; public string ConnectionUserHouseNumber { get; set; } = ""; public string ConnectionUserPostalCode { get; set; } = ""; public string ConnectionUserCity { get; set; } = ""; public string ConnectionUserParcelNumber { get; set; } = ""; public string ConnectionUserEmailAddress { get; set; } = ""; public string ConnectionUserPhoneNumber { get; set; } = ""; public bool PropertyOwnerSameAsCustomer { get; set; } public string PropertyOwnerFirstName { get; set; } = ""; public string PropertyOwnerLastName { get; set; } = ""; public string PropertyOwnerStreet { get; set; } = ""; public string PropertyOwnerHouseNumber { get; set; } = ""; public string PropertyOwnerPostalCode { get; set; } = ""; public string PropertyOwnerCity { get; set; } = ""; public string PropertyOwnerEmailAddress { get; set; } = ""; public string PropertyOwnerPhoneNumber { get; set; } = ""; }
-    private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public decimal LineTotal { get; set; } }
+    private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int? AppUserId { get; set; } public string? UserDisplayName { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public bool IsClockActive { get; set; } public DateTime? PauseStartedAtUtc { get; set; } public decimal LineTotal { get; set; } }
     private class TodoListDto { public int TodoListId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public string Title { get; set; } = ""; public DateTime CreatedAt { get; set; } public DateTime UpdatedAt { get; set; } public int OpenItemCount { get; set; } public int CompletedItemCount { get; set; } public List<TodoItemDto> Items { get; set; } = []; public List<TodoAttachmentDto> Attachments { get; set; } = []; }
     private class TodoItemDto { public int TodoItemId { get; set; } public int TodoListId { get; set; } public int? ParentTodoItemId { get; set; } public string Text { get; set; } = ""; public bool IsCompleted { get; set; } public int SortOrder { get; set; } public List<TodoItemDto> Children { get; set; } = []; }
     private class TodoAttachmentDto { public int TodoAttachmentId { get; set; } public string FileName { get; set; } = ""; public string ContentType { get; set; } = ""; public string Caption { get; set; } = ""; public long FileSize { get; set; } public DateTime UploadedAt { get; set; } public string DownloadUrl { get; set; } = ""; }

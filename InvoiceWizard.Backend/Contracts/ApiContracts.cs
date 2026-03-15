@@ -171,6 +171,8 @@ public class SaveProjectDetailsRequest
 public class WorkTimeEntryListItemDto
 {
     public int WorkTimeEntryId { get; set; }
+    public int? AppUserId { get; set; }
+    public string UserDisplayName { get; set; } = "";
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public int? ProjectId { get; set; }
@@ -189,6 +191,8 @@ public class WorkTimeEntryListItemDto
     public DateTime? CustomerInvoicedAt { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
+    public bool IsClockActive { get; set; }
+    public DateTime? PauseStartedAtUtc { get; set; }
     public decimal LineTotal { get; set; }
 }
 
@@ -220,6 +224,35 @@ public class UpdateWorkTimeStatusRequest
     public string? CustomerInvoiceNumber { get; set; }
     public bool MarkInvoiced { get; set; }
     public bool MarkPaid { get; set; }
+}
+
+public class StartWorkTimeClockRequest
+{
+    [Range(1, int.MaxValue)]
+    public int CustomerId { get; set; }
+    public int? ProjectId { get; set; }
+    public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.Now;
+    [Range(0.01, 10000)]
+    public decimal HourlyRate { get; set; } = 65m;
+    [Range(0, 1000)]
+    public decimal TravelRatePerKilometer { get; set; }
+    [Required]
+    [MaxLength(200)]
+    public string Description { get; set; } = "Arbeitszeit";
+}
+
+public class ChangeWorkTimePauseRequest
+{
+    public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public class StopWorkTimeClockRequest
+{
+    public DateTimeOffset EndedAt { get; set; } = DateTimeOffset.Now;
+    [Range(0, 100000)]
+    public decimal TravelKilometers { get; set; }
+    [MaxLength(2000)]
+    public string Comment { get; set; } = "";
 }
 
 public class TodoListDto

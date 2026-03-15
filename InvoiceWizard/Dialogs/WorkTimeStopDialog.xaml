@@ -1,0 +1,44 @@
+<Window x:Class="InvoiceWizard.Dialogs.WorkTimeStopDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Projektzeit beenden"
+        Width="520"
+        Height="340"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Projektzeit beenden" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
+            <TextBlock Text="Bitte gib noch einen Kommentar und optional die Anfahrt ein." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,18,0,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Margin="0,0,0,14">
+                <TextBlock Text="Anfahrt (km)" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="TravelKilometersText" Text="0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1">
+                <TextBlock Text="Kommentar * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
+                <TextBox x:Name="CommentText" Height="120" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+            </StackPanel>
+        </Grid>
+
+        <WrapPanel Grid.Row="2" HorizontalAlignment="Right">
+            <Button Width="150" Height="40" Margin="0,0,10,0" Content="Projektstopp" Click="Confirm_Click"/>
+            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
+        </WrapPanel>
+    </Grid>
+</Window>

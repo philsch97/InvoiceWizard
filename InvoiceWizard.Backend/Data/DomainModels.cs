@@ -125,6 +125,8 @@ public class WorkTimeEntry
     public int WorkTimeEntryId { get; set; }
     public int TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
+    public int? AppUserId { get; set; }
+    public AppUser? AppUser { get; set; }
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
     public int? ProjectId { get; set; }
@@ -139,6 +141,8 @@ public class WorkTimeEntry
     public decimal TravelRatePerKilometer { get; set; }
     public string Description { get; set; } = "Arbeitszeit";
     public string Comment { get; set; } = "";
+    public bool IsClockActive { get; set; }
+    public DateTime? PauseStartedAtUtc { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public DateTime? CustomerInvoicedAt { get; set; }
     public bool IsPaid { get; set; }

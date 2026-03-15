@@ -1,5 +1,6 @@
 using InvoiceWizard.Data.Entities;
 using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Dialogs;
 using InvoiceWizard.Services;
 using Microsoft.Win32;
 using System.Globalization;
@@ -11,19 +12,27 @@ namespace InvoiceWizard;
 
 public partial class WorkTimePage : Page
 {
+    private WorkTimeEntryEntity? _activeClock;
+
     public WorkTimePage()
     {
         InitializeComponent();
-        WorkDatePicker.SelectedDate = DateTime.Today;
         Loaded += async (_, _) =>
         {
             await LoadCustomersAsync();
-            SetStatus("Bereit fuer die Zeiterfassung.", StatusMessageType.Info);
+            await ReloadAsync();
+            SetStatus("Bereit fuer die Projektzeiterfassung.", StatusMessageType.Info);
         };
     }
 
-    private async void SaveWorkTime_Click(object sender, RoutedEventArgs e)
+    private async void StartProject_Click(object sender, RoutedEventArgs e)
     {
+        if (_activeClock is not null)
+        {
+            SetStatus("Es laeuft bereits eine aktive Projektzeit.", StatusMessageType.Warning);
+            return;
+        }
+
         if (CustomerCombo.SelectedItem is not CustomerEntity customer)
         {
             SetStatus("Bitte einen Kunden auswaehlen.", StatusMessageType.Warning);
@@ -32,25 +41,7 @@ public partial class WorkTimePage : Page
 
         if (ProjectCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId == null)
         {
-            SetStatus("Bitte ein konkretes Projekt des Kunden auswaehlen.", StatusMessageType.Warning);
-            return;
-        }
-
-        if (WorkDatePicker.SelectedDate == null)
-        {
-            SetStatus("Bitte ein Datum auswaehlen.", StatusMessageType.Error);
-            return;
-        }
-
-        if (!TimeSpan.TryParse(StartTimeText.Text, out var startTime) || !TimeSpan.TryParse(EndTimeText.Text, out var endTime))
-        {
-            SetStatus("Bitte Beginn und Ende im Format HH:mm eingeben.", StatusMessageType.Error);
-            return;
-        }
-
-        if (!int.TryParse(BreakMinutesText.Text, out var breakMinutes) || breakMinutes < 0)
-        {
-            SetStatus("Bitte eine gueltige Pausenzeit in Minuten eingeben.", StatusMessageType.Error);
+            SetStatus("Bitte ein konkretes Projekt auswaehlen.", StatusMessageType.Warning);
             return;
         }
 
@@ -60,51 +51,77 @@ public partial class WorkTimePage : Page
             return;
         }
 
-        if (!TryParseDecimal(TravelKilometersText.Text, out var travelKilometers) || travelKilometers < 0m)
-        {
-            SetStatus("Bitte gueltige Anfahrtskilometer eingeben.", StatusMessageType.Error);
-            return;
-        }
-
         if (!TryParseDecimal(TravelRateText.Text, out var travelRatePerKilometer) || travelRatePerKilometer < 0m)
         {
             SetStatus("Bitte einen gueltigen Kilometerpreis eingeben.", StatusMessageType.Error);
             return;
         }
 
-        var duration = endTime - startTime - TimeSpan.FromMinutes(breakMinutes);
-        if (duration <= TimeSpan.Zero)
+        var description = string.IsNullOrWhiteSpace(DescriptionText.Text) ? "Arbeitszeit" : DescriptionText.Text.Trim();
+
+        try
         {
-            SetStatus("Die berechnete Arbeitszeit muss groesser als 0 sein.", StatusMessageType.Error);
+            _activeClock = await App.Api.StartWorkTimeClockAsync(customer.CustomerId, projectSelection.ProjectId, hourlyRate, travelRatePerKilometer, description, DateTimeOffset.Now);
+            await ReloadAsync();
+            SetStatus($"Projektzeit fuer {projectSelection.Name} gestartet.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Projektstart fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void PauseProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeClock is null)
+        {
+            SetStatus("Es laeuft aktuell keine Projektzeit.", StatusMessageType.Warning);
             return;
         }
 
         try
         {
-            await App.Api.SaveWorkTimeAsync(new WorkTimeEntryEntity
-            {
-                CustomerId = customer.CustomerId,
-                ProjectId = projectSelection.ProjectId.Value,
-                WorkDate = WorkDatePicker.SelectedDate.Value,
-                StartTime = startTime,
-                EndTime = endTime,
-                BreakMinutes = breakMinutes,
-                HourlyRate = hourlyRate,
-                TravelKilometers = travelKilometers,
-                TravelRatePerKilometer = travelRatePerKilometer,
-                Description = string.IsNullOrWhiteSpace(DescriptionText.Text) ? "Arbeitszeit" : DescriptionText.Text.Trim(),
-                Comment = (CommentText.Text ?? "").Trim()
-            });
+            _activeClock = _activeClock.PauseStartedAtUtc.HasValue
+                ? await App.Api.StopWorkTimePauseAsync(DateTimeOffset.Now)
+                : await App.Api.StartWorkTimePauseAsync(DateTimeOffset.Now);
 
-            CommentText.Clear();
-            await LoadEntriesAsync();
-            var hoursWorked = Math.Round((decimal)duration.TotalHours, 2, MidpointRounding.AwayFromZero);
-            var travelTotal = travelKilometers * travelRatePerKilometer;
-            SetStatus($"Arbeitszeit gespeichert: {hoursWorked:0.##} h und {travelKilometers:0.##} km fuer {customer.Name} / {projectSelection.Name}. Gesamt Anfahrt: {travelTotal:0.00} EUR.", StatusMessageType.Success);
+            await ReloadAsync();
+            SetStatus(_activeClock.PauseStartedAtUtc.HasValue ? "Pause gestartet." : $"Pause beendet. Gesamtpause: {_activeClock.BreakMinutes} Minuten.", StatusMessageType.Success);
         }
         catch (Exception ex)
         {
-            SetStatus($"Speichern fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+            SetStatus($"Pause konnte nicht gespeichert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void StopProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeClock is null)
+        {
+            SetStatus("Es laeuft aktuell keine Projektzeit.", StatusMessageType.Warning);
+            return;
+        }
+
+        var dialog = new WorkTimeStopDialog(_activeClock.TravelKilometers)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await App.Api.StopWorkTimeClockAsync(DateTimeOffset.Now, dialog.TravelKilometers, dialog.Comment);
+            _activeClock = null;
+            await ReloadAsync();
+            SetStatus("Projektzeit beendet und gespeichert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Projektstopp fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
         }
     }
 
@@ -173,15 +190,13 @@ public partial class WorkTimePage : Page
             await App.Api.DeleteWorkTimeAsync(entry.WorkTimeEntryId);
         }
 
-        await LoadEntriesAsync();
+        await ReloadAsync();
         SetStatus($"{selectedEntries.Count} Zeiteintraege wurden geloescht.", StatusMessageType.Success);
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
-        await LoadCustomersAsync(CustomerCombo.SelectedItem is CustomerEntity customer ? customer.CustomerId : null,
-            ProjectCombo.SelectedItem is ProjectSelectionItem project ? project.ProjectId : null);
-        await LoadEntriesAsync();
+        await ReloadAsync();
     }
 
     private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -195,6 +210,13 @@ public partial class WorkTimePage : Page
         await LoadEntriesAsync();
     }
 
+    private async Task ReloadAsync()
+    {
+        _activeClock = await App.Api.GetActiveWorkTimeClockAsync();
+        await LoadEntriesAsync();
+        UpdateClockUi();
+    }
+
     private async Task LoadCustomersAsync(int? selectedCustomerId = null, int? selectedProjectId = null)
     {
         var customers = await App.Api.GetCustomersAsync();
@@ -203,6 +225,7 @@ public partial class WorkTimePage : Page
         {
             CustomerCombo.SelectedItem = null;
             ProjectCombo.ItemsSource = null;
+            UpdateClockUi();
             return;
         }
 
@@ -220,32 +243,51 @@ public partial class WorkTimePage : Page
             return;
         }
 
-        var items = await App.Api.GetProjectSelectionsAsync(customer.CustomerId, includeAll: true);
+        var items = await App.Api.GetProjectSelectionsAsync(customer.CustomerId, includeAll: false);
         ProjectCombo.ItemsSource = items;
-        if (items.Count == 1)
-        {
-            ProjectCombo.SelectedItem = items[0];
-            SetStatus("Dieser Kunde hat noch keine Projekte. Bitte lege zuerst unter 'Kunden und Export' ein Projekt an.", StatusMessageType.Warning);
-            return;
-        }
-
-        ProjectCombo.SelectedItem = selectedProjectId.HasValue ? items.FirstOrDefault(p => p.ProjectId == selectedProjectId.Value) ?? items[0] : items[0];
+        ProjectCombo.SelectedItem = selectedProjectId.HasValue ? items.FirstOrDefault(p => p.ProjectId == selectedProjectId.Value) : items.FirstOrDefault();
     }
 
     private async Task LoadEntriesAsync()
     {
-        if (CustomerCombo.SelectedItem is not CustomerEntity customer)
+        int? customerId = (CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId;
+        int? projectId = (ProjectCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
+        var entries = await App.Api.GetWorkTimeEntriesAsync(customerId, projectId);
+        WorkEntriesGrid.ItemsSource = entries.OrderByDescending(w => w.WorkDate).ThenByDescending(w => w.StartTime).ToList();
+    }
+
+    private void UpdateClockUi()
+    {
+        var hasActiveClock = _activeClock is not null;
+        CustomerCombo.IsEnabled = !hasActiveClock;
+        ProjectCombo.IsEnabled = !hasActiveClock;
+        HourlyRateText.IsEnabled = !hasActiveClock;
+        TravelRateText.IsEnabled = !hasActiveClock;
+        DescriptionText.IsEnabled = !hasActiveClock;
+        PauseButton.IsEnabled = hasActiveClock;
+        StopButton.IsEnabled = hasActiveClock;
+
+        if (_activeClock is null)
         {
-            WorkEntriesGrid.ItemsSource = null;
-            SetStatus("Kein Kunde ausgewaehlt.", StatusMessageType.Info);
+            ActiveClockText.Text = "Zurzeit laeuft keine Projektzeit.";
+            PauseInfoText.Visibility = Visibility.Collapsed;
+            PauseButton.Content = "Pause starten";
             return;
         }
 
-        var selectedProjectId = (ProjectCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
-        var entries = await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId);
-        entries = entries.OrderByDescending(w => w.WorkDate).ThenByDescending(w => w.StartTime).ToList();
-        WorkEntriesGrid.ItemsSource = entries;
-        SetStatus($"{entries.Count} Zeiteintraege geladen.", StatusMessageType.Info);
+        ActiveClockText.Text = $"{_activeClock.Customer.Name} / {_activeClock.Project?.Name ?? "Ohne Projekt"} seit {_activeClock.StartTime:hh\\:mm} Uhr am {_activeClock.WorkDate:dd.MM.yyyy}.";
+        if (_activeClock.PauseStartedAtUtc.HasValue)
+        {
+            PauseInfoText.Text = $"Pause laeuft seit {_activeClock.PauseStartedAtUtc.Value.ToLocalTime():HH:mm}. Bereits gespeichert: {_activeClock.BreakMinutes} Minuten.";
+            PauseInfoText.Visibility = Visibility.Visible;
+            PauseButton.Content = "Pause beenden";
+        }
+        else
+        {
+            PauseInfoText.Text = $"Aktuelle Pause gesamt: {_activeClock.BreakMinutes} Minuten.";
+            PauseInfoText.Visibility = Visibility.Visible;
+            PauseButton.Content = "Pause starten";
+        }
     }
 
     private static bool TryParseDecimal(string? text, out decimal value)
@@ -263,9 +305,16 @@ public partial class WorkTimePage : Page
         StatusText.Foreground = GetBrush(type, "Text");
     }
 
-    private Brush GetBrush(StatusMessageType type, string part)
+    private Brush GetBrush(StatusMessageType type, string variant)
     {
-        var key = $"Status{type}{part}Brush";
+        var key = type switch
+        {
+            StatusMessageType.Success => $"StatusSuccess{variant}Brush",
+            StatusMessageType.Warning => $"StatusWarning{variant}Brush",
+            StatusMessageType.Error => $"StatusError{variant}Brush",
+            _ => $"StatusInfo{variant}Brush"
+        };
+
         return (Brush)FindResource(key);
     }
 }

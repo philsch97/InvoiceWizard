@@ -77,6 +77,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<LineAllocation>().HasOne(x => x.Project).WithMany(x => x.Allocations).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.Customer).WithMany(x => x.WorkTimeEntries).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.Project).WithMany(x => x.WorkTimeEntries).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.AppUser).WithMany(x => x.WorkTimeEntries).HasForeignKey(x => x.AppUserId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoList>().HasOne(x => x.Customer).WithMany(x => x.TodoLists).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoList>().HasOne(x => x.Project).WithMany(x => x.TodoLists).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoItem>().HasOne(x => x.TodoList).WithMany(x => x.Items).HasForeignKey(x => x.TodoListId).OnDelete(DeleteBehavior.Cascade);
@@ -121,6 +122,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
 
         modelBuilder.Entity<LineAllocation>().HasIndex(x => new { x.TenantId, x.InvoiceLineId, x.CustomerId, x.ProjectId, x.AllocatedQuantity });
         modelBuilder.Entity<WorkTimeEntry>().HasIndex(x => new { x.TenantId, x.CustomerId, x.ProjectId, x.WorkDate, x.StartTime, x.EndTime });
+        modelBuilder.Entity<WorkTimeEntry>().HasIndex(x => new { x.TenantId, x.AppUserId, x.IsClockActive });
         modelBuilder.Entity<TodoList>().HasIndex(x => new { x.TenantId, x.CustomerId, x.ProjectId, x.UpdatedAt });
         modelBuilder.Entity<TodoItem>().HasIndex(x => new { x.TenantId, x.TodoListId, x.ParentTodoItemId, x.SortOrder });
         modelBuilder.Entity<TenantLicense>().HasIndex(x => new { x.TenantId, x.IsActive });

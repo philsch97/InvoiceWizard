@@ -28,6 +28,7 @@ public class AppUser
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
     public List<UserTenantMembership> Memberships { get; set; } = new();
+    public List<WorkTimeEntry> WorkTimeEntries { get; set; } = new();
 }
 
 public class UserTenantMembership

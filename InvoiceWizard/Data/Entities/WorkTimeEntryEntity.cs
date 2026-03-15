@@ -3,6 +3,8 @@ namespace InvoiceWizard.Data.Entities;
 public class WorkTimeEntryEntity
 {
     public int WorkTimeEntryId { get; set; }
+    public int? AppUserId { get; set; }
+    public string UserDisplayName { get; set; } = "";
     public int CustomerId { get; set; }
     public CustomerEntity Customer { get; set; } = null!;
     public int? ProjectId { get; set; }
@@ -21,6 +23,8 @@ public class WorkTimeEntryEntity
     public DateTime? CustomerInvoicedAt { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
+    public bool IsClockActive { get; set; }
+    public DateTime? PauseStartedAtUtc { get; set; }
     public decimal ExportedUnitPrice { get; set; }
     public decimal ExportedLineTotal { get; set; }
     public DateTime? LastExportedAt { get; set; }

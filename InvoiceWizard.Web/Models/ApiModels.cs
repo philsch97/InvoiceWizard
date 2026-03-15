@@ -110,6 +110,8 @@ public class SaveProjectDetailsModel
 public class WorkTimeItem
 {
     public int WorkTimeEntryId { get; set; }
+    public int? AppUserId { get; set; }
+    public string UserDisplayName { get; set; } = "";
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public int? ProjectId { get; set; }
@@ -128,6 +130,8 @@ public class WorkTimeItem
     public DateTime? CustomerInvoicedAt { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
+    public bool IsClockActive { get; set; }
+    public DateTime? PauseStartedAtUtc { get; set; }
     public decimal LineTotal { get; set; }
 }
 
@@ -151,6 +155,28 @@ public class UpdateWorkTimeStatusModel
     public string? CustomerInvoiceNumber { get; set; }
     public bool MarkInvoiced { get; set; }
     public bool MarkPaid { get; set; }
+}
+
+public class StartWorkTimeClockModel
+{
+    public int CustomerId { get; set; }
+    public int? ProjectId { get; set; }
+    public DateTimeOffset StartedAt { get; set; } = DateTimeOffset.Now;
+    public decimal HourlyRate { get; set; } = 65m;
+    public decimal TravelRatePerKilometer { get; set; }
+    public string Description { get; set; } = "Arbeitszeit";
+}
+
+public class ChangeWorkTimePauseModel
+{
+    public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.Now;
+}
+
+public class StopWorkTimeClockModel
+{
+    public DateTimeOffset EndedAt { get; set; } = DateTimeOffset.Now;
+    public decimal TravelKilometers { get; set; }
+    public string Comment { get; set; } = "";
 }
 
 public class TodoListItem

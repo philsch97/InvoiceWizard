@@ -94,6 +94,46 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
     }
 
+    public async Task<WorkTimeItem?> GetActiveWorkTimeClockAsync(CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.GetAsync("api/worktimeentries/clock/active", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<WorkTimeItem?>(cancellationToken: cancellationToken);
+    }
+
+    public async Task<WorkTimeItem> StartWorkTimeClockAsync(StartWorkTimeClockModel model, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PostAsJsonAsync("api/worktimeentries/clock/start", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
+    }
+
+    public async Task<WorkTimeItem> StartWorkTimePauseAsync(ChangeWorkTimePauseModel model, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PostAsJsonAsync("api/worktimeentries/clock/pause/start", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
+    }
+
+    public async Task<WorkTimeItem> StopWorkTimePauseAsync(ChangeWorkTimePauseModel model, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PostAsJsonAsync("api/worktimeentries/clock/pause/stop", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
+    }
+
+    public async Task<WorkTimeItem> StopWorkTimeClockAsync(StopWorkTimeClockModel model, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PostAsJsonAsync("api/worktimeentries/clock/stop", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
+    }
+
     public async Task<WorkTimeItem> UpdateWorkTimeStatusAsync(int workTimeEntryId, UpdateWorkTimeStatusModel model, CancellationToken cancellationToken = default)
     {
         ApplyAuthorizationHeader();

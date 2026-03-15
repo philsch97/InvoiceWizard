@@ -4,6 +4,8 @@ using InvoiceWizard.Backend.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace InvoiceWizard.Backend.Controllers;
 
@@ -358,6 +360,8 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
             .Select(x => new WorkTimeEntryListItemDto
             {
                 WorkTimeEntryId = x.WorkTimeEntryId,
+                AppUserId = x.AppUserId,
+                UserDisplayName = x.AppUser != null ? x.AppUser.DisplayName : "",
                 CustomerId = x.CustomerId,
                 CustomerName = x.Customer.Name,
                 ProjectId = x.ProjectId,
@@ -376,16 +380,33 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
                 CustomerInvoicedAt = x.CustomerInvoicedAt,
                 IsPaid = x.IsPaid,
                 PaidAt = x.PaidAt,
+                IsClockActive = x.IsClockActive,
+                PauseStartedAtUtc = x.PauseStartedAtUtc,
                 LineTotal = x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer)
             }).ToListAsync();
 
         return Ok(entries);
     }
 
+    [HttpGet("clock/active")]
+    public async Task<ActionResult<WorkTimeEntryListItemDto?>> GetActiveClockEntry()
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
+        var entry = await GetActiveClockEntryAsync(tenantId, currentUserId);
+        if (entry is null)
+        {
+            return Ok(null);
+        }
+
+        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
+    }
+
     [HttpPost]
     public async Task<ActionResult<WorkTimeEntryListItemDto>> CreateEntry([FromBody] SaveWorkTimeEntryRequest request)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
         var duration = request.EndTime - request.StartTime - TimeSpan.FromMinutes(request.BreakMinutes);
         if (duration <= TimeSpan.Zero)
         {
@@ -410,6 +431,7 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
         var entry = new WorkTimeEntry
         {
             TenantId = tenantId,
+            AppUserId = currentUserId > 0 ? currentUserId : null,
             CustomerId = request.CustomerId,
             ProjectId = request.ProjectId,
             WorkDate = request.WorkDate.Date,
@@ -425,6 +447,138 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
         };
 
         db.WorkTimeEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
+    }
+
+    [HttpPost("clock/start")]
+    public async Task<ActionResult<WorkTimeEntryListItemDto>> StartClock([FromBody] StartWorkTimeClockRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId <= 0)
+        {
+            return Unauthorized();
+        }
+
+        if (await GetActiveClockEntryAsync(tenantId, currentUserId) is not null)
+        {
+            return Conflict("Es laeuft bereits eine aktive Projektzeit. Bitte stoppe oder pausiere sie zuerst.");
+        }
+
+        var validationError = await ValidateCustomerProjectAsync(tenantId, request.CustomerId, request.ProjectId);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        var startedAt = request.StartedAt;
+        var entry = new WorkTimeEntry
+        {
+            TenantId = tenantId,
+            AppUserId = currentUserId,
+            CustomerId = request.CustomerId,
+            ProjectId = request.ProjectId,
+            WorkDate = startedAt.Date,
+            StartTime = startedAt.TimeOfDay,
+            EndTime = startedAt.TimeOfDay,
+            BreakMinutes = 0,
+            HoursWorked = 0m,
+            HourlyRate = request.HourlyRate,
+            TravelKilometers = 0m,
+            TravelRatePerKilometer = request.TravelRatePerKilometer,
+            Description = request.Description.Trim(),
+            Comment = "",
+            IsClockActive = true
+        };
+
+        db.WorkTimeEntries.Add(entry);
+        await db.SaveChangesAsync();
+        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
+    }
+
+    [HttpPost("clock/pause/start")]
+    public async Task<ActionResult<WorkTimeEntryListItemDto>> StartPause([FromBody] ChangeWorkTimePauseRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
+        var entry = await GetActiveClockEntryAsync(tenantId, currentUserId);
+        if (entry is null)
+        {
+            return NotFound("Es gibt keine aktive Projektzeit zum Pausieren.");
+        }
+
+        if (entry.PauseStartedAtUtc.HasValue)
+        {
+            return Conflict("Die Pause laeuft bereits.");
+        }
+
+        entry.PauseStartedAtUtc = request.ChangedAt.UtcDateTime;
+        await db.SaveChangesAsync();
+        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
+    }
+
+    [HttpPost("clock/pause/stop")]
+    public async Task<ActionResult<WorkTimeEntryListItemDto>> StopPause([FromBody] ChangeWorkTimePauseRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
+        var entry = await GetActiveClockEntryAsync(tenantId, currentUserId);
+        if (entry is null)
+        {
+            return NotFound("Es gibt keine aktive Projektzeit fuer das Pausenende.");
+        }
+
+        if (!entry.PauseStartedAtUtc.HasValue)
+        {
+            return Conflict("Es laeuft aktuell keine Pause.");
+        }
+
+        entry.BreakMinutes += CalculatePauseMinutes(entry.PauseStartedAtUtc.Value, request.ChangedAt.UtcDateTime);
+        entry.PauseStartedAtUtc = null;
+        await db.SaveChangesAsync();
+        return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
+    }
+
+    [HttpPost("clock/stop")]
+    public async Task<ActionResult<WorkTimeEntryListItemDto>> StopClock([FromBody] StopWorkTimeClockRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
+        var entry = await GetActiveClockEntryAsync(tenantId, currentUserId);
+        if (entry is null)
+        {
+            return NotFound("Es gibt keine aktive Projektzeit zum Beenden.");
+        }
+
+        var endedAt = request.EndedAt;
+        if (endedAt.Date != entry.WorkDate.Date)
+        {
+            return ValidationProblem("Projektzeiten ueber mehrere Tage werden aktuell nicht unterstuetzt. Bitte vor Mitternacht stoppen.");
+        }
+
+        if (entry.PauseStartedAtUtc.HasValue)
+        {
+            entry.BreakMinutes += CalculatePauseMinutes(entry.PauseStartedAtUtc.Value, endedAt.UtcDateTime);
+            entry.PauseStartedAtUtc = null;
+        }
+
+        entry.EndTime = endedAt.TimeOfDay;
+        if (entry.EndTime <= entry.StartTime)
+        {
+            return ValidationProblem("Die Endzeit muss nach der Startzeit liegen.");
+        }
+
+        var duration = entry.EndTime - entry.StartTime - TimeSpan.FromMinutes(entry.BreakMinutes);
+        if (duration <= TimeSpan.Zero)
+        {
+            return ValidationProblem("Die berechnete Arbeitszeit muss groesser als 0 sein.");
+        }
+
+        entry.HoursWorked = Math.Round((decimal)duration.TotalHours, 2, MidpointRounding.AwayFromZero);
+        entry.TravelKilometers = request.TravelKilometers;
+        entry.Comment = request.Comment.Trim();
+        entry.IsClockActive = false;
         await db.SaveChangesAsync();
         return Ok(await GetMappedEntryAsync(entry.WorkTimeEntryId, tenantId));
     }
@@ -485,6 +639,8 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
             .Select(x => new WorkTimeEntryListItemDto
             {
                 WorkTimeEntryId = x.WorkTimeEntryId,
+                AppUserId = x.AppUserId,
+                UserDisplayName = x.AppUser != null ? x.AppUser.DisplayName : "",
                 CustomerId = x.CustomerId,
                 CustomerName = x.Customer.Name,
                 ProjectId = x.ProjectId,
@@ -503,8 +659,57 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
                 CustomerInvoicedAt = x.CustomerInvoicedAt,
                 IsPaid = x.IsPaid,
                 PaidAt = x.PaidAt,
+                IsClockActive = x.IsClockActive,
+                PauseStartedAtUtc = x.PauseStartedAtUtc,
                 LineTotal = x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer)
             }).FirstAsync();
+    }
+
+    private async Task<WorkTimeEntry?> GetActiveClockEntryAsync(int tenantId, int currentUserId)
+    {
+        if (currentUserId <= 0)
+        {
+            return null;
+        }
+
+        return await db.WorkTimeEntries
+            .FirstOrDefaultAsync(x => x.TenantId == tenantId && x.AppUserId == currentUserId && x.IsClockActive);
+    }
+
+    private async Task<ActionResult?> ValidateCustomerProjectAsync(int tenantId, int customerId, int? projectId)
+    {
+        var customerExists = await db.Customers.AnyAsync(x => x.CustomerId == customerId && x.TenantId == tenantId);
+        if (!customerExists)
+        {
+            return NotFound();
+        }
+
+        if (projectId.HasValue)
+        {
+            var projectExists = await db.Projects.AnyAsync(x => x.ProjectId == projectId.Value && x.CustomerId == customerId && x.TenantId == tenantId);
+            if (!projectExists)
+            {
+                return ValidationProblem("Das ausgewaehlte Projekt gehoert nicht zum Kunden.");
+            }
+        }
+
+        return null;
+    }
+
+    private static int CalculatePauseMinutes(DateTime pauseStartedAtUtc, DateTime pauseEndedAtUtc)
+    {
+        if (pauseEndedAtUtc <= pauseStartedAtUtc)
+        {
+            return 0;
+        }
+
+        return Math.Max(0, (int)Math.Round((pauseEndedAtUtc - pauseStartedAtUtc).TotalMinutes, MidpointRounding.AwayFromZero));
+    }
+
+    private int GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(userIdClaim, out var userId) ? userId : 0;
     }
 }
 
