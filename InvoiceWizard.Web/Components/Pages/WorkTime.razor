@@ -162,6 +162,10 @@
                     }
                     <div class="status-update">
                         <input placeholder="Rechnungsnr." @bind="InvoiceNumbers[entry.WorkTimeEntryId]" />
+                        @if (Auth.CanManageUsers && !entry.IsClockActive)
+                        {
+                            <button class="ghost-button" @onclick="() => OpenEditDialog(entry)">Bearbeiten</button>
+                        }
                         <button class="ghost-button" @onclick="() => MarkInvoicedAsync(entry.WorkTimeEntryId)">Fakturiert</button>
                         <button class="ghost-button" @onclick="() => MarkPaidAsync(entry.WorkTimeEntryId)">Bezahlt</button>
                         <button class="ghost-button danger" @onclick="() => DeleteAsync(entry.WorkTimeEntryId)">Loeschen</button>
@@ -202,21 +206,78 @@
     </div>
 }
 
+@if (ShowEditDialog)
+{
+    <div class="modal-backdrop" @onclick="CloseEditDialog">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>Arbeitszeit bearbeiten</h3>
+                    <p>Admins koennen abgeschlossene Arbeitszeiten hier nachtraeglich korrigieren.</p>
+                </div>
+            </div>
+
+            <div class="form-grid compact-grid">
+                <label>
+                    <span>Kunde</span>
+                    <select @bind="EditForm.CustomerId" @bind:after="LoadProjectsForEditCustomerAsync">
+                        @foreach (var customer in Customers)
+                        {
+                            <option value="@customer.CustomerId">@customer.Name</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Projekt</span>
+                    <select @bind="EditForm.ProjectId">
+                        <option value="">Ohne Projekt</option>
+                        @foreach (var project in EditProjects)
+                        {
+                            <option value="@project.ProjectId">@project.Name</option>
+                        }
+                    </select>
+                </label>
+                <label><span>Datum</span><input type="date" value="@EditWorkDateText" @onchange="OnEditWorkDateChanged" /></label>
+                <label><span>Beschreibung</span><input @bind="EditForm.Description" /></label>
+                <label><span>Beginn</span><input type="time" value="@EditStartTimeText" @onchange="OnEditStartTimeChanged" /></label>
+                <label><span>Ende</span><input type="time" value="@EditEndTimeText" @onchange="OnEditEndTimeChanged" /></label>
+                <label><span>Pause (Min.)</span><input type="number" @bind="EditForm.BreakMinutes" /></label>
+                <label><span>Stundensatz</span><input type="number" step="0.01" @bind="EditForm.HourlyRate" /></label>
+                <label><span>Anfahrt (km)</span><input type="number" step="0.01" @bind="EditForm.TravelKilometers" /></label>
+                <label><span>Preis / km</span><input type="number" step="0.01" @bind="EditForm.TravelRatePerKilometer" /></label>
+                <label class="wide"><span>Kommentar</span><textarea rows="4" @bind="EditForm.Comment"></textarea></label>
+            </div>
+
+            <div class="row-actions wrap-mobile">
+                <button class="action-button" @onclick="SaveEditAsync">Aenderungen speichern</button>
+                <button class="ghost-button" @onclick="CloseEditDialog">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<CustomerItem> Customers { get; set; } = [];
     private List<ProjectItem> AvailableProjects { get; set; } = [];
     private List<ProjectItem> FilterProjects { get; set; } = [];
+    private List<ProjectItem> EditProjects { get; set; } = [];
     private List<WorkTimeItem> Entries { get; set; } = [];
     private WorkTimeItem? ActiveClock { get; set; }
     private StartWorkTimeClockModel StartForm { get; set; } = new();
+    private SaveWorkTimeModel EditForm { get; set; } = new();
     private Dictionary<int, string?> InvoiceNumbers { get; set; } = [];
     private int? FilterCustomerId { get; set; }
     private int? FilterProjectId { get; set; }
     private bool ShowStopDialog { get; set; }
+    private bool ShowEditDialog { get; set; }
+    private int? EditingWorkTimeEntryId { get; set; }
     private string StopComment { get; set; } = "";
     private decimal StopTravelKilometers { get; set; }
     private bool StatusIsWarning { get; set; }
     private string? StatusMessage { get; set; }
+    private string EditWorkDateText => EditForm.WorkDate.ToString("yyyy-MM-dd");
+    private string EditStartTimeText => EditForm.StartTime.ToString(@"hh\:mm");
+    private string EditEndTimeText => EditForm.EndTime.ToString(@"hh\:mm");
 
     protected override async Task OnParametersSetAsync()
     {
@@ -347,6 +408,94 @@
     private void CloseStopDialog()
     {
         ShowStopDialog = false;
+    }
+
+    private async Task LoadProjectsForEditCustomerAsync()
+    {
+        EditProjects = EditForm.CustomerId > 0 ? (await Api.GetProjectsAsync(EditForm.CustomerId)).ToList() : [];
+        if (EditForm.ProjectId.HasValue && EditProjects.All(x => x.ProjectId != EditForm.ProjectId.Value))
+        {
+            EditForm.ProjectId = null;
+        }
+    }
+
+    private void OpenEditDialog(WorkTimeItem entry)
+    {
+        if (!Auth.CanManageUsers)
+        {
+            SetStatus("Nur Admins duerfen Arbeitszeiten bearbeiten.", true);
+            return;
+        }
+
+        EditingWorkTimeEntryId = entry.WorkTimeEntryId;
+        EditForm = new SaveWorkTimeModel
+        {
+            CustomerId = entry.CustomerId,
+            ProjectId = entry.ProjectId,
+            WorkDate = entry.WorkDate.Date,
+            StartTime = entry.StartTime,
+            EndTime = entry.EndTime,
+            BreakMinutes = entry.BreakMinutes,
+            HourlyRate = entry.HourlyRate,
+            TravelKilometers = entry.TravelKilometers,
+            TravelRatePerKilometer = entry.TravelRatePerKilometer,
+            Description = entry.Description,
+            Comment = entry.Comment
+        };
+        _ = LoadProjectsForEditCustomerAsync();
+        ShowEditDialog = true;
+    }
+
+    private void CloseEditDialog()
+    {
+        ShowEditDialog = false;
+        EditingWorkTimeEntryId = null;
+    }
+
+    private void OnEditWorkDateChanged(ChangeEventArgs args)
+    {
+        EditForm.WorkDate = DateTime.TryParse(args.Value?.ToString(), out var result) ? result.Date : DateTime.Today;
+    }
+
+    private void OnEditStartTimeChanged(ChangeEventArgs args)
+    {
+        EditForm.StartTime = TimeSpan.TryParse(args.Value?.ToString(), out var result) ? result : new TimeSpan(8, 0, 0);
+    }
+
+    private void OnEditEndTimeChanged(ChangeEventArgs args)
+    {
+        EditForm.EndTime = TimeSpan.TryParse(args.Value?.ToString(), out var result) ? result : new TimeSpan(16, 30, 0);
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (!Auth.CanManageUsers)
+        {
+            SetStatus("Nur Admins duerfen Arbeitszeiten bearbeiten.", true);
+            return;
+        }
+
+        if (!EditingWorkTimeEntryId.HasValue)
+        {
+            return;
+        }
+
+        if (EditForm.CustomerId <= 0)
+        {
+            SetStatus("Bitte einen Kunden auswaehlen.", true);
+            return;
+        }
+
+        if ((EditForm.EndTime - EditForm.StartTime - TimeSpan.FromMinutes(EditForm.BreakMinutes)) <= TimeSpan.Zero)
+        {
+            SetStatus("Bitte gueltige Start-, End- und Pausenzeiten eingeben.", true);
+            return;
+        }
+
+        await Api.UpdateWorkTimeAsync(EditingWorkTimeEntryId.Value, EditForm);
+        CloseEditDialog();
+        SetStatus("Arbeitszeit wurde aktualisiert.", false);
+        await ReloadEntriesAsync();
     }
 
     private async Task ConfirmStopClockAsync()

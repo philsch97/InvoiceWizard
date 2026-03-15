@@ -248,10 +248,34 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task SaveWorkTimeAsync(int entryId, WorkTimeEntryEntity entry)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/worktimeentries/{entryId}", new
+        {
+            customerId = entry.CustomerId,
+            projectId = entry.ProjectId,
+            workDate = entry.WorkDate,
+            startTime = entry.StartTime,
+            endTime = entry.EndTime,
+            breakMinutes = entry.BreakMinutes,
+            hourlyRate = entry.HourlyRate,
+            travelKilometers = entry.TravelKilometers,
+            travelRatePerKilometer = entry.TravelRatePerKilometer,
+            description = entry.Description,
+            comment = entry.Comment
+        });
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<WorkTimeEntryEntity?> GetActiveWorkTimeClockAsync()
     {
         var response = await _httpClient.GetAsync("api/worktimeentries/clock/active");
         response.EnsureSuccessStatusCode();
+        if (response.Content.Headers.ContentLength is 0 || response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        {
+            return null;
+        }
+
         var item = await response.Content.ReadFromJsonAsync<WorkTimeDto?>(_jsonOptions);
         return item is null ? null : MapWorkTime(item);
     }

@@ -617,6 +617,55 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
         return Ok(await GetMappedEntryAsync(entryId, tenantId));
     }
 
+    [HttpPut("{entryId:int}")]
+    public async Task<ActionResult<WorkTimeEntryListItemDto>> UpdateEntry(int entryId, [FromBody] SaveWorkTimeEntryRequest request)
+    {
+        if (!User.IsInRole(TenantRoles.Admin))
+        {
+            return Forbid();
+        }
+
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        if (entry.IsClockActive)
+        {
+            return ValidationProblem("Laufende Projektzeiten koennen nicht manuell bearbeitet werden. Bitte zuerst sauber stoppen.");
+        }
+
+        var duration = request.EndTime - request.StartTime - TimeSpan.FromMinutes(request.BreakMinutes);
+        if (duration <= TimeSpan.Zero)
+        {
+            return ValidationProblem("Start, Ende und Pause ergeben keine positive Arbeitszeit.");
+        }
+
+        var validationError = await ValidateCustomerProjectAsync(tenantId, request.CustomerId, request.ProjectId);
+        if (validationError is not null)
+        {
+            return validationError;
+        }
+
+        entry.CustomerId = request.CustomerId;
+        entry.ProjectId = request.ProjectId;
+        entry.WorkDate = request.WorkDate.Date;
+        entry.StartTime = request.StartTime;
+        entry.EndTime = request.EndTime;
+        entry.BreakMinutes = request.BreakMinutes;
+        entry.HoursWorked = Math.Round((decimal)duration.TotalHours, 2, MidpointRounding.AwayFromZero);
+        entry.HourlyRate = request.HourlyRate;
+        entry.TravelKilometers = request.TravelKilometers;
+        entry.TravelRatePerKilometer = request.TravelRatePerKilometer;
+        entry.Description = request.Description.Trim();
+        entry.Comment = request.Comment.Trim();
+
+        await db.SaveChangesAsync();
+        return Ok(await GetMappedEntryAsync(entryId, tenantId));
+    }
+
     [HttpDelete("{entryId:int}")]
     public async Task<IActionResult> DeleteEntry(int entryId)
     {

@@ -6,11 +6,12 @@
       mc:Ignorable="d"
       d:DesignHeight="860" d:DesignWidth="1280"
       Title="WorkTimePage">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -78,6 +79,7 @@
                     <WrapPanel Margin="0,0,0,14">
                         <Button Width="160" Height="40" Margin="0,0,10,10" Content="Aktualisieren" Click="Refresh_Click"/>
                         <Button Width="170" Height="40" Margin="0,0,10,10" Content="Arbeitszeiten als PDF" Click="ExportPdf_Click"/>
+                        <Button x:Name="EditSelectedButton" Width="180" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte bearbeiten" Click="EditSelected_Click"/>
                         <Button Width="170" Height="40" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte loeschen" Click="DeleteSelected_Click"/>
                     </WrapPanel>
                     <TextBlock Text="Laufende Zeiten werden sofort gespeichert und erscheinen direkt unten in der Liste." Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
@@ -92,7 +94,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <TextBlock Text="Erfasste Arbeitszeiten" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
-                <DataGrid x:Name="WorkEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended">
+                <DataGrid x:Name="WorkEntriesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended" MinHeight="320" Height="360">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Datum" Binding="{Binding WorkDate, StringFormat=dd.MM.yyyy}" Width="120"/>
                         <DataGridTextColumn Header="Benutzer" Binding="{Binding UserDisplayName}" Width="150"/>
@@ -114,4 +116,5 @@
             <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
         </Border>
     </Grid>
+    </ScrollViewer>
 </Page>

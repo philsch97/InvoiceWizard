@@ -25,6 +25,8 @@ public partial class WorkTimePage : Page
         };
     }
 
+    private bool IsAdmin => string.Equals(App.Session?.User.Role, "Admin", StringComparison.OrdinalIgnoreCase);
+
     private async void StartProject_Click(object sender, RoutedEventArgs e)
     {
         if (_activeClock is not null)
@@ -194,6 +196,55 @@ public partial class WorkTimePage : Page
         SetStatus($"{selectedEntries.Count} Zeiteintraege wurden geloescht.", StatusMessageType.Success);
     }
 
+    private async void EditSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsAdmin)
+        {
+            SetStatus("Nur Admins duerfen Arbeitszeiten nachtraeglich bearbeiten.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (WorkEntriesGrid.SelectedItem is not WorkTimeEntryEntity entry)
+        {
+            SetStatus("Bitte zuerst genau einen Zeiteintrag markieren.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (entry.IsClockActive)
+        {
+            SetStatus("Laufende Projektzeiten koennen nicht manuell bearbeitet werden.", StatusMessageType.Warning);
+            return;
+        }
+
+        var customers = await App.Api.GetCustomersAsync();
+        var projectMap = new Dictionary<int, List<ProjectSelectionItem>>();
+        foreach (var customer in customers)
+        {
+            projectMap[customer.CustomerId] = await App.Api.GetProjectSelectionsAsync(customer.CustomerId, includeAll: false);
+        }
+
+        var dialog = new WorkTimeEditDialog(entry, customers, projectMap)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await App.Api.SaveWorkTimeAsync(entry.WorkTimeEntryId, dialog.Result);
+            await ReloadAsync();
+            SetStatus("Arbeitszeit wurde aktualisiert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Arbeitszeit konnte nicht gespeichert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         await ReloadAsync();
@@ -266,6 +317,7 @@ public partial class WorkTimePage : Page
         DescriptionText.IsEnabled = !hasActiveClock;
         PauseButton.IsEnabled = hasActiveClock;
         StopButton.IsEnabled = hasActiveClock;
+        EditSelectedButton.IsEnabled = IsAdmin;
 
         if (_activeClock is null)
         {

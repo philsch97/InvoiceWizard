@@ -94,11 +94,24 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
     }
 
+    public async Task<WorkTimeItem> UpdateWorkTimeAsync(int workTimeEntryId, SaveWorkTimeModel model, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PutAsJsonAsync($"api/worktimeentries/{workTimeEntryId}", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<WorkTimeItem>(cancellationToken: cancellationToken))!;
+    }
+
     public async Task<WorkTimeItem?> GetActiveWorkTimeClockAsync(CancellationToken cancellationToken = default)
     {
         ApplyAuthorizationHeader();
         var response = await httpClient.GetAsync("api/worktimeentries/clock/active", cancellationToken);
         response.EnsureSuccessStatusCode();
+        if (response.Content.Headers.ContentLength is 0 || response.StatusCode == System.Net.HttpStatusCode.NoContent)
+        {
+            return null;
+        }
+
         return await response.Content.ReadFromJsonAsync<WorkTimeItem?>(cancellationToken: cancellationToken);
     }
 
