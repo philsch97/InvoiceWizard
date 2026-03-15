@@ -56,6 +56,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
@@ -84,6 +85,11 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,16,0,0">
+                            <TextBlock Text="Rechnungsbetrag optional" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="InvoiceTotalAmountText"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,16,0,0">
                             <TextBlock Text="Quelle optional" Style="{StaticResource MutedLabelStyle}"/>
                             <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
                                 <TextBlock x:Name="SourceInfoText" Text="Manuelle Erfassung" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
@@ -91,7 +97,7 @@
                         </StackPanel>
 
                         <CheckBox x:Name="NoSupplierInvoiceCheckBox"
-                                  Grid.Row="3"
+                                  Grid.Row="4"
                                   Grid.ColumnSpan="2"
                                   Margin="0,16,0,0"
                                   Content="Ohne Rechnungsbeleg erfassen"
@@ -99,7 +105,7 @@
                                   Unchecked="NoSupplierInvoiceCheckBox_Changed"/>
 
                         <TextBlock x:Name="InvoiceDirectionHintText"
-                                   Grid.Row="4"
+                                   Grid.Row="5"
                                    Grid.ColumnSpan="2"
                                    Margin="0,12,0,0"
                                    Foreground="{StaticResource MutedTextBrush}"
@@ -110,7 +116,7 @@
                 <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0">
                     <StackPanel>
                         <TextBlock Text="Pflichtfelder im manuellen Import" Style="{StaticResource SectionTitleStyle}"/>
-                        <TextBlock x:Name="ImportModeInfoText" Text="Rechnungsnummer, Rechnungsdatum und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht." Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="ImportModeInfoText" Text="Rechnungsnummer, Rechnungsdatum, PDF und entweder Positionen oder ein Rechnungsbetrag sind erforderlich." Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                         <TextBlock Text="Artikelnummer, EAN, Lieferant, Metallzuschlag und Brutto-Listenpreis sind optional." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                         <TextBlock Text="Bei Positionen ohne Lieferantenrechnung bleibt der EK fuer die Kalkulation erhalten, wird aber als Ausgabe ohne aktuellen Beleg gekennzeichnet." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                     </StackPanel>

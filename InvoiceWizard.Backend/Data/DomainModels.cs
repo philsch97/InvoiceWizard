@@ -65,6 +65,7 @@ public class Invoice
     public bool HasSupplierInvoice { get; set; } = true;
     public string SupplierName { get; set; } = "Sonepar";
     public string AccountingCategory { get; set; } = "MaterialAndGoods";
+    public decimal InvoiceTotalAmount { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
     public string StoredPdfPath { get; set; } = "";

@@ -490,7 +490,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
 
         return invoices.Select(invoice =>
         {
-            var total = decimal.Round(invoice.Lines.Sum(x => x.LineTotal), 2);
+            var total = GetInvoiceTotal(invoice);
             var assigned = assignedLookup.GetValueOrDefault(invoice.InvoiceId);
             return BuildCandidateFromInvoice(
                 "SupplierInvoice",
@@ -533,7 +533,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
 
         return invoices.Select(invoice =>
         {
-            var total = decimal.Round(invoice.Lines.Sum(x => x.LineTotal), 2);
+            var total = GetInvoiceTotal(invoice);
             var assigned = assignedLookup.GetValueOrDefault(invoice.InvoiceId);
             return BuildCandidateFromInvoice(
                 "RevenueInvoice",
@@ -649,7 +649,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             return;
         }
 
-        var totalAmount = decimal.Round(invoice.Lines.Sum(x => x.LineTotal), 2);
+        var totalAmount = GetInvoiceTotal(invoice);
         var assignedAmount = await db.BankTransactionAssignments
             .Where(x => x.TenantId == tenantId && x.SupplierInvoiceId == invoiceId)
             .SumAsync(x => (decimal?)x.AssignedAmount, cancellationToken) ?? 0m;
@@ -679,7 +679,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             return;
         }
 
-        var totalAmount = decimal.Round(invoice.Lines.Sum(x => x.LineTotal), 2);
+        var totalAmount = GetInvoiceTotal(invoice);
         var assignmentsQuery = db.BankTransactionAssignments.Where(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId);
         var assignedAmount = await assignmentsQuery.SumAsync(x => (decimal?)x.AssignedAmount, cancellationToken) ?? 0m;
         var isPaid = totalAmount <= 0m || assignedAmount + 0.009m >= totalAmount;
@@ -807,6 +807,12 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
 
     private static decimal CalculateRemainingAmount(decimal transactionAmount, decimal assignedAmount)
         => decimal.Round(Math.Max(0m, Math.Abs(transactionAmount) - assignedAmount), 2);
+
+    private static decimal GetInvoiceTotal(Invoice invoice)
+    {
+        var linesTotal = invoice.Lines.Sum(x => x.LineTotal);
+        return decimal.Round(linesTotal > 0m ? linesTotal : invoice.InvoiceTotalAmount, 2);
+    }
 
     private static BankInvoiceCandidateDto BuildCandidateFromInvoice(
         string candidateType,

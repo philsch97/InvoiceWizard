@@ -214,16 +214,22 @@ public partial class Datenimport : Page
             return;
         }
 
-        if (_manualLines.Count == 0)
+        if (!TryParseOptionalDecimal(InvoiceTotalAmountText.Text, out var invoiceTotalAmount))
         {
-            SetStatus("Bitte mindestens eine Position erfassen oder importieren.", StatusMessageType.Error);
+            SetStatus("Bitte einen gueltigen Rechnungsbetrag eingeben oder das Feld leer lassen.", StatusMessageType.Error);
+            return;
+        }
+
+        if (_manualLines.Count == 0 && invoiceTotalAmount <= 0m)
+        {
+            SetStatus("Bitte entweder Positionen erfassen oder einen Rechnungsbetrag ohne Positionen angeben.", StatusMessageType.Error);
             return;
         }
 
         var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var invoiceDate = InvoiceDatePicker.SelectedDate.Value;
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
-            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, supplierName, hasSupplierInvoice, _manualLines)
+            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, supplierName, invoiceTotalAmount, hasSupplierInvoice, _manualLines)
             : _currentContentHash;
 
         try
@@ -234,6 +240,7 @@ public partial class Datenimport : Page
                 invoiceDate,
                 supplierName,
                 AccountingCategoryCombo.SelectedValue as string ?? "MaterialAndGoods",
+                invoiceTotalAmount,
                 _currentSourcePdfPath,
                 _currentOriginalPdfFileName,
                 _currentPdfBytes is null ? null : Convert.ToBase64String(_currentPdfBytes),
@@ -244,8 +251,10 @@ public partial class Datenimport : Page
             ResetForm();
             await LoadStoredInvoicesAsync();
             var summary = hasSupplierInvoice
-                ? $"Rechnung {invoiceNumber} mit {importedLineCount} Position(en) erfolgreich importiert."
-                : $"Manuell hinzugefuegte Positionen ohne Lieferantenrechnung wurden mit {importedLineCount} Zeile(n) gespeichert.";
+                ? importedLineCount > 0
+                    ? $"Rechnung {invoiceNumber} mit {importedLineCount} Position(en) erfolgreich importiert."
+                    : $"Rechnung {invoiceNumber} wurde ohne Positionen mit Rechnungsbetrag gespeichert."
+                : $"Manuell hinzugefuegte Positionen ohne Lieferantenrechnung wurden gespeichert.";
             SetStatus(summary, StatusMessageType.Success);
         }
         catch (Exception ex)
@@ -291,21 +300,14 @@ public partial class Datenimport : Page
             ? "Ohne Rechnungsbeleg erfassen"
             : "Ohne Rechnungsbeleg erfassen (Altbestand / manuell hinzugefuegt)";
 
-        if (isRevenue)
-        {
-            AccountingCategoryCombo.SelectedValue = "Other";
-            AccountingCategoryCombo.IsEnabled = false;
-            InvoiceDirectionHintText.Text = "Einnahmerechnungen werden fuer Zahlungseingang und Archiv getrennt von Material-Einkaeufen gespeichert.";
-        }
-        else
-        {
-            AccountingCategoryCombo.IsEnabled = true;
-            InvoiceDirectionHintText.Text = "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.";
-        }
+        AccountingCategoryCombo.IsEnabled = true;
+        InvoiceDirectionHintText.Text = isRevenue
+            ? "Einnahmerechnungen werden fuer Zahlungseingang und Archiv getrennt von Material-Einkaeufen gespeichert."
+            : "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.";
 
         ImportModeInfoText.Text = noSupplierInvoice
-            ? "Fuer manuelle Erfassungen reicht ein Datum und mindestens eine Position. Der EK bleibt fuer die Kalkulation sichtbar, auch wenn aktuell kein Rechnungsbeleg vorliegt."
-            : "Rechnungsnummer, Rechnungsdatum, PDF und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
+            ? "Fuer manuelle Erfassungen reicht ein Datum sowie entweder Positionen oder ein Rechnungsbetrag. Der EK bleibt fuer die Kalkulation sichtbar, auch wenn aktuell kein Rechnungsbeleg vorliegt."
+            : "Rechnungsnummer, Rechnungsdatum, PDF und entweder Positionen oder ein Rechnungsbetrag sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
 
         if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
         {
@@ -412,6 +414,7 @@ public partial class Datenimport : Page
         _currentPdfBytes = null;
         _currentOriginalPdfFileName = "";
         AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
+        InvoiceTotalAmountText.Clear();
         ClearLineInputs();
         UpdateInvoiceModeUi();
     }
@@ -524,9 +527,20 @@ public partial class Datenimport : Page
             || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     }
 
+    private static bool TryParseOptionalDecimal(string? text, out decimal value)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            value = 0m;
+            return true;
+        }
+
+        return TryParseDecimal(text, out value);
+    }
+
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
 
-    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, string supplierName, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
+    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, string supplierName, decimal invoiceTotalAmount, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
     {
         var payload = string.Join("|", new[]
         {
@@ -534,6 +548,7 @@ public partial class Datenimport : Page
             invoiceNumber,
             invoiceDate.ToString("yyyyMMdd"),
             supplierName,
+            invoiceTotalAmount.ToString(CultureInfo.InvariantCulture),
             hasSupplierInvoice ? "WITH-INVOICE" : "WITHOUT-INVOICE",
             string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.MetalSurcharge}:{l.PriceBasisQuantity}"))
         });

@@ -17,6 +17,11 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
     public async Task<IActionResult> SaveInvoice([FromBody] SaveInvoiceRequest request)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        if (request.Lines.Count == 0 && request.InvoiceTotalAmount <= 0m)
+        {
+            return ValidationProblem("Bitte entweder Positionen erfassen oder einen Rechnungsbetrag ohne Positionen angeben.");
+        }
+
         var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.ContentHash == request.ContentHash);
         if (exists)
         {
@@ -33,6 +38,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             InvoiceDate = request.InvoiceDate,
             SupplierName = request.SupplierName.Trim(),
             AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory),
+            InvoiceTotalAmount = decimal.Round(request.InvoiceTotalAmount, 2),
             SourcePdfPath = request.SourcePdfPath.Trim(),
             OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim(),
             ContentHash = request.ContentHash.Trim(),
@@ -82,6 +88,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 SupplierName = x.SupplierName,
                 HasSupplierInvoice = x.HasSupplierInvoice,
                 AccountingCategory = x.AccountingCategory,
+                InvoiceTotalAmount = x.InvoiceTotalAmount,
                 OriginalPdfFileName = x.OriginalPdfFileName,
                 HasStoredPdf = !string.IsNullOrWhiteSpace(x.StoredPdfPath)
             })
@@ -601,20 +608,20 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         List<ExpenseCategoryTotalDto> expenseCategories;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            expenses = await db.InvoiceLines
-                .Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
-                .Select(x => x.LineTotal)
-                .SumAsync();
-            expenseCategories = await db.InvoiceLines
-                .Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
-                .GroupBy(x => x.Invoice.AccountingCategory)
+            var expenseInvoices = await db.Invoices
+                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense" && x.HasSupplierInvoice)
+                .Include(x => x.Lines)
+                .ToListAsync();
+            expenses = expenseInvoices.Sum(GetInvoiceTotal);
+            expenseCategories = expenseInvoices
+                .GroupBy(x => x.AccountingCategory)
                 .Select(g => new ExpenseCategoryTotalDto
                 {
                     AccountingCategory = g.Key,
-                    Amount = g.Sum(x => x.LineTotal)
+                    Amount = g.Sum(GetInvoiceTotal)
                 })
                 .OrderByDescending(x => x.Amount)
-                .ToListAsync();
+                .ToList();
         }
         else
         {
@@ -647,11 +654,14 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         Dictionary<DateTime, decimal> expensesByMonth;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            expensesByMonth = db.InvoiceLines.Where(x => x.TenantId == tenantId && x.Invoice.HasSupplierInvoice)
-                .Include(x => x.Invoice)
-                .AsEnumerable()
-                .GroupBy(x => new DateTime(x.Invoice.InvoiceDate.Year, x.Invoice.InvoiceDate.Month, 1))
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.LineTotal));
+            var expenseInvoicesForMonths = await db.Invoices
+                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense" && x.HasSupplierInvoice)
+                .Include(x => x.Lines)
+                .AsNoTracking()
+                .ToListAsync();
+            expensesByMonth = expenseInvoicesForMonths
+                .GroupBy(x => new DateTime(x.InvoiceDate.Year, x.InvoiceDate.Month, 1))
+                .ToDictionary(g => g.Key, g => g.Sum(GetInvoiceTotal));
         }
         else
         {
@@ -720,5 +730,11 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
     {
         var divisor = line.PriceBasisQuantity <= 0m ? 1m : line.PriceBasisQuantity;
         return (line.NetUnitPrice + line.MetalSurcharge) / divisor;
+    }
+
+    private static decimal GetInvoiceTotal(Invoice invoice)
+    {
+        var linesTotal = invoice.Lines.Sum(x => x.LineTotal);
+        return linesTotal > 0m ? linesTotal : invoice.InvoiceTotalAmount;
     }
 }

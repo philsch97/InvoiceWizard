@@ -68,6 +68,7 @@ public class SaveInvoiceRequest
     public DateTime InvoiceDate { get; set; }
     public string SupplierName { get; set; } = "";
     public string AccountingCategory { get; set; } = "MaterialAndGoods";
+    public decimal InvoiceTotalAmount { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
     public string? PdfContentBase64 { get; set; }
@@ -85,6 +86,7 @@ public class InvoiceListItemDto
     public string SupplierName { get; set; } = "";
     public bool HasSupplierInvoice { get; set; }
     public string AccountingCategory { get; set; } = "";
+    public decimal InvoiceTotalAmount { get; set; }
     public string OriginalPdfFileName { get; set; } = "";
     public bool HasStoredPdf { get; set; }
 }
