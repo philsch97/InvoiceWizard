@@ -97,6 +97,7 @@
                             <TextBlock x:Name="IgnoredInfoText" Margin="0,10,0,0" Foreground="{StaticResource StatusWarningTextBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
                             <WrapPanel Margin="0,14,0,0">
                                 <Button x:Name="IgnoreTransactionButton" Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Umsatz ignorieren" Click="IgnoreTransaction_Click"/>
+                                <Button x:Name="AssignWithoutReceiptButton" Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Zuordnung ohne Beleg" Click="AssignWithoutReceipt_Click"/>
                                 <Button x:Name="UnignoreTransactionButton" Width="180" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="Ignorieren aufheben" Click="UnignoreTransaction_Click" Visibility="Collapsed"/>
                             </WrapPanel>
                         </StackPanel>
@@ -121,7 +122,7 @@
                         <StackPanel>
                             <TextBlock Text="Passende Rechnungen" Style="{StaticResource SectionTitleStyle}"/>
                             <TextBlock x:Name="CandidateHintText" Margin="0,8,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
-                            <DataGrid x:Name="CandidatesGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="220">
+                            <DataGrid x:Name="CandidatesGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended" MinHeight="220">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Typ" Binding="{Binding CandidateTypeLabel}" Width="120"/>
                                     <DataGridTextColumn Header="Rechnung" Binding="{Binding DisplayNumber}" Width="120"/>
@@ -144,7 +145,7 @@
                                     <TextBlock Text="Notiz optional" Style="{StaticResource MutedLabelStyle}"/>
                                     <TextBox x:Name="AssignmentNoteText" Margin="0,8,0,0"/>
                                 </StackPanel>
-                                <Button Grid.Column="2" Width="160" Height="40" Margin="0,24,0,0" Content="Rechnung zuordnen" Click="AssignCandidate_Click"/>
+                                <Button Grid.Column="2" Width="170" Height="40" Margin="0,24,0,0" Content="Auswahl zuordnen" Click="AssignCandidate_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>

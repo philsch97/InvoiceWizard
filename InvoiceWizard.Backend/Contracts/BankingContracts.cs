@@ -55,7 +55,10 @@ public class BankTransactionAssignmentDto
     public int BankTransactionId { get; set; }
     public string AssignmentType { get; set; } = "";
     public int? SupplierInvoiceId { get; set; }
+    public int? RevenueInvoiceId { get; set; }
+    public string? ManualCategory { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
+    public string? RevenueInvoiceNumber { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public int? CustomerId { get; set; }
     public string PartyName { get; set; } = "";
@@ -68,7 +71,9 @@ public class BankInvoiceCandidateDto
 {
     public string CandidateType { get; set; } = "";
     public int? SupplierInvoiceId { get; set; }
+    public int? RevenueInvoiceId { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
+    public string? RevenueInvoiceNumber { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public int? CustomerId { get; set; }
     public string PartyName { get; set; } = "";
@@ -84,6 +89,8 @@ public class BankInvoiceCandidateDto
 public class AssignBankTransactionRequest
 {
     public int? SupplierInvoiceId { get; set; }
+    public int? RevenueInvoiceId { get; set; }
+    public string? ManualCategory { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public int? CustomerId { get; set; }
     [Range(0.01, 100000000)]

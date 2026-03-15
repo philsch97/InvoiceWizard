@@ -6,6 +6,7 @@ public class InvoiceLineItemDto
 {
     public int InvoiceLineId { get; set; }
     public int InvoiceId { get; set; }
+    public string InvoiceDirection { get; set; } = "";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; }
@@ -30,6 +31,7 @@ public class AllocationItemDto
 {
     public int LineAllocationId { get; set; }
     public int InvoiceLineId { get; set; }
+    public string InvoiceDirection { get; set; } = "";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; }
@@ -60,6 +62,7 @@ public class AllocationItemDto
 
 public class SaveInvoiceRequest
 {
+    public string InvoiceDirection { get; set; } = "Expense";
     public bool HasSupplierInvoice { get; set; } = true;
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
@@ -76,6 +79,7 @@ public class SaveInvoiceRequest
 public class InvoiceListItemDto
 {
     public int InvoiceId { get; set; }
+    public string InvoiceDirection { get; set; } = "";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public string SupplierName { get; set; } = "";

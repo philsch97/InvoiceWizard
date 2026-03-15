@@ -97,6 +97,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransaction>().HasOne(x => x.BankStatementImport).WithMany(x => x.Transactions).HasForeignKey(x => x.BankStatementImportId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.BankTransaction).WithMany(x => x.Assignments).HasForeignKey(x => x.BankTransactionId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.SupplierInvoice).WithMany().HasForeignKey(x => x.SupplierInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.RevenueInvoice).WithMany().HasForeignKey(x => x.RevenueInvoiceId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Tenant>().Property(x => x.Name).HasMaxLength(200);
@@ -108,6 +109,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Name).HasMaxLength(200);
         modelBuilder.Entity<LicenseActivation>().Property(x => x.ActivationCode).HasMaxLength(120);
         modelBuilder.Entity<LicenseActivation>().Property(x => x.CustomerEmail).HasMaxLength(320);
+        modelBuilder.Entity<Invoice>().Property(x => x.InvoiceDirection).HasMaxLength(30);
         modelBuilder.Entity<Invoice>().Property(x => x.AccountingCategory).HasMaxLength(80);
         modelBuilder.Entity<Invoice>().Property(x => x.SourcePdfPath).HasMaxLength(500);
         modelBuilder.Entity<Invoice>().Property(x => x.OriginalPdfFileName).HasMaxLength(260);
@@ -133,6 +135,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransaction>().Property(x => x.ContentHash).HasMaxLength(200);
         modelBuilder.Entity<BankTransaction>().Property(x => x.IgnoredComment).HasMaxLength(500);
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.CustomerInvoiceNumber).HasMaxLength(120);
+        modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.ManualCategory).HasMaxLength(80);
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.AssignedAmount).HasColumnType("numeric(12,2)");
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.Note).HasMaxLength(500);
 
@@ -166,6 +169,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransaction>().HasIndex(x => new { x.TenantId, x.BookingDate, x.Amount });
         modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => new { x.TenantId, x.BankTransactionId });
         modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => new { x.TenantId, x.SupplierInvoiceId });
+        modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => new { x.TenantId, x.RevenueInvoiceId });
         modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => new { x.TenantId, x.CustomerInvoiceNumber });
     }
 }

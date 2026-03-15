@@ -39,7 +39,10 @@ public class BankTransactionAssignmentEntity
     public int BankTransactionId { get; set; }
     public string AssignmentType { get; set; } = "";
     public int? SupplierInvoiceId { get; set; }
+    public int? RevenueInvoiceId { get; set; }
+    public string? ManualCategory { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
+    public string? RevenueInvoiceNumber { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public int? CustomerId { get; set; }
     public string PartyName { get; set; } = "";
@@ -48,17 +51,30 @@ public class BankTransactionAssignmentEntity
     public DateTime AssignedAt { get; set; }
     public string AssignmentTypeLabel => string.Equals(AssignmentType, "SupplierInvoice", StringComparison.OrdinalIgnoreCase)
         ? "Lieferantenrechnung"
+        : string.Equals(AssignmentType, "RevenueInvoice", StringComparison.OrdinalIgnoreCase)
+            ? "Einnahmerechnung"
+        : string.Equals(AssignmentType, "ManualExpense", StringComparison.OrdinalIgnoreCase)
+            ? "Ohne Beleg"
         : "Kundenrechnung";
     public string DisplayNumber => string.Equals(AssignmentType, "SupplierInvoice", StringComparison.OrdinalIgnoreCase)
         ? SupplierInvoiceNumber ?? "-"
+        : string.Equals(AssignmentType, "RevenueInvoice", StringComparison.OrdinalIgnoreCase)
+            ? RevenueInvoiceNumber ?? "-"
+        : string.Equals(AssignmentType, "ManualExpense", StringComparison.OrdinalIgnoreCase)
+            ? ManualCategoryLabel
         : CustomerInvoiceNumber ?? "-";
+    public string ManualCategoryLabel => string.Equals(ManualCategory, "Insurance", StringComparison.OrdinalIgnoreCase)
+        ? "Versicherung"
+        : "Kontofuehrungsgebuehren";
 }
 
 public class BankInvoiceCandidateEntity
 {
     public string CandidateType { get; set; } = "";
     public int? SupplierInvoiceId { get; set; }
+    public int? RevenueInvoiceId { get; set; }
     public string? SupplierInvoiceNumber { get; set; }
+    public string? RevenueInvoiceNumber { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public int? CustomerId { get; set; }
     public string PartyName { get; set; } = "";
@@ -71,9 +87,13 @@ public class BankInvoiceCandidateEntity
     public string MatchReason { get; set; } = "";
     public string DisplayNumber => string.Equals(CandidateType, "SupplierInvoice", StringComparison.OrdinalIgnoreCase)
         ? SupplierInvoiceNumber ?? "-"
+        : string.Equals(CandidateType, "RevenueInvoice", StringComparison.OrdinalIgnoreCase)
+            ? RevenueInvoiceNumber ?? "-"
         : CustomerInvoiceNumber ?? "-";
     public string CandidateTypeLabel => string.Equals(CandidateType, "SupplierInvoice", StringComparison.OrdinalIgnoreCase)
         ? "Lieferantenrechnung"
+        : string.Equals(CandidateType, "RevenueInvoice", StringComparison.OrdinalIgnoreCase)
+            ? "Einnahmerechnung"
         : "Kundenrechnung";
 }
 

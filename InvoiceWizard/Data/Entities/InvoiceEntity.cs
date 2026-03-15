@@ -6,6 +6,7 @@ namespace InvoiceWizard.Data.Entities;
 public class InvoiceEntity
 {
     public int InvoiceId { get; set; }
+    public string InvoiceDirection { get; set; } = "Expense";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; } = true;
@@ -17,6 +18,8 @@ public class InvoiceEntity
     public string ContentHash { get; set; } = "";
     public string DisplayNumber => HasSupplierInvoice ? InvoiceNumber : "Keine Rechnung";
     public string ExpenseStatus => HasSupplierInvoice ? "Mit Rechnung" : "Ohne Rechnung";
+    public string InvoiceDirectionLabel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) ? "Einnahme" : "Ausgabe";
+    public string PartyLabel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) ? "Kunde / Auftraggeber" : "Lieferant";
     public string AccountingCategoryLabel => AccountingCategory switch
     {
         "Tools" => "Werkzeug",

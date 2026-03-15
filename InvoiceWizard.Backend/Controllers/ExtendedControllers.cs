@@ -27,6 +27,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         var invoice = new Invoice
         {
             TenantId = tenantId,
+            InvoiceDirection = NormalizeInvoiceDirection(request.InvoiceDirection),
             HasSupplierInvoice = request.HasSupplierInvoice,
             InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? fallbackNumber : request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
@@ -75,6 +76,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             .Select(x => new InvoiceListItemDto
             {
                 InvoiceId = x.InvoiceId,
+                InvoiceDirection = x.InvoiceDirection,
                 InvoiceNumber = x.InvoiceNumber,
                 InvoiceDate = x.InvoiceDate,
                 SupplierName = x.SupplierName,
@@ -164,6 +166,16 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         };
     }
 
+    private static string NormalizeInvoiceDirection(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized switch
+        {
+            "Revenue" => "Revenue",
+            _ => "Expense"
+        };
+    }
+
     [GeneratedRegex("[^A-Za-z0-9._-]+", RegexOptions.Compiled)]
     private static partial Regex InvalidFileNameCharactersRegex();
 
@@ -184,7 +196,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var lines = await db.InvoiceLines
-            .Where(x => x.TenantId == tenantId)
+            .Where(x => x.TenantId == tenantId && x.Invoice.InvoiceDirection == "Expense")
             .Include(x => x.Invoice)
             .Include(x => x.Allocations).ThenInclude(x => x.Customer)
             .Include(x => x.Allocations).ThenInclude(x => x.Project)
@@ -222,6 +234,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
         {
             InvoiceLineId = line.InvoiceLineId,
             InvoiceId = line.InvoiceId,
+            InvoiceDirection = line.Invoice.InvoiceDirection,
             InvoiceNumber = line.Invoice.InvoiceNumber,
             InvoiceDate = line.Invoice.InvoiceDate,
             HasSupplierInvoice = line.Invoice.HasSupplierInvoice,
@@ -249,6 +262,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
         {
             LineAllocationId = allocation.LineAllocationId,
             InvoiceLineId = allocation.InvoiceLineId,
+            InvoiceDirection = allocation.InvoiceLine.Invoice.InvoiceDirection,
             InvoiceNumber = allocation.InvoiceLine.Invoice.InvoiceNumber,
             InvoiceDate = allocation.InvoiceLine.Invoice.InvoiceDate,
             HasSupplierInvoice = allocation.InvoiceLine.Invoice.HasSupplierInvoice,
@@ -352,6 +366,11 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
         }
 
         await db.Entry(line).Reference(x => x.Invoice).LoadAsync(HttpContext.RequestAborted);
+        if (!string.Equals(line.Invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Ausgaberechnungen koennen Projekten zugewiesen werden.");
+        }
+
         if (!string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationProblem("Nur Rechnungen der Kategorie 'Material und Waren' koennen Projekten zugewiesen werden.");
@@ -401,6 +420,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
             {
                 LineAllocationId = x.LineAllocationId,
                 InvoiceLineId = x.InvoiceLineId,
+                InvoiceDirection = x.InvoiceLine.Invoice.InvoiceDirection,
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
                 HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,

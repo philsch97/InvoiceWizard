@@ -25,6 +25,11 @@ public partial class Datenimport : Page
 
     private readonly ObservableCollection<ManualInvoiceLineInput> _manualLines = new();
     private readonly ObservableCollection<InvoiceEntity> _storedInvoices = new();
+    private readonly List<KeyValuePair<string, string>> _invoiceDirections =
+    [
+        new("Ausgaberechnung", "Expense"),
+        new("Einnahmerechnung", "Revenue")
+    ];
     private readonly List<KeyValuePair<string, string>> _accountingCategories =
     [
         new("Material und Waren", "MaterialAndGoods"),
@@ -44,6 +49,10 @@ public partial class Datenimport : Page
         InitializeComponent();
         ManualLinesGrid.ItemsSource = _manualLines;
         InvoicesGrid.ItemsSource = _storedInvoices;
+        InvoiceDirectionCombo.ItemsSource = _invoiceDirections;
+        InvoiceDirectionCombo.DisplayMemberPath = "Key";
+        InvoiceDirectionCombo.SelectedValuePath = "Value";
+        InvoiceDirectionCombo.SelectedValue = "Expense";
         AccountingCategoryCombo.ItemsSource = _accountingCategories;
         AccountingCategoryCombo.DisplayMemberPath = "Key";
         AccountingCategoryCombo.SelectedValuePath = "Value";
@@ -183,6 +192,7 @@ public partial class Datenimport : Page
     private async void SaveInvoice_Click(object sender, RoutedEventArgs e)
     {
         var hasSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked != true;
+        var invoiceDirection = InvoiceDirectionCombo.SelectedValue as string ?? "Expense";
         var invoiceNumber = (InvoiceNumberText.Text ?? "").Trim();
         var supplierName = (SupplierNameText.Text ?? "").Trim();
 
@@ -213,12 +223,13 @@ public partial class Datenimport : Page
         var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var invoiceDate = InvoiceDatePicker.SelectedDate.Value;
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
-            ? BuildManualHash(effectiveInvoiceNumber, invoiceDate, supplierName, hasSupplierInvoice, _manualLines)
+            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, supplierName, hasSupplierInvoice, _manualLines)
             : _currentContentHash;
 
         try
         {
             await App.Api.SaveInvoiceAsync(
+                invoiceDirection,
                 effectiveInvoiceNumber,
                 invoiceDate,
                 supplierName,
@@ -257,14 +268,44 @@ public partial class Datenimport : Page
         UpdateInvoiceModeUi();
     }
 
+    private void InvoiceDirectionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        UpdateInvoiceModeUi();
+    }
+
     private void UpdateInvoiceModeUi()
     {
         var noSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked == true;
+        var invoiceDirection = InvoiceDirectionCombo.SelectedValue as string ?? "Expense";
+        var isRevenue = string.Equals(invoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase);
+
         InvoiceNumberLabel.Text = noSupplierInvoice ? "Interne Referenz optional" : "Rechnungsnummer * Pflicht";
         InvoiceDateLabel.Text = noSupplierInvoice ? "Erfassungsdatum * Pflicht" : "Rechnungsdatum * Pflicht";
+        PartyLabelText.Text = isRevenue ? "Kunde / Auftraggeber optional" : "Lieferant optional";
+        NoSupplierInvoiceCheckBox.Content = isRevenue
+            ? "Ohne Rechnungsbeleg erfassen"
+            : "Ohne Rechnungsbeleg erfassen (Altbestand / manuell hinzugefuegt)";
+
+        if (isRevenue)
+        {
+            AccountingCategoryCombo.SelectedValue = "Other";
+            AccountingCategoryCombo.IsEnabled = false;
+            InvoiceDirectionHintText.Text = "Einnahmerechnungen werden fuer Zahlungseingang und Archiv getrennt von Material-Einkaeufen gespeichert.";
+        }
+        else
+        {
+            AccountingCategoryCombo.IsEnabled = true;
+            InvoiceDirectionHintText.Text = "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.";
+        }
+
         ImportModeInfoText.Text = noSupplierInvoice
-            ? "Fuer Altbestand oder manuell hinzugefuegte Materialien reicht ein Datum und mindestens eine Position. Ein Einkaufspreis pro Position ist Pflicht und bleibt fuer die Kalkulation sichtbar, obwohl kein Lieferantenbeleg vorliegt."
-            : "Rechnungsnummer, Rechnungsdatum, Kategorie, PDF und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
+            ? "Fuer manuelle Erfassungen reicht ein Datum und mindestens eine Position. Der EK bleibt fuer die Kalkulation sichtbar, auch wenn aktuell kein Rechnungsbeleg vorliegt."
+            : "Rechnungsnummer, Rechnungsdatum, PDF und mindestens eine Position sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
 
         if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
         {
@@ -364,6 +405,7 @@ public partial class Datenimport : Page
         SupplierNameText.Clear();
         InvoiceDatePicker.SelectedDate = DateTime.Today;
         NoSupplierInvoiceCheckBox.IsChecked = false;
+        InvoiceDirectionCombo.SelectedValue = "Expense";
         _manualLines.Clear();
         _currentSourcePdfPath = "";
         _currentContentHash = "";
@@ -484,10 +526,11 @@ public partial class Datenimport : Page
 
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
 
-    private static string BuildManualHash(string invoiceNumber, DateTime invoiceDate, string supplierName, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
+    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, string supplierName, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
     {
         var payload = string.Join("|", new[]
         {
+            invoiceDirection,
             invoiceNumber,
             invoiceDate.ToString("yyyyMMdd"),
             supplierName,

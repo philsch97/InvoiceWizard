@@ -59,6 +59,7 @@ public class Invoice
     public int InvoiceId { get; set; }
     public int TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
+    public string InvoiceDirection { get; set; } = "Expense";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public bool HasSupplierInvoice { get; set; } = true;
@@ -265,6 +266,9 @@ public class BankTransactionAssignment
     public BankTransaction BankTransaction { get; set; } = null!;
     public int? SupplierInvoiceId { get; set; }
     public Invoice? SupplierInvoice { get; set; }
+    public int? RevenueInvoiceId { get; set; }
+    public Invoice? RevenueInvoice { get; set; }
+    public string? ManualCategory { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
     public int? CustomerId { get; set; }
     public Customer? Customer { get; set; }

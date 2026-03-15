@@ -55,6 +55,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
@@ -68,7 +69,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,16,12,0">
-                            <TextBlock Text="Lieferant optional" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBlock x:Name="PartyLabelText" Text="Lieferant optional" Style="{StaticResource MutedLabelStyle}"/>
                             <TextBox x:Name="SupplierNameText"/>
                         </StackPanel>
 
@@ -77,7 +78,12 @@
                             <ComboBox x:Name="AccountingCategoryCombo"/>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,16,0,0">
+                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,16,12,0">
+                            <TextBlock Text="Rechnungsart * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
+                            <ComboBox x:Name="InvoiceDirectionCombo" SelectionChanged="InvoiceDirectionCombo_SelectionChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,16,0,0">
                             <TextBlock Text="Quelle optional" Style="{StaticResource MutedLabelStyle}"/>
                             <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
                                 <TextBlock x:Name="SourceInfoText" Text="Manuelle Erfassung" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
@@ -88,9 +94,16 @@
                                   Grid.Row="3"
                                   Grid.ColumnSpan="2"
                                   Margin="0,16,0,0"
-                                  Content="Ohne Lieferantenrechnung erfassen (Altbestand / manuell hinzugefuegt)"
+                                  Content="Ohne Rechnungsbeleg erfassen"
                                   Checked="NoSupplierInvoiceCheckBox_Changed"
                                   Unchecked="NoSupplierInvoiceCheckBox_Changed"/>
+
+                        <TextBlock x:Name="InvoiceDirectionHintText"
+                                   Grid.Row="4"
+                                   Grid.ColumnSpan="2"
+                                   Margin="0,12,0,0"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   TextWrapping="Wrap"/>
                     </Grid>
                 </Border>
 
@@ -206,8 +219,9 @@
                               MinHeight="180">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Rechnung" Binding="{Binding DisplayNumber}" Width="160"/>
+                            <DataGridTextColumn Header="Art" Binding="{Binding InvoiceDirectionLabel}" Width="90"/>
                             <DataGridTextColumn Header="Datum" Binding="{Binding InvoiceDate, StringFormat=dd.MM.yyyy}" Width="110"/>
-                            <DataGridTextColumn Header="Lieferant" Binding="{Binding SupplierName}" Width="180"/>
+                            <DataGridTextColumn Header="Partei" Binding="{Binding SupplierName}" Width="180"/>
                             <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategoryLabel}" Width="150"/>
                             <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="120"/>
                             <DataGridCheckBoxColumn Header="PDF" Binding="{Binding HasStoredPdf}" Width="70"/>

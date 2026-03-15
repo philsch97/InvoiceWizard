@@ -159,6 +159,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         var transactions = await query
             .Include(x => x.BankStatementImport)
             .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.RevenueInvoice)
             .Include(x => x.Assignments).ThenInclude(x => x.Customer)
             .OrderByDescending(x => x.BookingDate)
             .ThenByDescending(x => x.BankTransactionId)
@@ -192,6 +193,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             .Where(x => x.BankTransactionId == bankTransactionId && x.TenantId == tenantId)
             .Include(x => x.BankStatementImport)
             .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.RevenueInvoice)
             .Include(x => x.Assignments).ThenInclude(x => x.Customer)
             .FirstOrDefaultAsync(HttpContext.RequestAborted);
         if (transaction is null)
@@ -224,6 +226,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             .Where(x => x.BankTransactionId == bankTransactionId && x.TenantId == tenantId)
             .Include(x => x.BankStatementImport)
             .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.RevenueInvoice)
             .Include(x => x.Assignments).ThenInclude(x => x.Customer)
             .FirstOrDefaultAsync(HttpContext.RequestAborted);
         if (transaction is null)
@@ -256,7 +259,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         }
 
         var candidates = transaction.Amount >= 0m
-            ? await GetCustomerInvoiceCandidatesAsync(tenantId, transaction)
+            ? await GetIncomingInvoiceCandidatesAsync(tenantId, transaction)
             : await GetSupplierInvoiceCandidatesAsync(tenantId, transaction);
 
         return Ok(candidates
@@ -280,6 +283,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         var transaction = await db.BankTransactions
             .Include(x => x.BankStatementImport)
             .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.RevenueInvoice)
             .Include(x => x.Assignments).ThenInclude(x => x.Customer)
             .FirstOrDefaultAsync(x => x.BankTransactionId == bankTransactionId && x.TenantId == tenantId, HttpContext.RequestAborted);
         if (transaction is null)
@@ -293,14 +297,23 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             return ValidationProblem("Ignorierte Buchungen koennen nicht zugeordnet werden.");
         }
 
-        if (directionIsIncoming && string.IsNullOrWhiteSpace(request.CustomerInvoiceNumber))
+        var hasSupplierInvoice = request.SupplierInvoiceId.HasValue;
+        var hasRevenueInvoice = request.RevenueInvoiceId.HasValue;
+        var hasCustomerInvoice = !string.IsNullOrWhiteSpace(request.CustomerInvoiceNumber);
+        var hasManualCategory = !string.IsNullOrWhiteSpace(request.ManualCategory);
+        if (new[] { hasSupplierInvoice, hasRevenueInvoice, hasCustomerInvoice, hasManualCategory }.Count(x => x) != 1)
         {
-            return ValidationProblem("Eingehende Buchungen koennen nur Kundenrechnungen zugewiesen werden.");
+            return ValidationProblem("Bitte genau eine Zuordnungsart auswaehlen.");
         }
 
-        if (!directionIsIncoming && !request.SupplierInvoiceId.HasValue)
+        if (directionIsIncoming && !hasRevenueInvoice && string.IsNullOrWhiteSpace(request.CustomerInvoiceNumber))
         {
-            return ValidationProblem("Ausgehende Buchungen koennen nur Lieferantenrechnungen zugewiesen werden.");
+            return ValidationProblem("Eingehende Buchungen koennen nur Einnahmerechnungen oder Kundenrechnungen zugewiesen werden.");
+        }
+
+        if (!directionIsIncoming && !request.SupplierInvoiceId.HasValue && !hasManualCategory)
+        {
+            return ValidationProblem("Ausgehende Buchungen koennen nur Lieferantenrechnungen oder Zuordnungen ohne Beleg erhalten.");
         }
 
         var transactionRemaining = CalculateRemainingAmount(transaction.Amount, transaction.Assignments.Sum(x => x.AssignedAmount));
@@ -323,7 +336,18 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             candidateRemaining = supplierCandidate.RemainingAmount;
             partyName = supplierCandidate.PartyName;
         }
-        else
+        else if (request.RevenueInvoiceId.HasValue)
+        {
+            var revenueCandidate = await GetRevenueInvoiceCandidateAsync(tenantId, request.RevenueInvoiceId.Value, transaction);
+            if (revenueCandidate is null)
+            {
+                return NotFound();
+            }
+
+            candidateRemaining = revenueCandidate.RemainingAmount;
+            partyName = revenueCandidate.PartyName;
+        }
+        else if (hasCustomerInvoice)
         {
             var invoiceNumber = (request.CustomerInvoiceNumber ?? string.Empty).Trim();
             var customerCandidate = await GetCustomerInvoiceCandidateAsync(tenantId, invoiceNumber, request.CustomerId, transaction);
@@ -335,6 +359,18 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             candidateRemaining = customerCandidate.RemainingAmount;
             partyName = customerCandidate.PartyName;
             customerId = customerCandidate.CustomerId;
+        }
+        else
+        {
+            var normalizedCategory = NormalizeManualCategory(request.ManualCategory);
+            if (normalizedCategory is null)
+            {
+                return ValidationProblem("Ohne Beleg ist nur fuer Kontofuehrungsgebuehren und Versicherungen moeglich.");
+            }
+
+            candidateRemaining = transactionRemaining;
+            partyName = GetManualCategoryLabel(normalizedCategory);
+            request.ManualCategory = normalizedCategory;
         }
 
         if (candidateRemaining <= 0.009m)
@@ -363,6 +399,8 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             TenantId = tenantId,
             BankTransactionId = transaction.BankTransactionId,
             SupplierInvoiceId = request.SupplierInvoiceId,
+            RevenueInvoiceId = request.RevenueInvoiceId,
+            ManualCategory = request.ManualCategory,
             CustomerInvoiceNumber = string.IsNullOrWhiteSpace(request.CustomerInvoiceNumber) ? null : request.CustomerInvoiceNumber.Trim(),
             CustomerId = customerId ?? request.CustomerId,
             AssignedAmount = decimal.Round(assignedAmount, 2),
@@ -374,6 +412,10 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         {
             await RefreshSupplierInvoicePaymentStatusAsync(tenantId, request.SupplierInvoiceId.Value, HttpContext.RequestAborted);
         }
+        else if (request.RevenueInvoiceId.HasValue)
+        {
+            await RefreshRevenueInvoicePaymentStatusAsync(tenantId, request.RevenueInvoiceId.Value, HttpContext.RequestAborted);
+        }
         else if (!string.IsNullOrWhiteSpace(request.CustomerInvoiceNumber))
         {
             await RefreshCustomerInvoicePaymentStatusAsync(tenantId, request.CustomerInvoiceNumber.Trim(), customerId ?? request.CustomerId, HttpContext.RequestAborted);
@@ -383,6 +425,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             .Where(x => x.BankTransactionId == bankTransactionId && x.TenantId == tenantId)
             .Include(x => x.BankStatementImport)
             .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.RevenueInvoice)
             .Include(x => x.Assignments).ThenInclude(x => x.Customer)
             .FirstAsync(HttpContext.RequestAborted);
 
@@ -406,6 +449,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         }
 
         var supplierInvoiceId = assignment.SupplierInvoiceId;
+        var revenueInvoiceId = assignment.RevenueInvoiceId;
         var customerInvoiceNumber = assignment.CustomerInvoiceNumber;
         var customerId = assignment.CustomerId;
         db.BankTransactionAssignments.Remove(assignment);
@@ -414,6 +458,11 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         if (supplierInvoiceId.HasValue)
         {
             await RefreshSupplierInvoicePaymentStatusAsync(tenantId, supplierInvoiceId.Value, HttpContext.RequestAborted);
+        }
+
+        if (revenueInvoiceId.HasValue)
+        {
+            await RefreshRevenueInvoicePaymentStatusAsync(tenantId, revenueInvoiceId.Value, HttpContext.RequestAborted);
         }
 
         if (!string.IsNullOrWhiteSpace(customerInvoiceNumber))
@@ -434,7 +483,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         var assignedLookup = assignments.ToDictionary(x => x.InvoiceId, x => x.AssignedAmount);
 
         var invoices = await db.Invoices
-            .Where(x => x.TenantId == tenantId && x.HasSupplierInvoice)
+            .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense" && x.HasSupplierInvoice)
             .Include(x => x.Lines)
             .OrderByDescending(x => x.InvoiceDate)
             .ToListAsync(HttpContext.RequestAborted);
@@ -446,6 +495,51 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             return BuildCandidateFromInvoice(
                 "SupplierInvoice",
                 invoice.InvoiceId,
+                null,
+                invoice.InvoiceNumber,
+                null,
+                null,
+                null,
+                invoice.SupplierName,
+                invoice.InvoiceDate,
+                total,
+                assigned,
+                invoice.Lines.All(x => x.IsPaid),
+                transaction);
+        }).ToList();
+    }
+
+    private async Task<List<BankInvoiceCandidateDto>> GetIncomingInvoiceCandidatesAsync(int tenantId, BankTransaction transaction)
+    {
+        var revenueInvoices = await GetRevenueInvoiceCandidatesAsync(tenantId, transaction);
+        var customerInvoices = await GetCustomerInvoiceCandidatesAsync(tenantId, transaction);
+        return revenueInvoices.Concat(customerInvoices).ToList();
+    }
+
+    private async Task<List<BankInvoiceCandidateDto>> GetRevenueInvoiceCandidatesAsync(int tenantId, BankTransaction transaction)
+    {
+        var assignments = await db.BankTransactionAssignments
+            .Where(x => x.TenantId == tenantId && x.RevenueInvoiceId.HasValue)
+            .GroupBy(x => x.RevenueInvoiceId!.Value)
+            .Select(x => new { InvoiceId = x.Key, AssignedAmount = x.Sum(y => y.AssignedAmount) })
+            .ToListAsync(HttpContext.RequestAborted);
+        var assignedLookup = assignments.ToDictionary(x => x.InvoiceId, x => x.AssignedAmount);
+
+        var invoices = await db.Invoices
+            .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Revenue")
+            .Include(x => x.Lines)
+            .OrderByDescending(x => x.InvoiceDate)
+            .ToListAsync(HttpContext.RequestAborted);
+
+        return invoices.Select(invoice =>
+        {
+            var total = decimal.Round(invoice.Lines.Sum(x => x.LineTotal), 2);
+            var assigned = assignedLookup.GetValueOrDefault(invoice.InvoiceId);
+            return BuildCandidateFromInvoice(
+                "RevenueInvoice",
+                null,
+                invoice.InvoiceId,
+                null,
                 invoice.InvoiceNumber,
                 null,
                 null,
@@ -466,6 +560,8 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
                 "CustomerInvoice",
                 null,
                 null,
+                null,
+                null,
                 group.InvoiceNumber,
                 group.CustomerId,
                 group.CustomerName,
@@ -479,6 +575,11 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
     private async Task<BankInvoiceCandidateDto?> GetSupplierInvoiceCandidateAsync(int tenantId, int invoiceId, BankTransaction transaction)
     {
         return (await GetSupplierInvoiceCandidatesAsync(tenantId, transaction)).FirstOrDefault(x => x.SupplierInvoiceId == invoiceId);
+    }
+
+    private async Task<BankInvoiceCandidateDto?> GetRevenueInvoiceCandidateAsync(int tenantId, int invoiceId, BankTransaction transaction)
+    {
+        return (await GetRevenueInvoiceCandidatesAsync(tenantId, transaction)).FirstOrDefault(x => x.RevenueInvoiceId == invoiceId);
     }
 
     private async Task<BankInvoiceCandidateDto?> GetCustomerInvoiceCandidateAsync(int tenantId, string invoiceNumber, int? customerId, BankTransaction transaction)
@@ -570,6 +671,31 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    private async Task RefreshRevenueInvoicePaymentStatusAsync(int tenantId, int invoiceId, CancellationToken cancellationToken)
+    {
+        var invoice = await db.Invoices.Include(x => x.Lines).FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, cancellationToken);
+        if (invoice is null)
+        {
+            return;
+        }
+
+        var totalAmount = decimal.Round(invoice.Lines.Sum(x => x.LineTotal), 2);
+        var assignmentsQuery = db.BankTransactionAssignments.Where(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId);
+        var assignedAmount = await assignmentsQuery.SumAsync(x => (decimal?)x.AssignedAmount, cancellationToken) ?? 0m;
+        var isPaid = totalAmount <= 0m || assignedAmount + 0.009m >= totalAmount;
+        var paidAt = isPaid
+            ? await assignmentsQuery.OrderByDescending(x => x.AssignedAt).Select(x => (DateTime?)x.BankTransaction.BookingDate).FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        foreach (var line in invoice.Lines)
+        {
+            line.IsPaid = isPaid;
+            line.PaidAt = paidAt;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task RefreshCustomerInvoicePaymentStatusAsync(int tenantId, string customerInvoiceNumber, int? customerId, CancellationToken cancellationToken)
     {
         var assignmentsQuery = db.BankTransactionAssignments.Where(x => x.TenantId == tenantId && x.CustomerInvoiceNumber == customerInvoiceNumber);
@@ -646,12 +772,15 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
                 {
                     BankTransactionAssignmentId = x.BankTransactionAssignmentId,
                     BankTransactionId = x.BankTransactionId,
-                    AssignmentType = x.SupplierInvoiceId.HasValue ? "SupplierInvoice" : "CustomerInvoice",
+                    AssignmentType = x.SupplierInvoiceId.HasValue ? "SupplierInvoice" : x.RevenueInvoiceId.HasValue ? "RevenueInvoice" : !string.IsNullOrWhiteSpace(x.ManualCategory) ? "ManualExpense" : "CustomerInvoice",
                     SupplierInvoiceId = x.SupplierInvoiceId,
+                    RevenueInvoiceId = x.RevenueInvoiceId,
+                    ManualCategory = x.ManualCategory,
                     SupplierInvoiceNumber = x.SupplierInvoice?.InvoiceNumber,
+                    RevenueInvoiceNumber = x.RevenueInvoice?.InvoiceNumber,
                     CustomerInvoiceNumber = x.CustomerInvoiceNumber,
                     CustomerId = x.CustomerId,
-                    PartyName = x.SupplierInvoiceId.HasValue ? x.SupplierInvoice!.SupplierName : x.Customer?.Name ?? "",
+                    PartyName = x.SupplierInvoiceId.HasValue ? x.SupplierInvoice!.SupplierName : x.RevenueInvoiceId.HasValue ? x.RevenueInvoice!.SupplierName : !string.IsNullOrWhiteSpace(x.ManualCategory) ? GetManualCategoryLabel(x.ManualCategory) : x.Customer?.Name ?? "",
                     AssignedAmount = x.AssignedAmount,
                     Note = x.Note,
                     AssignedAt = x.AssignedAt
@@ -660,13 +789,31 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         };
     }
 
+    private static string? NormalizeManualCategory(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized switch
+        {
+            "BankFees" => "BankFees",
+            "Insurance" => "Insurance",
+            _ => null
+        };
+    }
+
+    private static string GetManualCategoryLabel(string? value)
+        => string.Equals(value, "Insurance", StringComparison.OrdinalIgnoreCase)
+            ? "Versicherung"
+            : "Kontofuehrungsgebuehren";
+
     private static decimal CalculateRemainingAmount(decimal transactionAmount, decimal assignedAmount)
         => decimal.Round(Math.Max(0m, Math.Abs(transactionAmount) - assignedAmount), 2);
 
     private static BankInvoiceCandidateDto BuildCandidateFromInvoice(
         string candidateType,
         int? supplierInvoiceId,
+        int? revenueInvoiceId,
         string? supplierInvoiceNumber,
+        string? revenueInvoiceNumber,
         string? customerInvoiceNumber,
         int? customerId,
         string partyName,
@@ -677,13 +824,15 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         BankTransaction transaction)
     {
         var remainingAmount = decimal.Round(Math.Max(0m, totalAmount - assignedAmount), 2);
-        var score = CalculateMatchScore(transaction, supplierInvoiceNumber ?? customerInvoiceNumber ?? "", partyName, totalAmount, out var reason);
+        var score = CalculateMatchScore(transaction, supplierInvoiceNumber ?? revenueInvoiceNumber ?? customerInvoiceNumber ?? "", partyName, totalAmount, out var reason);
 
         return new BankInvoiceCandidateDto
         {
             CandidateType = candidateType,
             SupplierInvoiceId = supplierInvoiceId,
+            RevenueInvoiceId = revenueInvoiceId,
             SupplierInvoiceNumber = supplierInvoiceNumber,
+            RevenueInvoiceNumber = revenueInvoiceNumber,
             CustomerInvoiceNumber = customerInvoiceNumber,
             CustomerId = customerId,
             PartyName = partyName,

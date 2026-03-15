@@ -3,6 +3,7 @@ using System;
 using InvoiceWizard.Backend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InvoiceWizard.Backend.Migrations
 {
     [DbContext(typeof(InvoiceWizardDbContext))]
-    partial class InvoiceWizardDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260315090952_AddManualBankAssignmentCategory")]
+    partial class AddManualBankAssignmentCategory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -231,9 +234,6 @@ namespace InvoiceWizard.Backend.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<int?>("RevenueInvoiceId")
-                        .HasColumnType("integer");
-
                     b.Property<int?>("SupplierInvoiceId")
                         .HasColumnType("integer");
 
@@ -246,8 +246,6 @@ namespace InvoiceWizard.Backend.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("RevenueInvoiceId");
-
                     b.HasIndex("SupplierInvoiceId");
 
                     b.HasIndex("TenantId");
@@ -255,8 +253,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.HasIndex("TenantId", "BankTransactionId");
 
                     b.HasIndex("TenantId", "CustomerInvoiceNumber");
-
-                    b.HasIndex("TenantId", "RevenueInvoiceId");
 
                     b.HasIndex("TenantId", "SupplierInvoiceId");
 
@@ -399,11 +395,6 @@ namespace InvoiceWizard.Backend.Migrations
 
                     b.Property<DateTime>("InvoiceDate")
                         .HasColumnType("date");
-
-                    b.Property<string>("InvoiceDirection")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
@@ -1218,11 +1209,6 @@ namespace InvoiceWizard.Backend.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("InvoiceWizard.Backend.Domain.Invoice", "RevenueInvoice")
-                        .WithMany()
-                        .HasForeignKey("RevenueInvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("InvoiceWizard.Backend.Domain.Invoice", "SupplierInvoice")
                         .WithMany()
                         .HasForeignKey("SupplierInvoiceId")
@@ -1237,8 +1223,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Navigation("BankTransaction");
 
                     b.Navigation("Customer");
-
-                    b.Navigation("RevenueInvoice");
 
                     b.Navigation("SupplierInvoice");
 

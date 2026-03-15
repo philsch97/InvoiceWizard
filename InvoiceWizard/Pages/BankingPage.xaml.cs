@@ -68,6 +68,7 @@ public partial class BankingPage : Page
             CandidateHintText.Text = "Noch keine Rechnungsvorschlaege geladen.";
             IgnoredInfoText.Visibility = Visibility.Collapsed;
             IgnoreTransactionButton.IsEnabled = false;
+            AssignWithoutReceiptButton.IsEnabled = false;
             UnignoreTransactionButton.Visibility = Visibility.Collapsed;
             return;
         }
@@ -81,19 +82,21 @@ public partial class BankingPage : Page
             IgnoredInfoText.Text = $"Dieser Umsatz wurde ignoriert am {(transaction.IgnoredAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "-")}. Grund: {transaction.IgnoredComment}";
             IgnoredInfoText.Visibility = Visibility.Visible;
             IgnoreTransactionButton.IsEnabled = false;
+            AssignWithoutReceiptButton.IsEnabled = false;
             UnignoreTransactionButton.Visibility = Visibility.Visible;
         }
         else
         {
             IgnoredInfoText.Visibility = Visibility.Collapsed;
             IgnoreTransactionButton.IsEnabled = true;
+            AssignWithoutReceiptButton.IsEnabled = transaction.Amount < 0m;
             UnignoreTransactionButton.Visibility = Visibility.Collapsed;
         }
 
         AssignmentsGrid.ItemsSource = transaction.Assignments;
 
-        var directionHint = transaction.Amount >= 0m
-            ? "Fuer diese eingehende Buchung werden passende Kundenrechnungen vorgeschlagen."
+            var directionHint = transaction.Amount >= 0m
+            ? "Fuer diese eingehende Buchung werden passende Einnahmerechnungen und Kundenrechnungen vorgeschlagen."
             : "Fuer diese ausgehende Buchung werden passende Lieferantenrechnungen vorgeschlagen.";
 
         if (transaction.IsIgnored)
@@ -109,7 +112,7 @@ public partial class BankingPage : Page
             CandidatesGrid.ItemsSource = candidates;
             CandidateHintText.Text = candidates.Count == 0
                 ? $"{directionHint} Aktuell wurde keine offene Rechnung erkannt."
-                : $"{directionHint} Die Treffer werden nach Rechnungsnummer, Name und Betrag sortiert.";
+                : $"{directionHint} Du kannst auch mehrere Treffer markieren und gesammelt zuordnen.";
         }
         catch (Exception ex)
         {
@@ -161,9 +164,10 @@ public partial class BankingPage : Page
             return;
         }
 
-        if (CandidatesGrid.SelectedItem is not BankInvoiceCandidateEntity candidate)
+        var selectedCandidates = CandidatesGrid.SelectedItems.OfType<BankInvoiceCandidateEntity>().ToList();
+        if (selectedCandidates.Count == 0)
         {
-            SetStatus("Bitte zuerst eine passende Rechnung auswaehlen.", StatusMessageType.Warning);
+            SetStatus("Bitte zuerst mindestens eine passende Rechnung auswaehlen.", StatusMessageType.Warning);
             return;
         }
 
@@ -179,13 +183,39 @@ public partial class BankingPage : Page
             amount = parsedAmount;
         }
 
+        if (selectedCandidates.Count > 1 && amount.HasValue)
+        {
+            SetStatus("Ein manueller Zuordnungsbetrag ist nur bei einer einzelnen markierten Rechnung moeglich.", StatusMessageType.Warning);
+            return;
+        }
+
         try
         {
-            var updated = await App.Api.AssignBankTransactionAsync(transaction.BankTransactionId, candidate, amount, AssignmentNoteText.Text);
+            var orderedCandidates = CandidatesGrid.Items.OfType<BankInvoiceCandidateEntity>()
+                .Where(candidate => selectedCandidates.Contains(candidate))
+                .ToList();
+            BankTransactionEntity? updated = null;
+            foreach (var candidate in orderedCandidates)
+            {
+                updated = await App.Api.AssignBankTransactionAsync(transaction.BankTransactionId, candidate, orderedCandidates.Count == 1 ? amount : null, AssignmentNoteText.Text);
+                if (updated.RemainingAmount <= 0.009m)
+                {
+                    break;
+                }
+            }
+
+            if (updated is null)
+            {
+                SetStatus("Es konnte keine Zuordnung erstellt werden.", StatusMessageType.Warning);
+                return;
+            }
+
             await ReloadAsync(updated.BankTransactionId);
             AssignedAmountText.Clear();
             AssignmentNoteText.Clear();
-            SetStatus($"Buchung wurde der Rechnung {candidate.DisplayNumber} zugeordnet.", StatusMessageType.Success);
+            SetStatus(selectedCandidates.Count == 1
+                ? $"Buchung wurde der Rechnung {orderedCandidates[0].DisplayNumber} zugeordnet."
+                : $"{orderedCandidates.Count} Rechnungen wurden der Buchung nacheinander zugeordnet.", StatusMessageType.Success);
         }
         catch (Exception ex)
         {
@@ -262,6 +292,42 @@ public partial class BankingPage : Page
         catch (Exception ex)
         {
             SetStatus($"Umsatz konnte nicht ignoriert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void AssignWithoutReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        if (TransactionsGrid.SelectedItem is not BankTransactionEntity transaction)
+        {
+            SetStatus("Bitte zuerst eine Buchung auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (transaction.Amount >= 0m)
+        {
+            SetStatus("Zuordnung ohne Beleg ist nur fuer ausgehende Buchungen moeglich.", StatusMessageType.Warning);
+            return;
+        }
+
+        var dialog = new ManualBankAssignmentDialog
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var updated = await App.Api.AssignBankTransactionWithoutReceiptAsync(transaction.BankTransactionId, dialog.SelectedCategory, null, dialog.Note);
+            await ReloadAsync(updated.BankTransactionId);
+            SetStatus("Buchung wurde ohne Beleg zugeordnet.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Zuordnung ohne Beleg fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
         }
     }
 
