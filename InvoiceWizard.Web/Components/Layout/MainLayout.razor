@@ -16,14 +16,6 @@
 else if (!Auth.IsAuthenticated)
 {
     <div class="shell">
-        <header class="shell-header">
-            <div>
-                <p class="eyebrow">InvoiceWizard Mobile</p>
-                <h1>Zentrale Kunden-, Projekt- und Zeiterfassung</h1>
-            </div>
-            <p class="shell-copy">Melde dich an, um auf die Daten deiner Firma zuzugreifen. Ohne Login bleibt die API gesperrt.</p>
-        </header>
-
         <main class="shell-content">
             <AuthGate />
         </main>
@@ -43,14 +35,14 @@ else if (!Auth.HasMobileAccess)
 }
 else
 {
-    <div class="shell">
-        <header class="shell-header">
-            <div>
-                <p class="eyebrow">InvoiceWizard Mobile</p>
-                <h1>Zentrale Kunden-, Projekt- und Zeiterfassung</h1>
+    <div class="shell app-shell">
+        <header class="app-topbar">
+            <div class="row-actions wrap-mobile app-topbar-actions">
+                <button class="ghost-button nav-toggle" @onclick="ToggleNavigationAsync">Menue</button>
+                <span class="pill">@Auth.CurrentSession!.Tenant.Name</span>
             </div>
             <div class="shell-session">
-                <p class="shell-copy">@Auth.CurrentSession!.Tenant.Name · @Auth.CurrentSession.User.DisplayName (@Auth.CurrentSession.User.Role)</p>
+                <p class="shell-copy">@Auth.CurrentSession.User.DisplayName (@Auth.CurrentSession.User.Role)</p>
                 <div class="row-actions wrap-mobile">
                     <span class="pill">@Auth.CurrentSession.License?.PlanName</span>
                     <button class="ghost-button" @onclick="Auth.LogoutAsync">Abmelden</button>
@@ -58,17 +50,26 @@ else
             </div>
         </header>
 
-        <NavMenu />
+        <div class="app-body">
+            @if (IsNavigationOpen)
+            {
+                <button type="button" class="nav-overlay" @onclick="CloseNavigationAsync" aria-label="Navigation schliessen"></button>
+            }
 
-        <main class="shell-content">
-            <article class="panel" @key="Auth.CurrentSession?.AccessToken">
-                @Body
-            </article>
-        </main>
+            <NavMenu IsOpen="@IsNavigationOpen" OnNavigate="CloseNavigationAsync" />
+
+            <main class="shell-content">
+                <article class="panel" @key="Auth.CurrentSession?.AccessToken">
+                    @Body
+                </article>
+            </main>
+        </div>
     </div>
 }
 
 @code {
+    private bool IsNavigationOpen { get; set; }
+
     protected override void OnInitialized()
     {
         Auth.StateChanged += HandleAuthChanged;
@@ -84,9 +85,20 @@ else
 
     private void HandleAuthChanged() => InvokeAsync(StateHasChanged);
 
+    private Task ToggleNavigationAsync()
+    {
+        IsNavigationOpen = !IsNavigationOpen;
+        return Task.CompletedTask;
+    }
+
+    private Task CloseNavigationAsync()
+    {
+        IsNavigationOpen = false;
+        return Task.CompletedTask;
+    }
+
     public void Dispose()
     {
         Auth.StateChanged -= HandleAuthChanged;
     }
 }
-

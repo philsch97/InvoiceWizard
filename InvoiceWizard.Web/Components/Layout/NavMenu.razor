@@ -1,16 +1,22 @@
-﻿@inject WebAuthSession Auth
+@inject WebAuthSession Auth
 @inject NavigationManager Navigation
 
-<nav class="nav-menu">
-    <NavLink href="/" Match="NavLinkMatch.All" class="nav-pill-button" ActiveClass="active">Status</NavLink>
-    <NavLink href="/worktime" class="nav-pill-button" ActiveClass="active">Arbeitszeit</NavLink>
-    <NavLink href="/customers" class="nav-pill-button" ActiveClass="active">Kunden</NavLink>
-    <NavLink href="/projectdata" class="nav-pill-button" ActiveClass="active">Projektdaten</NavLink>
-    <NavLink href="/calendar" class="nav-pill-button" ActiveClass="active">Kalender</NavLink>
-    <NavLink href="/notes" class="nav-pill-button" ActiveClass="active">Notizen</NavLink>
-    <NavLink href="/analytics" class="nav-pill-button" ActiveClass="active">Auswertung</NavLink>
-    @if (Auth.CanManageUsers)
-    {
-        <NavLink href="/team" class="nav-pill-button" ActiveClass="active">Benutzer</NavLink>
-    }
-</nav>
+<aside class="nav-drawer @(IsOpen ? "open" : string.Empty)">
+    <nav class="nav-menu">
+        <NavLink href="/" Match="NavLinkMatch.All" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Status</NavLink>
+        <NavLink href="/worktime" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Arbeitszeit</NavLink>
+        <NavLink href="/customers" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Kunden</NavLink>
+        <NavLink href="/projectdata" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Projektdaten</NavLink>
+        <NavLink href="/calendar" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Kalender</NavLink>
+        <NavLink href="/notes" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Notizen</NavLink>
+        <NavLink href="/analytics" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Auswertung</NavLink>
+    </nav>
+</aside>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnNavigate { get; set; }
+
+    private Task HandleNavigateAsync()
+        => OnNavigate.InvokeAsync();
+}

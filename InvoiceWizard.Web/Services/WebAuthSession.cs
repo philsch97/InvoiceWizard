@@ -37,7 +37,6 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         await SetBusyAsync(true);
         try
         {
-            BootstrapState = await GetBootstrapStateAsync();
             var storedJson = await jsRuntime.InvokeAsync<string?>("invoiceWizardAuth.getSession");
             if (!string.IsNullOrWhiteSpace(storedJson))
             {
@@ -56,6 +55,8 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                     }
                 }
             }
+
+            BootstrapState = await GetBootstrapStateAsync();
         }
         catch (Exception ex)
         {

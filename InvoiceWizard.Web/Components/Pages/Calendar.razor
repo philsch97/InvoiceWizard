@@ -72,7 +72,7 @@
                         {
                             @foreach (var entry in day.Entries.Take(3))
                             {
-                                <div class="calendar-chip">
+                                <div class="calendar-chip" @onclick:stopPropagation="true" @onclick="() => OpenDetailsDialog(entry)">
                                     <strong>@entry.StartTime.ToString(@"hh\:mm")</strong>
                                     <span>@entry.Title</span>
                                 </div>
@@ -104,7 +104,7 @@
         {
             @foreach (var entry in Entries)
             {
-                <div class="entry-card">
+                <div class="entry-card clickable-card" @onclick="() => OpenDetailsDialog(entry)">
                     <div class="entry-header">
                         <div>
                             <strong>@entry.Title</strong>
@@ -123,8 +123,8 @@
                     @if (entry.CanEdit)
                     {
                         <div class="status-update">
-                            <button class="ghost-button" @onclick="() => OpenEditDialog(entry)">Bearbeiten</button>
-                            <button class="ghost-button danger" @onclick="() => DeleteEntryAsync(entry.CalendarEntryId)">Loeschen</button>
+                            <button class="ghost-button" @onclick:stopPropagation="true" @onclick="() => OpenEditDialog(entry)">Bearbeiten</button>
+                            <button class="ghost-button danger" @onclick:stopPropagation="true" @onclick="() => DeleteEntryAsync(entry.CalendarEntryId)">Loeschen</button>
                         </div>
                     }
                 </div>
@@ -132,6 +132,42 @@
         }
     </article>
 </section>
+
+@if (ShowDetailsDialog && SelectedEntry is not null)
+{
+    <div class="modal-backdrop" @onclick="CloseDetailsDialog">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>@SelectedEntry.Title</h3>
+                    <p>@SelectedEntry.EntryDate.ToString("dd.MM.yyyy") · @SelectedEntry.StartTime.ToString(@"hh\:mm") - @SelectedEntry.EndTime.ToString(@"hh\:mm")</p>
+                </div>
+                <button class="ghost-button" @onclick="CloseDetailsDialog">Schliessen</button>
+            </div>
+
+            <div class="compact-details">
+                <p><strong>Kalender:</strong> @SelectedEntry.UserDisplayName</p>
+                @if (!string.IsNullOrWhiteSpace(SelectedEntry.Location))
+                {
+                    <p><strong>Ort:</strong> @SelectedEntry.Location</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(SelectedEntry.Description))
+                {
+                    <p><strong>Beschreibung:</strong> @SelectedEntry.Description</p>
+                }
+                <p><strong>Zuletzt bearbeitet:</strong> @SelectedEntry.UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</p>
+            </div>
+
+            @if (SelectedEntry.CanEdit)
+            {
+                <div class="row-actions wrap-mobile modal-actions">
+                    <button class="action-button" @onclick="OpenEditFromDetailsAsync">Bearbeiten</button>
+                    <button class="ghost-button danger" @onclick="() => DeleteEntryFromDetailsAsync(SelectedEntry.CalendarEntryId)">Loeschen</button>
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @if (ShowEntryDialog)
 {
@@ -170,10 +206,12 @@
     private int? SelectedUserId { get; set; }
     private int? EditingEntryId { get; set; }
     private bool ShowEntryDialog { get; set; }
+    private bool ShowDetailsDialog { get; set; }
     private bool StatusIsWarning { get; set; }
     private string? StatusMessage { get; set; }
     private DateTime SelectedDate { get; set; } = DateTime.Today;
     private DateTime WeekStart => GetWeekStart(SelectedDate);
+    private CalendarEntryItem? SelectedEntry { get; set; }
 
     private CalendarUserItem? SelectedUser => SelectedUserId.HasValue ? Users.FirstOrDefault(x => x.AppUserId == SelectedUserId.Value) : null;
     private bool CanEditSelectedUser => SelectedUser?.CanEdit == true;
@@ -248,6 +286,7 @@
     {
         EditingEntryId = null;
         CloseEntryDialog();
+        CloseDetailsDialog();
         await ReloadAsync();
     }
 
@@ -309,6 +348,7 @@
 
     private void OpenEditDialog(CalendarEntryItem entry)
     {
+        CloseDetailsDialog();
         EditingEntryId = entry.CalendarEntryId;
         Form = new SaveCalendarEntryModel
         {
@@ -327,6 +367,18 @@
         ShowEntryDialog = false;
         EditingEntryId = null;
         Form = new SaveCalendarEntryModel();
+    }
+
+    private void OpenDetailsDialog(CalendarEntryItem entry)
+    {
+        SelectedEntry = entry;
+        ShowDetailsDialog = true;
+    }
+
+    private void CloseDetailsDialog()
+    {
+        ShowDetailsDialog = false;
+        SelectedEntry = null;
     }
 
     private void OnSelectedDateChanged(ChangeEventArgs args)
@@ -372,6 +424,7 @@
         var saved = await Api.SaveCalendarEntryAsync(Form, EditingEntryId);
         SelectedDate = saved.EntryDate.Date;
         CloseEntryDialog();
+        CloseDetailsDialog();
         SetStatus("Termin gespeichert.", false);
         await ReloadAsync();
     }
@@ -379,9 +432,23 @@
     private async Task DeleteEntryAsync(int calendarEntryId)
     {
         await Api.DeleteCalendarEntryAsync(calendarEntryId);
+        CloseDetailsDialog();
         SetStatus("Termin geloescht.", false);
         await ReloadAsync();
     }
+
+    private Task OpenEditFromDetailsAsync()
+    {
+        if (SelectedEntry is not null)
+        {
+            OpenEditDialog(SelectedEntry);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task DeleteEntryFromDetailsAsync(int calendarEntryId)
+        => DeleteEntryAsync(calendarEntryId);
 
     private void SetStatus(string message, bool isWarning)
     {
