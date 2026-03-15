@@ -48,6 +48,7 @@ public class AllocationItemDto
     public string? ProjectName { get; set; }
     public decimal AllocatedQuantity { get; set; }
     public decimal CustomerUnitPrice { get; set; }
+    public int? RevenueInvoiceId { get; set; }
     public bool IsSmallMaterial { get; set; }
     public DateTime AllocatedAt { get; set; }
     public string? CustomerInvoiceNumber { get; set; }
@@ -63,11 +64,16 @@ public class AllocationItemDto
 public class SaveInvoiceRequest
 {
     public string InvoiceDirection { get; set; } = "Expense";
+    public string InvoiceStatus { get; set; } = "Finalized";
     public bool HasSupplierInvoice { get; set; } = true;
+    public int? CustomerId { get; set; }
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
+    public DateTime? DeliveryDate { get; set; }
     public string SupplierName { get; set; } = "";
     public string AccountingCategory { get; set; } = "MaterialAndGoods";
+    public string Subject { get; set; } = "";
+    public bool ApplySmallBusinessRegulation { get; set; }
     public decimal InvoiceTotalAmount { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
@@ -81,14 +87,42 @@ public class InvoiceListItemDto
 {
     public int InvoiceId { get; set; }
     public string InvoiceDirection { get; set; } = "";
+    public string InvoiceStatus { get; set; } = "";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
+    public DateTime? DeliveryDate { get; set; }
+    public int? CustomerId { get; set; }
     public string SupplierName { get; set; } = "";
     public bool HasSupplierInvoice { get; set; }
     public string AccountingCategory { get; set; } = "";
+    public string Subject { get; set; } = "";
+    public bool ApplySmallBusinessRegulation { get; set; }
     public decimal InvoiceTotalAmount { get; set; }
     public string OriginalPdfFileName { get; set; } = "";
     public bool HasStoredPdf { get; set; }
+    public DateTime? DraftSavedAt { get; set; }
+    public DateTime? FinalizedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public string CancellationReason { get; set; } = "";
+}
+
+public class InvoiceDetailDto : InvoiceListItemDto
+{
+    public List<SaveInvoiceLineRequest> Lines { get; set; } = new();
+}
+
+public class ReserveRevenueInvoiceNumberRequest
+{
+    [Range(1, int.MaxValue)]
+    public int CustomerId { get; set; }
+}
+
+public class ReserveRevenueInvoiceNumberResponse
+{
+    public string InvoiceNumber { get; set; } = "";
+    public string CustomerNumber { get; set; } = "";
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = "";
 }
 
 public class UploadInvoicePdfRequest
@@ -112,6 +146,19 @@ public class SaveInvoiceLineRequest
     public decimal GrossListPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }
+}
+
+public class UpdateRevenueLinkRequest
+{
+    public int? RevenueInvoiceId { get; set; }
+    public string? RevenueInvoiceNumber { get; set; }
+    public bool MarkInvoiced { get; set; }
+}
+
+public class CancelInvoiceRequest
+{
+    [Required]
+    public string Reason { get; set; } = "";
 }
 
 public class SaveAllocationRequest

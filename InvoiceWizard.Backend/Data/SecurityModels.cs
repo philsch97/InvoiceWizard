@@ -11,6 +11,18 @@ public class Tenant
     public int TenantId { get; set; }
     public string Name { get; set; } = "";
     public string Slug { get; set; } = "";
+    public string CompanyStreet { get; set; } = "";
+    public string CompanyHouseNumber { get; set; } = "";
+    public string CompanyPostalCode { get; set; } = "";
+    public string CompanyCity { get; set; } = "";
+    public string CompanyEmailAddress { get; set; } = "";
+    public string CompanyPhoneNumber { get; set; } = "";
+    public string TaxNumber { get; set; } = "";
+    public string BankName { get; set; } = "";
+    public string BankIban { get; set; } = "";
+    public string BankBic { get; set; } = "";
+    public int NextRevenueInvoiceNumber { get; set; } = 1;
+    public int NextCustomerNumber { get; set; } = 1;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<UserTenantMembership> Memberships { get; set; } = new();

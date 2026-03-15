@@ -1,0 +1,118 @@
+<Page x:Class="InvoiceWizard.CompanyProfilePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      mc:Ignorable="d"
+      d:DesignHeight="900" d:DesignWidth="1320"
+      Title="CompanyProfilePage">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Firmendaten" Style="{StaticResource PageTitleStyle}"/>
+                    <TextBlock Text="Hier pflegst du deine Absender-, Bank- und Nummernkreis-Daten fuer automatisch erzeugte Kundenrechnungen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Absender und Zahlungsdaten" Style="{StaticResource SectionTitleStyle}"/>
+
+                    <Grid Margin="0,16,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Firmenname" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyNameText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="Steuernummer" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="TaxNumberText"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Strasse" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyStreetText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="Hausnummer" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyHouseNumberText"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1.5*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Postleitzahl" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyPostalCodeText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="Ort" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyCityText"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="1.4*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="E-Mail-Adresse" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyEmailText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="Telefonnummer" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="CompanyPhoneText"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="Bankname" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="BankNameText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Text="IBAN" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="BankIbanText"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,8,0">
+                            <TextBlock Text="BIC" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="BankBicText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                            <TextBlock Text="Naechste Rechnungsnr." Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="NextInvoiceNumberText"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                            <TextBlock Text="Naechste Kundennr." Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="NextCustomerNumberText"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock x:Name="InvoicePreviewText" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,16" TextWrapping="Wrap"/>
+
+                    <WrapPanel>
+                        <Button Width="170" Height="40" Margin="0,0,10,0" Content="Firmendaten speichern" Click="Save_Click"/>
+                        <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <Border x:Name="StatusBorder" Grid.Row="2" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+                <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

@@ -1,8 +1,11 @@
 using InvoiceWizard.Data.Entities;
 using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Dialogs;
 using InvoiceWizard.Services;
 using Microsoft.Win32;
+using System.Security.Cryptography;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -298,6 +301,172 @@ public partial class BillingExportPage : Page
         await LoadCustomerDataAsync();
     }
 
+    private async void GenerateInvoice_Click(object sender, RoutedEventArgs e)
+    {
+        await CreateRevenueInvoiceAsync(saveAsDraft: false);
+    }
+
+    private async void SaveDraftInvoice_Click(object sender, RoutedEventArgs e)
+    {
+        await CreateRevenueInvoiceAsync(saveAsDraft: true);
+    }
+
+    private async Task CreateRevenueInvoiceAsync(bool saveAsDraft)
+    {
+        if (CustomerCombo.SelectedItem is not CustomerEntity customer)
+        {
+            SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (!TryParseDecimal(ExportMarkupText.Text, out var markupPercent) || markupPercent < 0m)
+        {
+            SetStatus("Bitte einen gueltigen Export-Zuschlag eingeben.", StatusMessageType.Error);
+            return;
+        }
+
+        if (!TryParseDecimal(SmallMaterialFlatFeeText.Text, out var smallMaterialFlatFee) || smallMaterialFlatFee < 0m)
+        {
+            SetStatus("Bitte eine gueltige Kleinmaterial-Pauschale eingeben.", StatusMessageType.Error);
+            return;
+        }
+
+        try
+        {
+            var companyProfile = await App.Api.GetCompanyProfileAsync();
+            if (string.IsNullOrWhiteSpace(companyProfile.CompanyName) || string.IsNullOrWhiteSpace(companyProfile.BankIban))
+            {
+                SetStatus("Bitte zuerst unter Admin > Firmendaten Firmenname und Bankverbindung pflegen.", StatusMessageType.Warning);
+                return;
+            }
+
+            var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
+            var selectedProjectName = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.Name;
+            var allocations = (await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId))
+                .Where(a => string.IsNullOrWhiteSpace(a.CustomerInvoiceNumber) && !a.RevenueInvoiceId.HasValue)
+                .OrderBy(a => a.InvoiceLine.Invoice.InvoiceDate)
+                .ThenBy(a => a.InvoiceLine.Position)
+                .ToList();
+            var workEntries = (await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId))
+                .Where(w => string.IsNullOrWhiteSpace(w.CustomerInvoiceNumber) && !w.RevenueInvoiceId.HasValue)
+                .OrderBy(w => w.WorkDate)
+                .ThenBy(w => w.StartTime)
+                .ToList();
+
+            if (allocations.Count == 0 && workEntries.Count == 0)
+            {
+                SetStatus("Fuer diese Auswahl gibt es keine offenen Positionen fuer eine Rechnung.", StatusMessageType.Warning);
+                return;
+            }
+
+            var reservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId);
+            customer.CustomerNumber = reservation.CustomerNumber;
+
+            var dialog = new GenerateInvoiceDialog(reservation.InvoiceNumber, reservation.CustomerNumber, customer.Name, saveAsDraft)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() != true || dialog.Result is null)
+            {
+                return;
+            }
+
+            var invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, selectedProjectName);
+            if (invoiceLines.Count == 0)
+            {
+                SetStatus("Es konnten keine berechenbaren Positionen fuer die Rechnung erstellt werden.", StatusMessageType.Warning);
+                return;
+            }
+
+            var saveDialog = new SaveFileDialog
+            {
+                Filter = "PDF-Datei (*.pdf)|*.pdf",
+                FileName = $"{dialog.Result.InvoiceNumber}_{SanitizeFileName(customer.Name)}.pdf"
+            };
+
+            if (saveDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
+            {
+                Company = companyProfile,
+                Customer = customer,
+                InvoiceNumber = dialog.Result.InvoiceNumber,
+                CustomerNumber = dialog.Result.CustomerNumber,
+                InvoiceDate = dialog.Result.InvoiceDate.Date,
+                DeliveryDate = dialog.Result.DeliveryDate.Date,
+                Subject = dialog.Result.Subject,
+                IsDraft = saveAsDraft,
+                ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
+                Lines = invoiceLines.Select(x => new CustomerInvoicePdfService.InvoiceLine
+                {
+                    Position = x.Position,
+                    Description = x.Description,
+                    Quantity = x.Quantity,
+                    Unit = x.Unit,
+                    UnitPrice = x.UnitPrice,
+                    LineTotal = x.LineTotal
+                }).ToList()
+            });
+
+            await File.WriteAllBytesAsync(saveDialog.FileName, pdfBytes);
+
+            var invoiceId = await App.Api.SaveInvoiceAsync(
+                "Revenue",
+                saveAsDraft ? "Draft" : "Finalized",
+                dialog.Result.InvoiceNumber,
+                dialog.Result.InvoiceDate.Date,
+                dialog.Result.DeliveryDate.Date,
+                customer.CustomerId,
+                customer.Name,
+                "Other",
+                dialog.Result.Subject,
+                dialog.Result.ApplySmallBusinessRegulation,
+                invoiceLines.Sum(x => x.LineTotal),
+                saveDialog.FileName,
+                Path.GetFileName(saveDialog.FileName),
+                Convert.ToBase64String(pdfBytes),
+                ComputeSha256(pdfBytes),
+                invoiceLines.Select(x => new ManualInvoiceLineInput
+                {
+                    Position = x.Position,
+                    Description = x.Description,
+                    Quantity = x.Quantity,
+                    Unit = x.Unit,
+                    NetUnitPrice = x.UnitPrice,
+                    MetalSurcharge = 0m,
+                    GrossListPrice = 0m,
+                    PriceBasisQuantity = 1m
+                }),
+                hasSupplierInvoice: true);
+
+            foreach (var allocation in allocations)
+            {
+                await App.Api.UpdateAllocationExportAsync(allocation.LineAllocationId, allocation.ExportedMarkupPercent, allocation.ExportedUnitPrice, allocation.ExportedLineTotal);
+                await App.Api.UpdateAllocationRevenueLinkAsync(allocation.LineAllocationId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+            }
+
+            foreach (var workEntry in workEntries)
+            {
+                await App.Api.UpdateWorkTimeExportAsync(workEntry.WorkTimeEntryId, workEntry.ExportedUnitPrice, workEntry.ExportedLineTotal);
+                await App.Api.UpdateWorkTimeRevenueLinkAsync(workEntry.WorkTimeEntryId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+            }
+
+            CustomerInvoiceNumberText.Text = dialog.Result.InvoiceNumber;
+            await LoadCustomerDataAsync();
+            SetStatus(saveAsDraft
+                ? $"Entwurf {dialog.Result.InvoiceNumber} wurde gespeichert und mit den offenen Positionen verknuepft."
+                : $"Rechnung {dialog.Result.InvoiceNumber} wurde erstellt und als PDF gespeichert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"{(saveAsDraft ? "Entwurf" : "Rechnung")} konnte nicht erzeugt werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private void AddNormalAllocationRow(List<ExcelExportService.ExportRow> rows, LineAllocationEntity allocation, decimal markupPercent)
     {
         var projectLabel = allocation.Project?.Name ?? "Ohne Projekt";
@@ -429,6 +598,191 @@ public partial class BillingExportPage : Page
         return allocation.CustomerUnitPrice > 0m ? allocation.CustomerUnitPrice : PricingHelper.NormalizeUnitPrice(allocation.InvoiceLine.NetUnitPrice, allocation.InvoiceLine.MetalSurcharge, allocation.InvoiceLine.PriceBasisQuantity);
     }
 
+    private List<GeneratedInvoiceLine> BuildGeneratedInvoiceLines(
+        IReadOnlyList<LineAllocationEntity> allocations,
+        IReadOnlyList<WorkTimeEntryEntity> workEntries,
+        decimal markupPercent,
+        decimal smallMaterialFlatFee,
+        string? selectedProjectName)
+    {
+        var lines = new List<GeneratedInvoiceLine>();
+        var position = 1;
+        var regularAllocations = allocations.Where(a => !a.IsSmallMaterial).ToList();
+        var smallMaterialAllocations = allocations.Where(a => a.IsSmallMaterial).ToList();
+
+        foreach (var allocation in regularAllocations)
+        {
+            lines.Add(BuildRegularAllocationLine(allocation, markupPercent, position++));
+        }
+
+        if (smallMaterialAllocations.Count > 0)
+        {
+            if (smallMaterialFlatFee > 0m)
+            {
+                lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, position++));
+            }
+            else
+            {
+                switch (GetSelectedSmallMaterialMode())
+                {
+                    case "Einzeln berechnen":
+                        foreach (var allocation in smallMaterialAllocations)
+                        {
+                            lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, position++));
+                        }
+
+                        break;
+                    case "Als Sammelposition":
+                        foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, position, out position))
+                        {
+                            lines.Add(groupedLine);
+                        }
+
+                        break;
+                    case "Nicht berechnen":
+                        foreach (var allocation in smallMaterialAllocations)
+                        {
+                            allocation.ExportedMarkupPercent = 0m;
+                            allocation.ExportedUnitPrice = 0m;
+                            allocation.ExportedLineTotal = 0m;
+                            allocation.LastExportedAt = DateTime.Now;
+                        }
+
+                        break;
+                }
+            }
+        }
+
+        foreach (var workEntry in workEntries)
+        {
+            workEntry.ExportedLineTotal = workEntry.CalculatedLineTotal;
+            workEntry.ExportedUnitPrice = workEntry.HoursWorked > 0m ? workEntry.ExportedLineTotal / workEntry.HoursWorked : workEntry.ExportedLineTotal;
+            workEntry.LastExportedAt = DateTime.Now;
+            lines.Add(new GeneratedInvoiceLine
+            {
+                Position = position++,
+                Description = workEntry.TravelKilometers > 0m
+                    ? $"{workEntry.Description} ({workEntry.WorkDate:dd.MM.yyyy}, {workEntry.TimeRange}, {workEntry.TravelKilometers:0.##} km Anfahrt)"
+                    : $"{workEntry.Description} ({workEntry.WorkDate:dd.MM.yyyy}, {workEntry.TimeRange})",
+                Quantity = workEntry.HoursWorked,
+                Unit = "h",
+                UnitPrice = workEntry.ExportedUnitPrice,
+                LineTotal = workEntry.ExportedLineTotal
+            });
+        }
+
+        return lines.Where(x => x.LineTotal > 0m).ToList();
+    }
+
+    private GeneratedInvoiceLine BuildRegularAllocationLine(LineAllocationEntity allocation, decimal markupPercent, int position)
+    {
+        var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
+        var salesUnitPrice = PricingHelper.ApplyMarkup(purchaseUnitPrice, markupPercent);
+        allocation.ExportedMarkupPercent = markupPercent;
+        allocation.ExportedUnitPrice = salesUnitPrice;
+        allocation.ExportedLineTotal = salesUnitPrice * allocation.AllocatedQuantity;
+        allocation.LastExportedAt = DateTime.Now;
+        return new GeneratedInvoiceLine
+        {
+            Position = position,
+            Description = allocation.Project is null
+                ? allocation.InvoiceLine.Description
+                : $"[{allocation.Project.Name}] {allocation.InvoiceLine.Description}",
+            Quantity = allocation.AllocatedQuantity,
+            Unit = allocation.InvoiceLine.Unit,
+            UnitPrice = salesUnitPrice,
+            LineTotal = allocation.ExportedLineTotal
+        };
+    }
+
+    private GeneratedInvoiceLine BuildSmallMaterialSingleLine(LineAllocationEntity allocation, decimal markupPercent, int position)
+    {
+        var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
+        var salesUnitPrice = PricingHelper.ApplyMarkup(purchaseUnitPrice, markupPercent);
+        allocation.ExportedMarkupPercent = markupPercent;
+        allocation.ExportedUnitPrice = salesUnitPrice;
+        allocation.ExportedLineTotal = salesUnitPrice * allocation.AllocatedQuantity;
+        allocation.LastExportedAt = DateTime.Now;
+        return new GeneratedInvoiceLine
+        {
+            Position = position,
+            Description = allocation.Project is null
+                ? $"Kleinmaterial: {allocation.InvoiceLine.Description}"
+                : $"[{allocation.Project.Name}] Kleinmaterial: {allocation.InvoiceLine.Description}",
+            Quantity = allocation.AllocatedQuantity,
+            Unit = allocation.InvoiceLine.Unit,
+            UnitPrice = salesUnitPrice,
+            LineTotal = allocation.ExportedLineTotal
+        };
+    }
+
+    private List<GeneratedInvoiceLine> BuildSmallMaterialGroupedLines(IReadOnlyList<LineAllocationEntity> allocations, decimal markupPercent, int startPosition, out int nextPosition)
+    {
+        var lines = new List<GeneratedInvoiceLine>();
+        var position = startPosition;
+
+        foreach (var group in allocations.GroupBy(a => a.Project?.Name ?? "Ohne Projekt"))
+        {
+            var salesTotal = 0m;
+            foreach (var allocation in group)
+            {
+                var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
+                var salesUnitPrice = PricingHelper.ApplyMarkup(purchaseUnitPrice, markupPercent);
+                var lineTotal = salesUnitPrice * allocation.AllocatedQuantity;
+                allocation.ExportedMarkupPercent = markupPercent;
+                allocation.ExportedUnitPrice = salesUnitPrice;
+                allocation.ExportedLineTotal = lineTotal;
+                allocation.LastExportedAt = DateTime.Now;
+                salesTotal += lineTotal;
+            }
+
+            lines.Add(new GeneratedInvoiceLine
+            {
+                Position = position++,
+                Description = $"[{group.Key}] Kleinmaterial laut Nachweis",
+                Quantity = 1m,
+                Unit = "Pauschale",
+                UnitPrice = salesTotal,
+                LineTotal = salesTotal
+            });
+        }
+
+        nextPosition = position;
+        return lines;
+    }
+
+    private GeneratedInvoiceLine BuildSmallMaterialFlatFeeLine(IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, int position)
+    {
+        var totalPurchase = allocations.Sum(a => GetPurchaseUnitPrice(a) * a.AllocatedQuantity);
+        var equalShare = flatFee / allocations.Count;
+        foreach (var allocation in allocations)
+        {
+            var purchaseShare = GetPurchaseUnitPrice(allocation) * allocation.AllocatedQuantity;
+            var lineTotal = totalPurchase > 0m ? flatFee * (purchaseShare / totalPurchase) : equalShare;
+            allocation.ExportedMarkupPercent = 0m;
+            allocation.ExportedLineTotal = lineTotal;
+            allocation.ExportedUnitPrice = allocation.AllocatedQuantity > 0m ? lineTotal / allocation.AllocatedQuantity : 0m;
+            allocation.LastExportedAt = DateTime.Now;
+        }
+
+        var label = selectedProjectName;
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            var projectNames = allocations.Select(a => a.Project?.Name ?? "Ohne Projekt").Distinct().ToList();
+            label = projectNames.Count == 1 ? projectNames[0] : "Mehrere Projekte";
+        }
+
+        return new GeneratedInvoiceLine
+        {
+            Position = position,
+            Description = $"[{label}] Kleinmaterial-Pauschale",
+            Quantity = 1m,
+            Unit = "Pauschale",
+            UnitPrice = flatFee,
+            LineTotal = flatFee
+        };
+    }
+
     private string GetSelectedSmallMaterialMode()
     {
         return (SmallMaterialModeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Als Sammelposition";
@@ -551,6 +905,28 @@ public partial class BillingExportPage : Page
     {
         var key = $"Status{type}{part}Brush";
         return (Brush)FindResource(key);
+    }
+
+    private static string ComputeSha256(byte[] bytes)
+    {
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash);
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return string.Concat(value.Select(ch => invalid.Contains(ch) ? '_' : ch));
+    }
+
+    private sealed class GeneratedInvoiceLine
+    {
+        public int Position { get; set; }
+        public string Description { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal UnitPrice { get; set; }
+        public decimal LineTotal { get; set; }
     }
 }
 

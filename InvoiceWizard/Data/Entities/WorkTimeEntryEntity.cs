@@ -9,6 +9,7 @@ public class WorkTimeEntryEntity
     public CustomerEntity Customer { get; set; } = null!;
     public int? ProjectId { get; set; }
     public ProjectEntity? Project { get; set; }
+    public int? RevenueInvoiceId { get; set; }
     public DateTime WorkDate { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }

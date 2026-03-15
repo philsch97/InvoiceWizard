@@ -207,6 +207,7 @@ public partial class CustomerHandling : Page
 
         return new CustomerEntity
         {
+            CustomerNumber = (CustomerNumberText.Text ?? string.Empty).Trim(),
             Name = displayName,
             FirstName = firstName,
             LastName = lastName,
@@ -222,6 +223,7 @@ public partial class CustomerHandling : Page
 
     private void FillCustomerForm(CustomerEntity? customer)
     {
+        CustomerNumberText.Text = customer?.CustomerNumber ?? string.Empty;
         CustomerFirstNameText.Text = customer?.FirstName ?? string.Empty;
         CustomerLastNameText.Text = customer?.LastName ?? string.Empty;
         CustomerStreetText.Text = customer?.Street ?? string.Empty;

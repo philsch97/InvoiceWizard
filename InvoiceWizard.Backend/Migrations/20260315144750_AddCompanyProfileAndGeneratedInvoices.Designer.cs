@@ -3,6 +3,7 @@ using System;
 using InvoiceWizard.Backend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace InvoiceWizard.Backend.Migrations
 {
     [DbContext(typeof(InvoiceWizardDbContext))]
-    partial class InvoiceWizardDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260315144750_AddCompanyProfileAndGeneratedInvoices")]
+    partial class AddCompanyProfileAndGeneratedInvoices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -408,14 +411,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Property<bool>("ApplySmallBusinessRegulation")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("CancellationReason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("ContentHash")
                         .IsRequired()
                         .HasColumnType("text");
@@ -425,12 +420,6 @@ namespace InvoiceWizard.Backend.Migrations
 
                     b.Property<DateTime?>("DeliveryDate")
                         .HasColumnType("date");
-
-                    b.Property<DateTime?>("DraftSavedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("FinalizedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("HasSupplierInvoice")
                         .HasColumnType("boolean");
@@ -446,11 +435,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<string>("InvoiceStatus")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
 
                     b.Property<decimal>("InvoiceTotalAmount")
                         .HasColumnType("numeric(12,2)");
@@ -695,9 +679,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Property<int?>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("RevenueInvoiceId")
-                        .HasColumnType("integer");
-
                     b.Property<int>("TenantId")
                         .HasColumnType("integer");
 
@@ -709,11 +690,7 @@ namespace InvoiceWizard.Backend.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.HasIndex("RevenueInvoiceId");
-
                     b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "RevenueInvoiceId");
 
                     b.HasIndex("TenantId", "InvoiceLineId", "CustomerId", "ProjectId", "AllocatedQuantity");
 
@@ -1262,9 +1239,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Property<int?>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("RevenueInvoiceId")
-                        .HasColumnType("integer");
-
                     b.Property<TimeSpan>("StartTime")
                         .HasColumnType("interval");
 
@@ -1288,11 +1262,7 @@ namespace InvoiceWizard.Backend.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.HasIndex("RevenueInvoiceId");
-
                     b.HasIndex("TenantId");
-
-                    b.HasIndex("TenantId", "RevenueInvoiceId");
 
                     b.HasIndex("TenantId", "AppUserId", "IsClockActive");
 
@@ -1490,11 +1460,6 @@ namespace InvoiceWizard.Backend.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("InvoiceWizard.Backend.Domain.Invoice", "RevenueInvoice")
-                        .WithMany()
-                        .HasForeignKey("RevenueInvoiceId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("InvoiceWizard.Backend.Domain.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -1506,8 +1471,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Navigation("InvoiceLine");
 
                     b.Navigation("Project");
-
-                    b.Navigation("RevenueInvoice");
 
                     b.Navigation("Tenant");
                 });
@@ -1658,11 +1621,6 @@ namespace InvoiceWizard.Backend.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("InvoiceWizard.Backend.Domain.Invoice", "RevenueInvoice")
-                        .WithMany()
-                        .HasForeignKey("RevenueInvoiceId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("InvoiceWizard.Backend.Domain.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -1674,8 +1632,6 @@ namespace InvoiceWizard.Backend.Migrations
                     b.Navigation("Customer");
 
                     b.Navigation("Project");
-
-                    b.Navigation("RevenueInvoice");
 
                     b.Navigation("Tenant");
                 });

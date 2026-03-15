@@ -5,6 +5,7 @@ public class Customer
     public int CustomerId { get; set; }
     public int TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
+    public string CustomerNumber { get; set; } = "";
     public string Name { get; set; } = "";
     public string FirstName { get; set; } = "";
     public string LastName { get; set; } = "";
@@ -59,12 +60,22 @@ public class Invoice
     public int InvoiceId { get; set; }
     public int TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
+    public int? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
     public string InvoiceDirection { get; set; } = "Expense";
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
+    public DateTime? DeliveryDate { get; set; }
     public bool HasSupplierInvoice { get; set; } = true;
     public string SupplierName { get; set; } = "Sonepar";
     public string AccountingCategory { get; set; } = "MaterialAndGoods";
+    public string Subject { get; set; } = "";
+    public bool ApplySmallBusinessRegulation { get; set; }
+    public string InvoiceStatus { get; set; } = "Finalized";
+    public DateTime? DraftSavedAt { get; set; }
+    public DateTime? FinalizedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public string CancellationReason { get; set; } = "";
     public decimal InvoiceTotalAmount { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
@@ -110,6 +121,8 @@ public class LineAllocation
     public Project? Project { get; set; }
     public decimal AllocatedQuantity { get; set; }
     public decimal CustomerUnitPrice { get; set; }
+    public int? RevenueInvoiceId { get; set; }
+    public Invoice? RevenueInvoice { get; set; }
     public bool IsSmallMaterial { get; set; }
     public DateTime AllocatedAt { get; set; } = DateTime.UtcNow;
     public string? CustomerInvoiceNumber { get; set; }
@@ -133,6 +146,8 @@ public class WorkTimeEntry
     public Customer Customer { get; set; } = null!;
     public int? ProjectId { get; set; }
     public Project? Project { get; set; }
+    public int? RevenueInvoiceId { get; set; }
+    public Invoice? RevenueInvoice { get; set; }
     public DateTime WorkDate { get; set; }
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }

@@ -126,10 +126,48 @@ public partial class BackendApiClient
         return items.Select(MapCustomer).OrderBy(x => x.Name).ToList();
     }
 
+    public async Task<CompanyProfileEntity> GetCompanyProfileAsync()
+    {
+        var item = await _httpClient.GetFromJsonAsync<CompanyProfileDto>("api/company-profile", _jsonOptions) ?? new CompanyProfileDto();
+        return MapCompanyProfile(item);
+    }
+
+    public async Task<CompanyProfileEntity> SaveCompanyProfileAsync(CompanyProfileEntity profile)
+    {
+        var response = await _httpClient.PutAsJsonAsync("api/company-profile", new
+        {
+            companyName = profile.CompanyName,
+            companyStreet = profile.CompanyStreet,
+            companyHouseNumber = profile.CompanyHouseNumber,
+            companyPostalCode = profile.CompanyPostalCode,
+            companyCity = profile.CompanyCity,
+            companyEmailAddress = NormalizeOptionalEmail(profile.CompanyEmailAddress),
+            companyPhoneNumber = profile.CompanyPhoneNumber,
+            taxNumber = profile.TaxNumber,
+            bankName = profile.BankName,
+            bankIban = profile.BankIban,
+            bankBic = profile.BankBic,
+            nextRevenueInvoiceNumber = profile.NextRevenueInvoiceNumber,
+            nextCustomerNumber = profile.NextCustomerNumber
+        });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<CompanyProfileDto>(_jsonOptions) ?? new CompanyProfileDto();
+        return MapCompanyProfile(item);
+    }
+
+    public async Task<(string InvoiceNumber, string CustomerNumber)> ReserveRevenueInvoiceNumberAsync(int customerId)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/invoices/reserve-revenue-number", new { customerId });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<ReserveRevenueInvoiceNumberDto>(_jsonOptions) ?? new ReserveRevenueInvoiceNumberDto();
+        return (item.InvoiceNumber, item.CustomerNumber);
+    }
+
     public async Task<CustomerEntity> SaveCustomerAsync(CustomerEntity customer, int? customerId = null)
     {
         var payload = new
         {
+            customerNumber = string.IsNullOrWhiteSpace(customer.CustomerNumber) ? null : customer.CustomerNumber,
             name = customer.Name,
             firstName = customer.FirstName,
             lastName = customer.LastName,
@@ -320,6 +358,12 @@ public partial class BackendApiClient
     {
         var response = await _httpClient.PutAsJsonAsync($"api/worktimeentries/{id}/status", new { customerInvoiceNumber = invoiceNumber, markInvoiced, markPaid });
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateWorkTimeRevenueLinkAsync(int id, int? revenueInvoiceId, string? revenueInvoiceNumber, bool markInvoiced)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/worktimeentries/{id}/revenue-link", new { revenueInvoiceId, revenueInvoiceNumber, markInvoiced });
+        await EnsureSuccessWithMessageAsync(response);
     }
 
     public async Task UpdateWorkTimeExportAsync(int id, decimal unitPrice, decimal lineTotal)
@@ -537,6 +581,12 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task UpdateAllocationRevenueLinkAsync(int allocationId, int? revenueInvoiceId, string? revenueInvoiceNumber, bool markInvoiced)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/allocations/{allocationId}/revenue-link", new { revenueInvoiceId, revenueInvoiceNumber, markInvoiced });
+        await EnsureSuccessWithMessageAsync(response);
+    }
+
     public async Task UpdateAllocationExportAsync(int allocationId, decimal markupPercent, decimal unitPrice, decimal lineTotal)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/allocations/{allocationId}/export", new { exportedMarkupPercent = markupPercent, exportedUnitPrice = unitPrice, exportedLineTotal = lineTotal, lastExportedAt = DateTime.UtcNow });
@@ -555,16 +605,21 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task SaveInvoiceAsync(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, string supplierName, string accountingCategory, decimal invoiceTotalAmount, string sourcePdfPath, string originalPdfFileName, string? pdfContentBase64, string contentHash, IEnumerable<ManualInvoiceLineInput> lines, bool hasSupplierInvoice = true)
+    public async Task<int> SaveInvoiceAsync(string invoiceDirection, string invoiceStatus, string invoiceNumber, DateTime invoiceDate, DateTime? deliveryDate, int? customerId, string supplierName, string accountingCategory, string subject, bool applySmallBusinessRegulation, decimal invoiceTotalAmount, string sourcePdfPath, string originalPdfFileName, string? pdfContentBase64, string contentHash, IEnumerable<ManualInvoiceLineInput> lines, bool hasSupplierInvoice = true)
     {
         var response = await _httpClient.PostAsJsonAsync("api/invoices", new
         {
             invoiceDirection,
+            invoiceStatus,
             hasSupplierInvoice,
+            customerId,
             invoiceNumber,
             invoiceDate,
+            deliveryDate,
             supplierName,
             accountingCategory,
+            subject,
+            applySmallBusinessRegulation,
             invoiceTotalAmount,
             sourcePdfPath,
             originalPdfFileName,
@@ -585,25 +640,77 @@ public partial class BackendApiClient
                 line.LineTotal
             }).ToList()
         });
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<InvoiceSaveResultDto>(_jsonOptions) ?? new InvoiceSaveResultDto();
+        return item.InvoiceId;
     }
 
     public async Task<List<InvoiceEntity>> GetInvoicesAsync()
     {
         var items = await _httpClient.GetFromJsonAsync<List<InvoiceListDto>>("api/invoices", _jsonOptions) ?? [];
-        return items.Select(x => new InvoiceEntity
+        return items.Select(MapInvoice).ToList();
+    }
+
+    public async Task<InvoiceEntity> GetInvoiceAsync(int invoiceId)
+    {
+        var item = await _httpClient.GetFromJsonAsync<InvoiceDetailDto>($"api/invoices/{invoiceId}", _jsonOptions) ?? new InvoiceDetailDto();
+        return MapInvoice(item);
+    }
+
+    public async Task<InvoiceEntity> UpdateInvoiceAsync(int invoiceId, string invoiceDirection, string invoiceStatus, string invoiceNumber, DateTime invoiceDate, DateTime? deliveryDate, int? customerId, string supplierName, string accountingCategory, string subject, bool applySmallBusinessRegulation, decimal invoiceTotalAmount, string sourcePdfPath, string originalPdfFileName, string? pdfContentBase64, string contentHash, IEnumerable<ManualInvoiceLineInput> lines, bool hasSupplierInvoice = true)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/invoices/{invoiceId}", new
         {
-            InvoiceId = x.InvoiceId,
-            InvoiceDirection = x.InvoiceDirection,
-            InvoiceNumber = x.InvoiceNumber,
-            InvoiceDate = x.InvoiceDate,
-            SupplierName = x.SupplierName,
-            HasSupplierInvoice = x.HasSupplierInvoice,
-            AccountingCategory = x.AccountingCategory,
-            InvoiceTotalAmount = x.InvoiceTotalAmount,
-            OriginalPdfFileName = x.OriginalPdfFileName,
-            HasStoredPdf = x.HasStoredPdf
-        }).ToList();
+            invoiceDirection,
+            invoiceStatus,
+            hasSupplierInvoice,
+            customerId,
+            invoiceNumber,
+            invoiceDate,
+            deliveryDate,
+            supplierName,
+            accountingCategory,
+            subject,
+            applySmallBusinessRegulation,
+            invoiceTotalAmount,
+            sourcePdfPath,
+            originalPdfFileName,
+            pdfContentBase64,
+            contentHash,
+            lines = lines.Select(line => new
+            {
+                line.Position,
+                line.ArticleNumber,
+                line.Ean,
+                line.Description,
+                line.Quantity,
+                line.Unit,
+                netUnitPrice = line.NetUnitPrice,
+                metalSurcharge = line.MetalSurcharge,
+                grossListPrice = line.GrossListPrice,
+                priceBasisQuantity = line.PriceBasisQuantity,
+                line.LineTotal
+            }).ToList()
+        });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<InvoiceDetailDto>(_jsonOptions) ?? new InvoiceDetailDto();
+        return MapInvoice(item);
+    }
+
+    public async Task<InvoiceEntity> FinalizeInvoiceAsync(int invoiceId)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/invoices/{invoiceId}/finalize", new { });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<InvoiceDetailDto>(_jsonOptions) ?? new InvoiceDetailDto();
+        return MapInvoice(item);
+    }
+
+    public async Task<InvoiceEntity> CancelInvoiceAsync(int invoiceId, string reason)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/invoices/{invoiceId}/cancel", new { reason });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<InvoiceDetailDto>(_jsonOptions) ?? new InvoiceDetailDto();
+        return MapInvoice(item);
     }
 
     public Task<byte[]> DownloadInvoicePdfAsync(int invoiceId)
@@ -690,6 +797,7 @@ public partial class BackendApiClient
         return new CustomerEntity
         {
             CustomerId = item.CustomerId,
+            CustomerNumber = item.CustomerNumber,
             Name = item.Name,
             FirstName = item.FirstName,
             LastName = item.LastName,
@@ -700,6 +808,27 @@ public partial class BackendApiClient
             EmailAddress = item.EmailAddress,
             PhoneNumber = item.PhoneNumber,
             DefaultMarkupPercent = item.DefaultMarkupPercent
+        };
+    }
+
+    private static CompanyProfileEntity MapCompanyProfile(CompanyProfileDto item)
+    {
+        return new CompanyProfileEntity
+        {
+            CompanyName = item.CompanyName,
+            CompanyStreet = item.CompanyStreet,
+            CompanyHouseNumber = item.CompanyHouseNumber,
+            CompanyPostalCode = item.CompanyPostalCode,
+            CompanyCity = item.CompanyCity,
+            CompanyEmailAddress = item.CompanyEmailAddress ?? "",
+            CompanyPhoneNumber = item.CompanyPhoneNumber,
+            TaxNumber = item.TaxNumber,
+            BankName = item.BankName,
+            BankIban = item.BankIban,
+            BankBic = item.BankBic,
+            NextRevenueInvoiceNumber = item.NextRevenueInvoiceNumber,
+            NextCustomerNumber = item.NextCustomerNumber,
+            RevenueInvoiceNumberPreview = item.RevenueInvoiceNumberPreview
         };
     }
 
@@ -744,6 +873,7 @@ public partial class BackendApiClient
             Customer = new CustomerEntity { CustomerId = item.CustomerId, Name = item.CustomerName },
             ProjectId = item.ProjectId,
             Project = item.ProjectId.HasValue ? new ProjectEntity { ProjectId = item.ProjectId.Value, Name = item.ProjectName ?? "" } : null,
+            RevenueInvoiceId = item.RevenueInvoiceId,
             WorkDate = item.WorkDate,
             StartTime = item.StartTime,
             EndTime = item.EndTime,
@@ -762,6 +892,48 @@ public partial class BackendApiClient
             PauseStartedAtUtc = item.PauseStartedAtUtc,
             ExportedLineTotal = item.LineTotal,
             ExportedUnitPrice = item.HourlyRate
+        };
+    }
+
+    private static InvoiceEntity MapInvoice(InvoiceListDto item)
+    {
+        return new InvoiceEntity
+        {
+            InvoiceId = item.InvoiceId,
+            InvoiceDirection = item.InvoiceDirection,
+            CustomerId = item.CustomerId,
+            InvoiceStatus = item.InvoiceStatus,
+            InvoiceNumber = item.InvoiceNumber,
+            InvoiceDate = item.InvoiceDate,
+            DeliveryDate = item.DeliveryDate,
+            SupplierName = item.SupplierName,
+            HasSupplierInvoice = item.HasSupplierInvoice,
+            AccountingCategory = item.AccountingCategory,
+            Subject = item.Subject,
+            ApplySmallBusinessRegulation = item.ApplySmallBusinessRegulation,
+            InvoiceTotalAmount = item.InvoiceTotalAmount,
+            OriginalPdfFileName = item.OriginalPdfFileName,
+            HasStoredPdf = item.HasStoredPdf,
+            DraftSavedAt = item.DraftSavedAt,
+            FinalizedAt = item.FinalizedAt,
+            CancelledAt = item.CancelledAt,
+            CancellationReason = item.CancellationReason,
+            Lines = item is InvoiceDetailDto detail
+                ? detail.Lines.Select(line => new InvoiceLineEntity
+                {
+                    Position = line.Position,
+                    ArticleNumber = line.ArticleNumber,
+                    Ean = line.Ean,
+                    Description = line.Description,
+                    Quantity = line.Quantity,
+                    Unit = line.Unit,
+                    NetUnitPrice = line.NetUnitPrice,
+                    MetalSurcharge = line.MetalSurcharge,
+                    GrossListPrice = line.GrossListPrice,
+                    PriceBasisQuantity = line.PriceBasisQuantity,
+                    LineTotal = line.LineTotal
+                }).ToList()
+                : new List<InvoiceLineEntity>()
         };
     }
 
@@ -928,6 +1100,7 @@ public partial class BackendApiClient
             Project = item.ProjectId.HasValue ? new ProjectEntity { ProjectId = item.ProjectId.Value, Name = item.ProjectName ?? "" } : null,
             AllocatedQuantity = item.AllocatedQuantity,
             CustomerUnitPrice = item.CustomerUnitPrice,
+            RevenueInvoiceId = item.RevenueInvoiceId,
             IsSmallMaterial = item.IsSmallMaterial,
             AllocatedAt = item.AllocatedAt,
             CustomerInvoiceNumber = item.CustomerInvoiceNumber,
@@ -1066,6 +1239,7 @@ public partial class BackendApiClient
     private class CustomerDto
     {
         public int CustomerId { get; set; }
+        public string CustomerNumber { get; set; } = "";
         public string Name { get; set; } = "";
         public string FirstName { get; set; } = "";
         public string LastName { get; set; } = "";
@@ -1078,9 +1252,38 @@ public partial class BackendApiClient
         public decimal DefaultMarkupPercent { get; set; }
     }
 
+    private class CompanyProfileDto
+    {
+        public string CompanyName { get; set; } = "";
+        public string CompanyStreet { get; set; } = "";
+        public string CompanyHouseNumber { get; set; } = "";
+        public string CompanyPostalCode { get; set; } = "";
+        public string CompanyCity { get; set; } = "";
+        public string? CompanyEmailAddress { get; set; }
+        public string CompanyPhoneNumber { get; set; } = "";
+        public string TaxNumber { get; set; } = "";
+        public string BankName { get; set; } = "";
+        public string BankIban { get; set; } = "";
+        public string BankBic { get; set; } = "";
+        public int NextRevenueInvoiceNumber { get; set; }
+        public int NextCustomerNumber { get; set; }
+        public string RevenueInvoiceNumberPreview { get; set; } = "";
+    }
+
+    private class ReserveRevenueInvoiceNumberDto
+    {
+        public string InvoiceNumber { get; set; } = "";
+        public string CustomerNumber { get; set; } = "";
+    }
+
+    private class InvoiceSaveResultDto
+    {
+        public int InvoiceId { get; set; }
+    }
+
     public class ProjectDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public int OpenWorkItems { get; set; } public decimal LoggedHours { get; set; } }
     private class ProjectDetailsDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public bool ConnectionUserSameAsCustomer { get; set; } public string ConnectionUserFirstName { get; set; } = ""; public string ConnectionUserLastName { get; set; } = ""; public string ConnectionUserStreet { get; set; } = ""; public string ConnectionUserHouseNumber { get; set; } = ""; public string ConnectionUserPostalCode { get; set; } = ""; public string ConnectionUserCity { get; set; } = ""; public string ConnectionUserParcelNumber { get; set; } = ""; public string ConnectionUserEmailAddress { get; set; } = ""; public string ConnectionUserPhoneNumber { get; set; } = ""; public bool PropertyOwnerSameAsCustomer { get; set; } public string PropertyOwnerFirstName { get; set; } = ""; public string PropertyOwnerLastName { get; set; } = ""; public string PropertyOwnerStreet { get; set; } = ""; public string PropertyOwnerHouseNumber { get; set; } = ""; public string PropertyOwnerPostalCode { get; set; } = ""; public string PropertyOwnerCity { get; set; } = ""; public string PropertyOwnerEmailAddress { get; set; } = ""; public string PropertyOwnerPhoneNumber { get; set; } = ""; }
-    private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int? AppUserId { get; set; } public string? UserDisplayName { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public bool IsClockActive { get; set; } public DateTime? PauseStartedAtUtc { get; set; } public decimal LineTotal { get; set; } }
+    private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int? AppUserId { get; set; } public string? UserDisplayName { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public int? RevenueInvoiceId { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public bool IsClockActive { get; set; } public DateTime? PauseStartedAtUtc { get; set; } public decimal LineTotal { get; set; } }
     private class BankAccountSummaryDto { public int TransactionCount { get; set; } public decimal? CurrentBalance { get; set; } public DateTime? LastBookingDate { get; set; } public string AccountIban { get; set; } = ""; public string AccountName { get; set; } = ""; }
     private class BankImportResultDto { public int ImportId { get; set; } public string FileName { get; set; } = ""; public string AccountName { get; set; } = ""; public string AccountIban { get; set; } = ""; public string Currency { get; set; } = "EUR"; public int ImportedTransactions { get; set; } public int SkippedTransactions { get; set; } public decimal? CurrentBalance { get; set; } public List<string>? Warnings { get; set; } }
     private class BankTransactionDto { public int BankTransactionId { get; set; } public int ImportId { get; set; } public DateTime BookingDate { get; set; } public DateTime? ValueDate { get; set; } public decimal Amount { get; set; } public decimal? BalanceAfterBooking { get; set; } public string Currency { get; set; } = "EUR"; public string CounterpartyName { get; set; } = ""; public string CounterpartyIban { get; set; } = ""; public string Purpose { get; set; } = ""; public string Reference { get; set; } = ""; public string TransactionType { get; set; } = ""; public string AccountIban { get; set; } = ""; public string ImportFileName { get; set; } = ""; public DateTime ImportedAt { get; set; } public bool IsIgnored { get; set; } public string IgnoredComment { get; set; } = ""; public DateTime? IgnoredAt { get; set; } public decimal AssignedAmount { get; set; } public decimal RemainingAmount { get; set; } public List<BankTransactionAssignmentDto> Assignments { get; set; } = []; }
@@ -1090,8 +1293,10 @@ public partial class BackendApiClient
     private class TodoItemDto { public int TodoItemId { get; set; } public int TodoListId { get; set; } public int? ParentTodoItemId { get; set; } public string Text { get; set; } = ""; public bool IsCompleted { get; set; } public int SortOrder { get; set; } public List<TodoItemDto> Children { get; set; } = []; }
     private class TodoAttachmentDto { public int TodoAttachmentId { get; set; } public string FileName { get; set; } = ""; public string ContentType { get; set; } = ""; public string Caption { get; set; } = ""; public long FileSize { get; set; } public DateTime UploadedAt { get; set; } public string DownloadUrl { get; set; } = ""; }
     private class InvoiceLineDto { public int InvoiceLineId { get; set; } public int InvoiceId { get; set; } public string InvoiceDirection { get; set; } = ""; public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public int Position { get; set; } public string ArticleNumber { get; set; } = ""; public string Ean { get; set; } = ""; public string Description { get; set; } = ""; public decimal Quantity { get; set; } public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal GrossListPrice { get; set; } public decimal PriceBasisQuantity { get; set; } public decimal LineTotal { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public List<AllocationDto> Allocations { get; set; } = []; }
-    private class AllocationDto { public int LineAllocationId { get; set; } public int InvoiceLineId { get; set; } public string InvoiceDirection { get; set; } = ""; public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public string ArticleNumber { get; set; } = ""; public string Description { get; set; } = ""; public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal PriceBasisQuantity { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public decimal AllocatedQuantity { get; set; } public decimal CustomerUnitPrice { get; set; } public bool IsSmallMaterial { get; set; } public DateTime AllocatedAt { get; set; } public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public decimal ExportedMarkupPercent { get; set; } public decimal ExportedUnitPrice { get; set; } public decimal ExportedLineTotal { get; set; } public DateTime? LastExportedAt { get; set; } }
-    private class InvoiceListDto { public int InvoiceId { get; set; } public string InvoiceDirection { get; set; } = ""; public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public string SupplierName { get; set; } = ""; public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public decimal InvoiceTotalAmount { get; set; } public string OriginalPdfFileName { get; set; } = ""; public bool HasStoredPdf { get; set; } }
+    private class AllocationDto { public int LineAllocationId { get; set; } public int InvoiceLineId { get; set; } public string InvoiceDirection { get; set; } = ""; public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public string ArticleNumber { get; set; } = ""; public string Description { get; set; } = ""; public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal PriceBasisQuantity { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public decimal AllocatedQuantity { get; set; } public decimal CustomerUnitPrice { get; set; } public int? RevenueInvoiceId { get; set; } public bool IsSmallMaterial { get; set; } public DateTime AllocatedAt { get; set; } public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public decimal ExportedMarkupPercent { get; set; } public decimal ExportedUnitPrice { get; set; } public decimal ExportedLineTotal { get; set; } public DateTime? LastExportedAt { get; set; } }
+    private class InvoiceListDto { public int InvoiceId { get; set; } public string InvoiceDirection { get; set; } = ""; public string InvoiceStatus { get; set; } = ""; public int? CustomerId { get; set; } public string InvoiceNumber { get; set; } = ""; public DateTime InvoiceDate { get; set; } public DateTime? DeliveryDate { get; set; } public string SupplierName { get; set; } = ""; public bool HasSupplierInvoice { get; set; } public string AccountingCategory { get; set; } = ""; public string Subject { get; set; } = ""; public bool ApplySmallBusinessRegulation { get; set; } public decimal InvoiceTotalAmount { get; set; } public string OriginalPdfFileName { get; set; } = ""; public bool HasStoredPdf { get; set; } public DateTime? DraftSavedAt { get; set; } public DateTime? FinalizedAt { get; set; } public DateTime? CancelledAt { get; set; } public string CancellationReason { get; set; } = ""; }
+    private class InvoiceDetailDto : InvoiceListDto { public List<SaveInvoiceLineDto> Lines { get; set; } = []; }
+    private class SaveInvoiceLineDto { public int Position { get; set; } public string ArticleNumber { get; set; } = ""; public string Ean { get; set; } = ""; public string Description { get; set; } = ""; public decimal Quantity { get; set; } public string Unit { get; set; } = ""; public decimal NetUnitPrice { get; set; } public decimal MetalSurcharge { get; set; } public decimal GrossListPrice { get; set; } public decimal PriceBasisQuantity { get; set; } public decimal LineTotal { get; set; } }
 }
 
 public class AnalyticsResponseDto

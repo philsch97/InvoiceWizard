@@ -16,6 +16,7 @@ public class DashboardSummaryDto
 public class CustomerListItemDto
 {
     public int CustomerId { get; set; }
+    public string CustomerNumber { get; set; } = "";
     public string Name { get; set; } = "";
     public string FirstName { get; set; } = "";
     public string LastName { get; set; } = "";
@@ -32,6 +33,9 @@ public class CustomerListItemDto
 
 public class SaveCustomerRequest
 {
+    [MaxLength(40)]
+    public string? CustomerNumber { get; set; }
+
     [MaxLength(200)]
     public string Name { get; set; } = "";
 
@@ -62,6 +66,68 @@ public class SaveCustomerRequest
 
     [Range(0, 1000)]
     public decimal DefaultMarkupPercent { get; set; }
+}
+
+public class CompanyProfileDto
+{
+    public string CompanyName { get; set; } = "";
+    public string CompanyStreet { get; set; } = "";
+    public string CompanyHouseNumber { get; set; } = "";
+    public string CompanyPostalCode { get; set; } = "";
+    public string CompanyCity { get; set; } = "";
+    public string CompanyEmailAddress { get; set; } = "";
+    public string CompanyPhoneNumber { get; set; } = "";
+    public string TaxNumber { get; set; } = "";
+    public string BankName { get; set; } = "";
+    public string BankIban { get; set; } = "";
+    public string BankBic { get; set; } = "";
+    public int NextRevenueInvoiceNumber { get; set; }
+    public int NextCustomerNumber { get; set; }
+    public string RevenueInvoiceNumberPreview { get; set; } = "";
+}
+
+public class SaveCompanyProfileRequest
+{
+    [Required]
+    [MaxLength(200)]
+    public string CompanyName { get; set; } = "";
+
+    [MaxLength(200)]
+    public string CompanyStreet { get; set; } = "";
+
+    [MaxLength(50)]
+    public string CompanyHouseNumber { get; set; } = "";
+
+    [MaxLength(20)]
+    public string CompanyPostalCode { get; set; } = "";
+
+    [MaxLength(120)]
+    public string CompanyCity { get; set; } = "";
+
+    [MaxLength(200)]
+    [EmailAddress]
+    public string? CompanyEmailAddress { get; set; }
+
+    [MaxLength(50)]
+    public string CompanyPhoneNumber { get; set; } = "";
+
+    [MaxLength(120)]
+    public string TaxNumber { get; set; } = "";
+
+    [MaxLength(200)]
+    public string BankName { get; set; } = "";
+
+    [MaxLength(64)]
+    public string BankIban { get; set; } = "";
+
+    [MaxLength(64)]
+    public string BankBic { get; set; } = "";
+
+    [Range(1, int.MaxValue)]
+    public int NextRevenueInvoiceNumber { get; set; } = 1;
+
+    [Range(1, int.MaxValue)]
+    public int NextCustomerNumber { get; set; } = 1;
 }
 
 public class ProjectListItemDto
@@ -185,6 +251,7 @@ public class WorkTimeEntryListItemDto
     public decimal HourlyRate { get; set; }
     public decimal TravelKilometers { get; set; }
     public decimal TravelRatePerKilometer { get; set; }
+    public int? RevenueInvoiceId { get; set; }
     public string Description { get; set; } = "";
     public string Comment { get; set; } = "";
     public string? CustomerInvoiceNumber { get; set; }

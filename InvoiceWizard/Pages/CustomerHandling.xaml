@@ -53,6 +53,9 @@
                         <TextBlock Text="Kundendaten" Style="{StaticResource SectionTitleStyle}"/>
                         <TextBlock Text="Die Rechnungsadresse bleibt optional. Wenn Vor- und Nachname geaendert werden, wird der Anzeigename automatisch angepasst." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
 
+                        <TextBlock Text="Kundennummer" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBox x:Name="CustomerNumberText" IsReadOnly="True" Margin="0,0,0,12"/>
+
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>

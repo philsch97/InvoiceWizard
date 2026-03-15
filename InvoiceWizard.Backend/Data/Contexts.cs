@@ -54,8 +54,10 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<SubscriptionPlan>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<LicenseActivation>().HasIndex(x => x.ActivationCode).IsUnique();
         modelBuilder.Entity<Customer>().HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+        modelBuilder.Entity<Customer>().HasIndex(x => new { x.TenantId, x.CustomerNumber }).IsUnique();
         modelBuilder.Entity<Project>().HasIndex(x => new { x.TenantId, x.CustomerId, x.Name }).IsUnique();
         modelBuilder.Entity<Invoice>().HasIndex(x => new { x.TenantId, x.ContentHash }).IsUnique();
+        modelBuilder.Entity<Invoice>().HasIndex(x => new { x.TenantId, x.InvoiceDirection, x.InvoiceNumber }).IsUnique();
         modelBuilder.Entity<BankTransaction>().HasIndex(x => new { x.TenantId, x.ContentHash }).IsUnique();
 
         modelBuilder.Entity<UserTenantMembership>().HasOne(x => x.AppUser).WithMany(x => x.Memberships).HasForeignKey(x => x.AppUserId).OnDelete(DeleteBehavior.Cascade);
@@ -81,13 +83,16 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransactionAssignment>().HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Project>().HasOne(x => x.Customer).WithMany(x => x.Projects).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Invoice>().HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<InvoiceLine>().HasOne(x => x.Invoice).WithMany(x => x.Lines).HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<LineAllocation>().HasOne(x => x.InvoiceLine).WithMany(x => x.Allocations).HasForeignKey(x => x.InvoiceLineId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<LineAllocation>().HasOne(x => x.Customer).WithMany(x => x.Allocations).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<LineAllocation>().HasOne(x => x.Project).WithMany(x => x.Allocations).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<LineAllocation>().HasOne(x => x.RevenueInvoice).WithMany().HasForeignKey(x => x.RevenueInvoiceId).OnDelete(DeleteBehavior.SetNull);
         modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.Customer).WithMany(x => x.WorkTimeEntries).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.Project).WithMany(x => x.WorkTimeEntries).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.AppUser).WithMany(x => x.WorkTimeEntries).HasForeignKey(x => x.AppUserId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<WorkTimeEntry>().HasOne(x => x.RevenueInvoice).WithMany().HasForeignKey(x => x.RevenueInvoiceId).OnDelete(DeleteBehavior.SetNull);
         modelBuilder.Entity<TodoList>().HasOne(x => x.Customer).WithMany(x => x.TodoLists).HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoList>().HasOne(x => x.Project).WithMany(x => x.TodoLists).HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<TodoItem>().HasOne(x => x.TodoList).WithMany(x => x.Items).HasForeignKey(x => x.TodoListId).OnDelete(DeleteBehavior.Cascade);
@@ -103,6 +108,16 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
 
         modelBuilder.Entity<Tenant>().Property(x => x.Name).HasMaxLength(200);
         modelBuilder.Entity<Tenant>().Property(x => x.Slug).HasMaxLength(200);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanyStreet).HasMaxLength(200);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanyHouseNumber).HasMaxLength(50);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanyPostalCode).HasMaxLength(20);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanyCity).HasMaxLength(120);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanyEmailAddress).HasMaxLength(200);
+        modelBuilder.Entity<Tenant>().Property(x => x.CompanyPhoneNumber).HasMaxLength(50);
+        modelBuilder.Entity<Tenant>().Property(x => x.TaxNumber).HasMaxLength(120);
+        modelBuilder.Entity<Tenant>().Property(x => x.BankName).HasMaxLength(200);
+        modelBuilder.Entity<Tenant>().Property(x => x.BankIban).HasMaxLength(64);
+        modelBuilder.Entity<Tenant>().Property(x => x.BankBic).HasMaxLength(64);
         modelBuilder.Entity<AppUser>().Property(x => x.Email).HasMaxLength(320);
         modelBuilder.Entity<AppUser>().Property(x => x.DisplayName).HasMaxLength(200);
         modelBuilder.Entity<UserTenantMembership>().Property(x => x.Role).HasMaxLength(50);
@@ -110,8 +125,12 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<SubscriptionPlan>().Property(x => x.Name).HasMaxLength(200);
         modelBuilder.Entity<LicenseActivation>().Property(x => x.ActivationCode).HasMaxLength(120);
         modelBuilder.Entity<LicenseActivation>().Property(x => x.CustomerEmail).HasMaxLength(320);
+        modelBuilder.Entity<Customer>().Property(x => x.CustomerNumber).HasMaxLength(40);
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceDirection).HasMaxLength(30);
+        modelBuilder.Entity<Invoice>().Property(x => x.InvoiceStatus).HasMaxLength(30);
         modelBuilder.Entity<Invoice>().Property(x => x.AccountingCategory).HasMaxLength(80);
+        modelBuilder.Entity<Invoice>().Property(x => x.Subject).HasMaxLength(500);
+        modelBuilder.Entity<Invoice>().Property(x => x.CancellationReason).HasMaxLength(500);
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceTotalAmount).HasColumnType("numeric(12,2)");
         modelBuilder.Entity<Invoice>().Property(x => x.SourcePdfPath).HasMaxLength(500);
         modelBuilder.Entity<Invoice>().Property(x => x.OriginalPdfFileName).HasMaxLength(260);
@@ -142,6 +161,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.Note).HasMaxLength(500);
 
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceDate).HasColumnType("date");
+        modelBuilder.Entity<Invoice>().Property(x => x.DeliveryDate).HasColumnType("date");
         modelBuilder.Entity<WorkTimeEntry>().Property(x => x.WorkDate).HasColumnType("date");
         modelBuilder.Entity<CalendarEntry>().Property(x => x.EntryDate).HasColumnType("date");
         modelBuilder.Entity<BankTransaction>().Property(x => x.BookingDate).HasColumnType("date");
@@ -162,8 +182,10 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransactionAssignment>().HasIndex(x => x.TenantId);
 
         modelBuilder.Entity<LineAllocation>().HasIndex(x => new { x.TenantId, x.InvoiceLineId, x.CustomerId, x.ProjectId, x.AllocatedQuantity });
+        modelBuilder.Entity<LineAllocation>().HasIndex(x => new { x.TenantId, x.RevenueInvoiceId });
         modelBuilder.Entity<WorkTimeEntry>().HasIndex(x => new { x.TenantId, x.CustomerId, x.ProjectId, x.WorkDate, x.StartTime, x.EndTime });
         modelBuilder.Entity<WorkTimeEntry>().HasIndex(x => new { x.TenantId, x.AppUserId, x.IsClockActive });
+        modelBuilder.Entity<WorkTimeEntry>().HasIndex(x => new { x.TenantId, x.RevenueInvoiceId });
         modelBuilder.Entity<TodoList>().HasIndex(x => new { x.TenantId, x.CustomerId, x.ProjectId, x.UpdatedAt });
         modelBuilder.Entity<TodoItem>().HasIndex(x => new { x.TenantId, x.TodoListId, x.ParentTodoItemId, x.SortOrder });
         modelBuilder.Entity<TenantLicense>().HasIndex(x => new { x.TenantId, x.IsActive });

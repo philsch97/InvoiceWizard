@@ -11,6 +11,7 @@ public class LineAllocationEntity
     public ProjectEntity? Project { get; set; }
     public decimal AllocatedQuantity { get; set; }
     public decimal CustomerUnitPrice { get; set; }
+    public int? RevenueInvoiceId { get; set; }
     public bool IsSmallMaterial { get; set; }
     public DateTime AllocatedAt { get; set; } = DateTime.UtcNow;
     public string? CustomerInvoiceNumber { get; set; }

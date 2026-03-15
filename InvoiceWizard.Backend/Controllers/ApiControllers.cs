@@ -23,6 +23,7 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
             .Select(x => new CustomerListItemDto
             {
                 CustomerId = x.CustomerId,
+                CustomerNumber = x.CustomerNumber,
                 Name = x.Name,
                 FirstName = x.FirstName,
                 LastName = x.LastName,
@@ -53,11 +54,13 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
         if (customer is null)
         {
             customer = new Customer { TenantId = tenantId };
+            customer.CustomerNumber = await EnsureCustomerNumberAsync(tenantId, request.CustomerNumber);
             ApplyCustomer(customer, request, displayName);
             db.Customers.Add(customer);
         }
         else
         {
+            customer.CustomerNumber = await EnsureCustomerNumberAsync(tenantId, request.CustomerNumber, customer.CustomerId, customer.CustomerNumber);
             ApplyCustomer(customer, request, displayName);
         }
 
@@ -82,6 +85,7 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
         }
 
         ApplyCustomer(customer, request, displayName);
+        customer.CustomerNumber = await EnsureCustomerNumberAsync(tenantId, request.CustomerNumber, customer.CustomerId, customer.CustomerNumber);
         await db.SaveChangesAsync();
         return Ok(MapCustomer(customer));
     }
@@ -158,6 +162,7 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
     private static void ApplyCustomer(Customer customer, SaveCustomerRequest request, string displayName)
     {
         customer.Name = displayName;
+        customer.CustomerNumber = string.IsNullOrWhiteSpace(request.CustomerNumber) ? customer.CustomerNumber : request.CustomerNumber.Trim();
         customer.FirstName = (request.FirstName ?? string.Empty).Trim();
         customer.LastName = (request.LastName ?? string.Empty).Trim();
         customer.Street = (request.Street ?? string.Empty).Trim();
@@ -174,6 +179,7 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
         return new CustomerListItemDto
         {
             CustomerId = customer.CustomerId,
+            CustomerNumber = customer.CustomerNumber,
             Name = customer.Name,
             FirstName = customer.FirstName,
             LastName = customer.LastName,
@@ -187,6 +193,43 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
         };
     }
 
+    private async Task<string> EnsureCustomerNumberAsync(int tenantId, string? requestedCustomerNumber, int? currentCustomerId = null, string? existingCustomerNumber = null)
+    {
+        var candidate = string.IsNullOrWhiteSpace(requestedCustomerNumber)
+            ? (string.IsNullOrWhiteSpace(existingCustomerNumber) ? null : existingCustomerNumber.Trim())
+            : requestedCustomerNumber.Trim();
+
+        if (!string.IsNullOrWhiteSpace(candidate))
+        {
+            var duplicateExists = await db.Customers.AnyAsync(x =>
+                x.TenantId == tenantId
+                && x.CustomerNumber == candidate
+                && (!currentCustomerId.HasValue || x.CustomerId != currentCustomerId.Value),
+                HttpContext.RequestAborted);
+
+            if (!duplicateExists)
+            {
+                return candidate;
+            }
+        }
+
+        var tenant = await db.Tenants.FirstAsync(x => x.TenantId == tenantId, HttpContext.RequestAborted);
+        while (true)
+        {
+            var generated = $"K-{tenant.NextCustomerNumber:D5}";
+            tenant.NextCustomerNumber++;
+            var exists = await db.Customers.AnyAsync(x =>
+                x.TenantId == tenantId
+                && x.CustomerNumber == generated
+                && (!currentCustomerId.HasValue || x.CustomerId != currentCustomerId.Value),
+                HttpContext.RequestAborted);
+            if (!exists)
+            {
+                return generated;
+            }
+        }
+    }
+
     internal static ProjectListItemDto MapProjectListItem(Project project, string? customerName = null)
     {
         return new ProjectListItemDto
@@ -197,6 +240,63 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
             Name = project.Name,
             OpenWorkItems = project.WorkTimeEntries.Count(w => !w.IsPaid),
             LoggedHours = project.WorkTimeEntries.Sum(w => (decimal?)w.HoursWorked) ?? 0m
+        };
+    }
+}
+
+[Authorize]
+[ApiController]
+[Route("api/company-profile")]
+public class CompanyProfileController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<CompanyProfileDto>> GetProfile()
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var tenant = await db.Tenants.FirstAsync(x => x.TenantId == tenantId, HttpContext.RequestAborted);
+        return Ok(MapProfile(tenant));
+    }
+
+    [HttpPut]
+    public async Task<ActionResult<CompanyProfileDto>> SaveProfile([FromBody] SaveCompanyProfileRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var tenant = await db.Tenants.FirstAsync(x => x.TenantId == tenantId, HttpContext.RequestAborted);
+        tenant.Name = request.CompanyName.Trim();
+        tenant.CompanyStreet = request.CompanyStreet.Trim();
+        tenant.CompanyHouseNumber = request.CompanyHouseNumber.Trim();
+        tenant.CompanyPostalCode = request.CompanyPostalCode.Trim();
+        tenant.CompanyCity = request.CompanyCity.Trim();
+        tenant.CompanyEmailAddress = (request.CompanyEmailAddress ?? string.Empty).Trim();
+        tenant.CompanyPhoneNumber = request.CompanyPhoneNumber.Trim();
+        tenant.TaxNumber = request.TaxNumber.Trim();
+        tenant.BankName = request.BankName.Trim();
+        tenant.BankIban = request.BankIban.Trim();
+        tenant.BankBic = request.BankBic.Trim();
+        tenant.NextRevenueInvoiceNumber = Math.Max(1, request.NextRevenueInvoiceNumber);
+        tenant.NextCustomerNumber = Math.Max(1, request.NextCustomerNumber);
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(MapProfile(tenant));
+    }
+
+    private static CompanyProfileDto MapProfile(Tenant tenant)
+    {
+        return new CompanyProfileDto
+        {
+            CompanyName = tenant.Name,
+            CompanyStreet = tenant.CompanyStreet,
+            CompanyHouseNumber = tenant.CompanyHouseNumber,
+            CompanyPostalCode = tenant.CompanyPostalCode,
+            CompanyCity = tenant.CompanyCity,
+            CompanyEmailAddress = tenant.CompanyEmailAddress,
+            CompanyPhoneNumber = tenant.CompanyPhoneNumber,
+            TaxNumber = tenant.TaxNumber,
+            BankName = tenant.BankName,
+            BankIban = tenant.BankIban,
+            BankBic = tenant.BankBic,
+            NextRevenueInvoiceNumber = tenant.NextRevenueInvoiceNumber,
+            NextCustomerNumber = tenant.NextCustomerNumber,
+            RevenueInvoiceNumberPreview = $"RE-{DateTime.Today:yyyy}-{tenant.NextRevenueInvoiceNumber:D4}"
         };
     }
 }
@@ -374,6 +474,7 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
                 HourlyRate = x.HourlyRate,
                 TravelKilometers = x.TravelKilometers,
                 TravelRatePerKilometer = x.TravelRatePerKilometer,
+                RevenueInvoiceId = x.RevenueInvoiceId,
                 Description = x.Description,
                 Comment = x.Comment,
                 CustomerInvoiceNumber = x.CustomerInvoiceNumber,
@@ -617,6 +718,27 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
         return Ok(await GetMappedEntryAsync(entryId, tenantId));
     }
 
+    [HttpPut("{entryId:int}/revenue-link")]
+    public async Task<IActionResult> UpdateRevenueLink(int entryId, [FromBody] UpdateRevenueLinkRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (entry is null)
+        {
+            return NotFound();
+        }
+
+        entry.RevenueInvoiceId = request.RevenueInvoiceId;
+        if (request.MarkInvoiced)
+        {
+            entry.CustomerInvoiceNumber = string.IsNullOrWhiteSpace(request.RevenueInvoiceNumber) ? entry.CustomerInvoiceNumber : request.RevenueInvoiceNumber.Trim();
+            entry.CustomerInvoicedAt ??= DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return NoContent();
+    }
+
     [HttpPut("{entryId:int}")]
     public async Task<ActionResult<WorkTimeEntryListItemDto>> UpdateEntry(int entryId, [FromBody] SaveWorkTimeEntryRequest request)
     {
@@ -702,6 +824,7 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
                 HourlyRate = x.HourlyRate,
                 TravelKilometers = x.TravelKilometers,
                 TravelRatePerKilometer = x.TravelRatePerKilometer,
+                RevenueInvoiceId = x.RevenueInvoiceId,
                 Description = x.Description,
                 Comment = x.Comment,
                 CustomerInvoiceNumber = x.CustomerInvoiceNumber,

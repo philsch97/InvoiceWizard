@@ -1,0 +1,68 @@
+<Window x:Class="InvoiceWizard.Dialogs.GenerateInvoiceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rechnung erzeugen"
+        Width="620"
+        Height="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock x:Name="DialogTitleText" Text="Rechnung erzeugen" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
+            <TextBlock x:Name="DialogHintText" Text="Die Rechnungsnummer wird automatisch eindeutig vergeben. Lieferdatum und Betreff kannst du vor dem Export noch anpassen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,18,0,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Margin="0,0,8,14">
+                <TextBlock Text="Rechnungsnummer" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="InvoiceNumberText" IsReadOnly="True"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,14">
+                <TextBlock Text="Kundennummer" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="CustomerNumberText" IsReadOnly="True"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="CustomerNameText" IsReadOnly="True"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Margin="0,0,8,14">
+                <TextBlock Text="Rechnungsdatum" Style="{StaticResource MutedLabelStyle}"/>
+                <DatePicker x:Name="InvoiceDatePicker" IsEnabled="False"/>
+            </StackPanel>
+            <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,14">
+                <TextBlock Text="Lieferdatum" Style="{StaticResource MutedLabelStyle}"/>
+                <DatePicker x:Name="DeliveryDatePicker"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="3" Grid.ColumnSpan="2">
+                <TextBlock Text="Betreff / Einleitung" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="SubjectText" AcceptsReturn="True" TextWrapping="Wrap" Height="120" VerticalScrollBarVisibility="Auto"/>
+                <CheckBox x:Name="SmallBusinessCheck" Content="Umsatzsteuerfreie Leistungen gemaess §19 UStG ausgeben" Margin="0,14,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <WrapPanel Grid.Row="2" HorizontalAlignment="Right">
+            <Button x:Name="ConfirmButton" Width="170" Height="40" Margin="0,0,10,0" Content="Rechnung erzeugen" Click="Confirm_Click"/>
+            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
+        </WrapPanel>
+    </Grid>
+</Window>

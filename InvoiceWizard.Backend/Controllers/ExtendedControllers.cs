@@ -13,6 +13,54 @@ namespace InvoiceWizard.Backend.Controllers;
 [Route("api/invoices")]
 public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor, IWebHostEnvironment environment) : ControllerBase
 {
+    [HttpPost("reserve-revenue-number")]
+    public async Task<ActionResult<ReserveRevenueInvoiceNumberResponse>> ReserveRevenueInvoiceNumber([FromBody] ReserveRevenueInvoiceNumberRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var tenant = await db.Tenants.FirstAsync(x => x.TenantId == tenantId, HttpContext.RequestAborted);
+        var customer = await db.Customers.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == request.CustomerId, HttpContext.RequestAborted);
+        if (customer is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(customer.CustomerNumber))
+        {
+            while (true)
+            {
+                var generatedCustomerNumber = $"K-{tenant.NextCustomerNumber:D5}";
+                tenant.NextCustomerNumber++;
+                var customerNumberExists = await db.Customers.AnyAsync(x => x.TenantId == tenantId && x.CustomerNumber == generatedCustomerNumber, HttpContext.RequestAborted);
+                if (!customerNumberExists)
+                {
+                    customer.CustomerNumber = generatedCustomerNumber;
+                    break;
+                }
+            }
+        }
+
+        string invoiceNumber;
+        while (true)
+        {
+            invoiceNumber = $"RE-{DateTime.Today:yyyy}-{tenant.NextRevenueInvoiceNumber:D4}";
+            tenant.NextRevenueInvoiceNumber++;
+            var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.InvoiceDirection == "Revenue" && x.InvoiceNumber == invoiceNumber, HttpContext.RequestAborted);
+            if (!exists)
+            {
+                break;
+            }
+        }
+
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(new ReserveRevenueInvoiceNumberResponse
+        {
+            InvoiceNumber = invoiceNumber,
+            CustomerId = customer.CustomerId,
+            CustomerName = customer.Name,
+            CustomerNumber = customer.CustomerNumber
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> SaveInvoice([FromBody] SaveInvoiceRequest request)
     {
@@ -28,16 +76,32 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return Conflict(new { message = "Invoice already exists." });
         }
 
+        if (request.CustomerId.HasValue)
+        {
+            var customerExists = await db.Customers.AnyAsync(x => x.TenantId == tenantId && x.CustomerId == request.CustomerId.Value, HttpContext.RequestAborted);
+            if (!customerExists)
+            {
+                return ValidationProblem("Der ausgewaehlte Kunde wurde nicht gefunden.");
+            }
+        }
+
         var fallbackNumber = $"MANUELL-{DateTime.UtcNow:yyyyMMddHHmmss}";
         var invoice = new Invoice
         {
             TenantId = tenantId,
+            CustomerId = request.CustomerId,
             InvoiceDirection = NormalizeInvoiceDirection(request.InvoiceDirection),
+            InvoiceStatus = NormalizeInvoiceStatus(request.InvoiceStatus),
             HasSupplierInvoice = request.HasSupplierInvoice,
             InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? fallbackNumber : request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
+            DeliveryDate = request.DeliveryDate?.Date,
             SupplierName = request.SupplierName.Trim(),
             AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory),
+            Subject = request.Subject.Trim(),
+            ApplySmallBusinessRegulation = request.ApplySmallBusinessRegulation,
+            DraftSavedAt = string.Equals(NormalizeInvoiceStatus(request.InvoiceStatus), "Draft", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
+            FinalizedAt = string.Equals(NormalizeInvoiceStatus(request.InvoiceStatus), "Finalized", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
             InvoiceTotalAmount = decimal.Round(request.InvoiceTotalAmount, 2),
             SourcePdfPath = request.SourcePdfPath.Trim(),
             OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim(),
@@ -83,18 +147,204 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             {
                 InvoiceId = x.InvoiceId,
                 InvoiceDirection = x.InvoiceDirection,
+                InvoiceStatus = x.InvoiceStatus,
                 InvoiceNumber = x.InvoiceNumber,
                 InvoiceDate = x.InvoiceDate,
+                DeliveryDate = x.DeliveryDate,
+                CustomerId = x.CustomerId,
                 SupplierName = x.SupplierName,
                 HasSupplierInvoice = x.HasSupplierInvoice,
                 AccountingCategory = x.AccountingCategory,
+                Subject = x.Subject,
+                ApplySmallBusinessRegulation = x.ApplySmallBusinessRegulation,
                 InvoiceTotalAmount = x.InvoiceTotalAmount,
                 OriginalPdfFileName = x.OriginalPdfFileName,
-                HasStoredPdf = !string.IsNullOrWhiteSpace(x.StoredPdfPath)
+                HasStoredPdf = !string.IsNullOrWhiteSpace(x.StoredPdfPath),
+                DraftSavedAt = x.DraftSavedAt,
+                FinalizedAt = x.FinalizedAt,
+                CancelledAt = x.CancelledAt,
+                CancellationReason = x.CancellationReason
             })
             .ToListAsync();
 
         return Ok(items);
+    }
+
+    [HttpGet("{invoiceId:int}")]
+    public async Task<ActionResult<InvoiceDetailDto>> GetInvoice(int invoiceId)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices
+            .Include(x => x.Lines.OrderBy(l => l.Position))
+            .FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(MapInvoiceDetail(invoice));
+    }
+
+    [HttpPut("{invoiceId:int}")]
+    public async Task<ActionResult<InvoiceDetailDto>> UpdateInvoice(int invoiceId, [FromBody] SaveInvoiceRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices.Include(x => x.Lines).FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (!string.Equals(invoice.InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Entwuerfe koennen nachtraeglich bearbeitet werden.");
+        }
+
+        if (request.CustomerId.HasValue)
+        {
+            var customerExists = await db.Customers.AnyAsync(x => x.TenantId == tenantId && x.CustomerId == request.CustomerId.Value, HttpContext.RequestAborted);
+            if (!customerExists)
+            {
+                return ValidationProblem("Der ausgewaehlte Kunde wurde nicht gefunden.");
+            }
+        }
+
+        if (request.Lines.Count == 0 && request.InvoiceTotalAmount <= 0m)
+        {
+            return ValidationProblem("Bitte entweder Positionen erfassen oder einen Rechnungsbetrag ohne Positionen angeben.");
+        }
+
+        invoice.CustomerId = request.CustomerId;
+        invoice.InvoiceDate = request.InvoiceDate.Date;
+        invoice.DeliveryDate = request.DeliveryDate?.Date;
+        invoice.SupplierName = request.SupplierName.Trim();
+        invoice.AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory);
+        invoice.Subject = request.Subject.Trim();
+        invoice.ApplySmallBusinessRegulation = request.ApplySmallBusinessRegulation;
+        invoice.InvoiceTotalAmount = decimal.Round(request.InvoiceTotalAmount, 2);
+        invoice.SourcePdfPath = request.SourcePdfPath.Trim();
+        invoice.OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim();
+        invoice.ContentHash = request.ContentHash.Trim();
+        invoice.DraftSavedAt = DateTime.UtcNow;
+
+        db.InvoiceLines.RemoveRange(invoice.Lines);
+        invoice.Lines = request.Lines.Select(line => new InvoiceLine
+        {
+            TenantId = tenantId,
+            Position = line.Position,
+            ArticleNumber = line.ArticleNumber,
+            Ean = line.Ean,
+            Description = line.Description,
+            Quantity = line.Quantity,
+            Unit = line.Unit,
+            NetUnitPrice = line.NetUnitPrice,
+            MetalSurcharge = line.MetalSurcharge,
+            GrossListPrice = line.GrossListPrice,
+            PriceBasisQuantity = line.PriceBasisQuantity,
+            LineTotal = line.LineTotal
+        }).ToList();
+
+        if (!string.IsNullOrWhiteSpace(request.PdfContentBase64))
+        {
+            if (!string.IsNullOrWhiteSpace(invoice.StoredPdfPath) && System.IO.File.Exists(invoice.StoredPdfPath))
+            {
+                System.IO.File.Delete(invoice.StoredPdfPath);
+            }
+
+            invoice.StoredPdfPath = await SavePdfAsync(tenantId, invoice.InvoiceId, invoice.OriginalPdfFileName, request.PdfContentBase64, HttpContext.RequestAborted);
+        }
+
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(MapInvoiceDetail(invoice));
+    }
+
+    [HttpPost("{invoiceId:int}/finalize")]
+    public async Task<ActionResult<InvoiceDetailDto>> FinalizeInvoice(int invoiceId)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices.FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (!string.Equals(invoice.InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Entwuerfe koennen finalisiert werden.");
+        }
+
+        invoice.InvoiceStatus = "Finalized";
+        invoice.FinalizedAt = DateTime.UtcNow;
+
+        var allocations = await db.LineAllocations.Where(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId).ToListAsync(HttpContext.RequestAborted);
+        foreach (var allocation in allocations)
+        {
+            allocation.CustomerInvoiceNumber = invoice.InvoiceNumber;
+            allocation.CustomerInvoicedAt ??= invoice.FinalizedAt;
+        }
+
+        var workEntries = await db.WorkTimeEntries.Where(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId).ToListAsync(HttpContext.RequestAborted);
+        foreach (var workEntry in workEntries)
+        {
+            workEntry.CustomerInvoiceNumber = invoice.InvoiceNumber;
+            workEntry.CustomerInvoicedAt ??= invoice.FinalizedAt;
+        }
+
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+
+        var updated = await db.Invoices.Include(x => x.Lines.OrderBy(l => l.Position)).FirstAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        return Ok(MapInvoiceDetail(updated));
+    }
+
+    [HttpPost("{invoiceId:int}/cancel")]
+    public async Task<ActionResult<InvoiceDetailDto>> CancelInvoice(int invoiceId, [FromBody] CancelInvoiceRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices.FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (string.Equals(invoice.InvoiceStatus, "Cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Diese Rechnung wurde bereits storniert.");
+        }
+
+        var hasBankAssignments = await db.BankTransactionAssignments.AnyAsync(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId, HttpContext.RequestAborted);
+        if (hasBankAssignments)
+        {
+            return ValidationProblem("Diese Rechnung hat bereits Zahlungszuordnungen. Bitte zuerst die Umsatzzuordnung pruefen oder entfernen.");
+        }
+
+        var allocations = await db.LineAllocations.Where(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId).ToListAsync(HttpContext.RequestAborted);
+        var workEntries = await db.WorkTimeEntries.Where(x => x.TenantId == tenantId && x.RevenueInvoiceId == invoiceId).ToListAsync(HttpContext.RequestAborted);
+        if (allocations.Any(x => x.IsPaid) || workEntries.Any(x => x.IsPaid))
+        {
+            return ValidationProblem("Bereits bezahlte Rechnungen koennen hier nicht storniert werden. Bitte zuerst die Zahlungszuordnung pruefen.");
+        }
+
+        invoice.InvoiceStatus = "Cancelled";
+        invoice.CancelledAt = DateTime.UtcNow;
+        invoice.CancellationReason = request.Reason.Trim();
+
+        foreach (var allocation in allocations)
+        {
+            allocation.RevenueInvoiceId = null;
+            allocation.CustomerInvoiceNumber = null;
+            allocation.CustomerInvoicedAt = null;
+        }
+
+        foreach (var workEntry in workEntries)
+        {
+            workEntry.RevenueInvoiceId = null;
+            workEntry.CustomerInvoiceNumber = null;
+            workEntry.CustomerInvoicedAt = null;
+        }
+
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        var updated = await db.Invoices.Include(x => x.Lines.OrderBy(l => l.Position)).FirstAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        return Ok(MapInvoiceDetail(updated));
     }
 
     [HttpGet("{invoiceId:int}/pdf")]
@@ -180,6 +430,57 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         {
             "Revenue" => "Revenue",
             _ => "Expense"
+        };
+    }
+
+    private static string NormalizeInvoiceStatus(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized switch
+        {
+            "Draft" => "Draft",
+            "Cancelled" => "Cancelled",
+            _ => "Finalized"
+        };
+    }
+
+    private static InvoiceDetailDto MapInvoiceDetail(Invoice invoice)
+    {
+        return new InvoiceDetailDto
+        {
+            InvoiceId = invoice.InvoiceId,
+            InvoiceDirection = invoice.InvoiceDirection,
+            InvoiceStatus = invoice.InvoiceStatus,
+            InvoiceNumber = invoice.InvoiceNumber,
+            InvoiceDate = invoice.InvoiceDate,
+            DeliveryDate = invoice.DeliveryDate,
+            CustomerId = invoice.CustomerId,
+            SupplierName = invoice.SupplierName,
+            HasSupplierInvoice = invoice.HasSupplierInvoice,
+            AccountingCategory = invoice.AccountingCategory,
+            Subject = invoice.Subject,
+            ApplySmallBusinessRegulation = invoice.ApplySmallBusinessRegulation,
+            InvoiceTotalAmount = invoice.InvoiceTotalAmount,
+            OriginalPdfFileName = invoice.OriginalPdfFileName,
+            HasStoredPdf = !string.IsNullOrWhiteSpace(invoice.StoredPdfPath),
+            DraftSavedAt = invoice.DraftSavedAt,
+            FinalizedAt = invoice.FinalizedAt,
+            CancelledAt = invoice.CancelledAt,
+            CancellationReason = invoice.CancellationReason,
+            Lines = invoice.Lines.OrderBy(x => x.Position).Select(x => new SaveInvoiceLineRequest
+            {
+                Position = x.Position,
+                ArticleNumber = x.ArticleNumber,
+                Ean = x.Ean,
+                Description = x.Description,
+                Quantity = x.Quantity,
+                Unit = x.Unit,
+                NetUnitPrice = x.NetUnitPrice,
+                MetalSurcharge = x.MetalSurcharge,
+                GrossListPrice = x.GrossListPrice,
+                PriceBasisQuantity = x.PriceBasisQuantity,
+                LineTotal = x.LineTotal
+            }).ToList()
         };
     }
 
@@ -286,6 +587,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             ProjectName = allocation.Project?.Name,
             AllocatedQuantity = allocation.AllocatedQuantity,
             CustomerUnitPrice = allocation.CustomerUnitPrice,
+            RevenueInvoiceId = allocation.RevenueInvoiceId,
             IsSmallMaterial = allocation.IsSmallMaterial,
             AllocatedAt = allocation.AllocatedAt,
             CustomerInvoiceNumber = allocation.CustomerInvoiceNumber,
@@ -347,6 +649,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 ProjectName = x.Project != null ? x.Project.Name : null,
                 AllocatedQuantity = x.AllocatedQuantity,
                 CustomerUnitPrice = x.CustomerUnitPrice,
+                RevenueInvoiceId = x.RevenueInvoiceId,
                 IsSmallMaterial = x.IsSmallMaterial,
                 AllocatedAt = x.AllocatedAt,
                 CustomerInvoiceNumber = x.CustomerInvoiceNumber,
@@ -444,6 +747,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 ProjectName = x.Project != null ? x.Project.Name : null,
                 AllocatedQuantity = x.AllocatedQuantity,
                 CustomerUnitPrice = x.CustomerUnitPrice,
+                RevenueInvoiceId = x.RevenueInvoiceId,
                 IsSmallMaterial = x.IsSmallMaterial,
                 AllocatedAt = x.AllocatedAt,
                 CustomerInvoiceNumber = x.CustomerInvoiceNumber,
@@ -523,6 +827,27 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
         allocation.ExportedLineTotal = request.ExportedLineTotal;
         allocation.LastExportedAt = request.LastExportedAt ?? DateTime.UtcNow;
         await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("{allocationId:int}/revenue-link")]
+    public async Task<IActionResult> UpdateRevenueLink(int allocationId, [FromBody] UpdateRevenueLinkRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var allocation = await db.LineAllocations.FirstOrDefaultAsync(x => x.LineAllocationId == allocationId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (allocation is null)
+        {
+            return NotFound();
+        }
+
+        allocation.RevenueInvoiceId = request.RevenueInvoiceId;
+        if (request.MarkInvoiced)
+        {
+            allocation.CustomerInvoiceNumber = string.IsNullOrWhiteSpace(request.RevenueInvoiceNumber) ? allocation.CustomerInvoiceNumber : request.RevenueInvoiceNumber.Trim();
+            allocation.CustomerInvoicedAt ??= DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
         return NoContent();
     }
 

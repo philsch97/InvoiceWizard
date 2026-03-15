@@ -526,7 +526,7 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         var assignedLookup = assignments.ToDictionary(x => x.InvoiceId, x => x.AssignedAmount);
 
         var invoices = await db.Invoices
-            .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Revenue")
+            .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Revenue" && x.InvoiceStatus == "Finalized")
             .Include(x => x.Lines)
             .OrderByDescending(x => x.InvoiceDate)
             .ToListAsync(HttpContext.RequestAborted);
