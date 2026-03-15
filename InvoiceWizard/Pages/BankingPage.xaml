@@ -1,0 +1,152 @@
+<Page x:Class="InvoiceWizard.BankingPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="BankingPage">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Bank und Zahlungen" Style="{StaticResource PageTitleStyle}"/>
+                    <TextBlock Text="Importiere CSV-Kontoauszuege, pruefe Buchungen und ordne sie Kunden- oder Lieferantenrechnungen zu." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Margin="0,0,16,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="180"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="Konto" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBlock x:Name="AccountNameText" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="AccountIbanText" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Aktueller Kontostand" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBlock x:Name="CurrentBalanceText" FontSize="24" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="LastBookingText" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Buchungen" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBlock x:Name="TransactionCountText" FontSize="24" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                            <CheckBox x:Name="ShowAssignedCheckBox" Margin="0,10,0,0" Content="Bereits zugeordnete anzeigen" Checked="ShowAssignedCheckBox_Changed" Unchecked="ShowAssignedCheckBox_Changed"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <WrapPanel Grid.Column="1" VerticalAlignment="Center">
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Content="CSV-Kontoauszug importieren" Click="ImportCsv_Click"/>
+                        <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <TextBlock x:Name="ImportInfoText" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+            </Border>
+
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.35*"/>
+                    <ColumnDefinition Width="0.95*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,16,0">
+                    <StackPanel>
+                        <TextBlock Text="Bankbuchungen" Style="{StaticResource SectionTitleStyle}"/>
+                        <DataGrid x:Name="TransactionsGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="460" SelectionChanged="TransactionsGrid_SelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Datum" Binding="{Binding BookingDate, StringFormat=dd.MM.yyyy}" Width="100"/>
+                                <DataGridTextColumn Header="Richtung" Binding="{Binding DirectionLabel}" Width="90"/>
+                                <DataGridTextColumn Header="Betrag" Binding="{Binding AmountLabel}" Width="110"/>
+                                <DataGridTextColumn Header="Saldo" Binding="{Binding BalanceAfterBooking, StringFormat=N2}" Width="110"/>
+                                <DataGridTextColumn Header="Gegenpartei" Binding="{Binding CounterpartyName}" Width="180"/>
+                                <DataGridTextColumn Header="Verwendungszweck" Binding="{Binding Purpose}" Width="*"/>
+                                <DataGridTextColumn Header="Zuordnung" Binding="{Binding AssignmentSummary}" Width="220"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="1">
+                    <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Ausgewaehlte Buchung" Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock x:Name="SelectedTransactionText" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="SelectedTransactionDetailsText" Margin="0,10,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Zuordnungen" Style="{StaticResource SectionTitleStyle}"/>
+                            <DataGrid x:Name="AssignmentsGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="120">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Typ" Binding="{Binding AssignmentTypeLabel}" Width="120"/>
+                                    <DataGridTextColumn Header="Rechnung" Binding="{Binding DisplayNumber}" Width="130"/>
+                                    <DataGridTextColumn Header="Partei" Binding="{Binding PartyName}" Width="*"/>
+                                    <DataGridTextColumn Header="Betrag" Binding="{Binding AssignedAmount, StringFormat=N2}" Width="90"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <Button Width="170" Height="36" Margin="0,14,0,0" HorizontalAlignment="Left" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte Zuordnung loeschen" Click="DeleteAssignment_Click"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Passende Rechnungen" Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock x:Name="CandidateHintText" Margin="0,8,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                            <DataGrid x:Name="CandidatesGrid" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="220">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Typ" Binding="{Binding CandidateTypeLabel}" Width="120"/>
+                                    <DataGridTextColumn Header="Rechnung" Binding="{Binding DisplayNumber}" Width="120"/>
+                                    <DataGridTextColumn Header="Partei" Binding="{Binding PartyName}" Width="*"/>
+                                    <DataGridTextColumn Header="Offen" Binding="{Binding RemainingAmount, StringFormat=N2}" Width="90"/>
+                                    <DataGridTextColumn Header="Treffer" Binding="{Binding MatchScore, StringFormat=N0}" Width="70"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <Grid Margin="0,16,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="Betrag optional" Style="{StaticResource MutedLabelStyle}"/>
+                                    <TextBox x:Name="AssignedAmountText" Margin="0,8,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                    <TextBlock Text="Notiz optional" Style="{StaticResource MutedLabelStyle}"/>
+                                    <TextBox x:Name="AssignmentNoteText" Margin="0,8,0,0"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" Width="160" Height="40" Margin="0,24,0,0" Content="Rechnung zuordnen" Click="AssignCandidate_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Border x:Name="StatusBorder" Grid.Row="4" Margin="0,16,0,0" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+                <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

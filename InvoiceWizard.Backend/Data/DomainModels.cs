@@ -216,3 +216,56 @@ public class CalendarEntry
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
+
+public class BankStatementImport
+{
+    public int BankStatementImportId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public string FileName { get; set; } = "";
+    public string AccountName { get; set; } = "";
+    public string AccountIban { get; set; } = "";
+    public string Currency { get; set; } = "EUR";
+    public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    public List<BankTransaction> Transactions { get; set; } = new();
+}
+
+public class BankTransaction
+{
+    public int BankTransactionId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public int BankStatementImportId { get; set; }
+    public BankStatementImport BankStatementImport { get; set; } = null!;
+    public DateTime BookingDate { get; set; }
+    public DateTime? ValueDate { get; set; }
+    public decimal Amount { get; set; }
+    public decimal? BalanceAfterBooking { get; set; }
+    public string Currency { get; set; } = "EUR";
+    public string CounterpartyName { get; set; } = "";
+    public string CounterpartyIban { get; set; } = "";
+    public string Purpose { get; set; } = "";
+    public string Reference { get; set; } = "";
+    public string TransactionType { get; set; } = "";
+    public string AccountIban { get; set; } = "";
+    public string ContentHash { get; set; } = "";
+    public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+    public List<BankTransactionAssignment> Assignments { get; set; } = new();
+}
+
+public class BankTransactionAssignment
+{
+    public int BankTransactionAssignmentId { get; set; }
+    public int TenantId { get; set; }
+    public Tenant Tenant { get; set; } = null!;
+    public int BankTransactionId { get; set; }
+    public BankTransaction BankTransaction { get; set; } = null!;
+    public int? SupplierInvoiceId { get; set; }
+    public Invoice? SupplierInvoice { get; set; }
+    public string? CustomerInvoiceNumber { get; set; }
+    public int? CustomerId { get; set; }
+    public Customer? Customer { get; set; }
+    public decimal AssignedAmount { get; set; }
+    public string Note { get; set; } = "";
+    public DateTime AssignedAt { get; set; } = DateTime.UtcNow;
+}

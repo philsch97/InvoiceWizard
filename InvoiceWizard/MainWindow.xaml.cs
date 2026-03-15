@@ -95,11 +95,12 @@ public partial class MainWindow : Window
     {
         return new SectionHostPage(
             "Admin",
-            "Hier verwaltest du dein Abo und die Benutzer deiner Firma.",
+            "Hier verwaltest du dein Abo, Benutzer und die Finanzthemen deiner Firma.",
             new[]
             {
                 new SectionNavigationItem { Title = "Abo / Lizenz", CreatePage = () => new SubscriptionPage() },
-                new SectionNavigationItem { Title = "Benutzer", CreatePage = () => new TenantUsersPage() }
+                new SectionNavigationItem { Title = "Benutzer", CreatePage = () => new TenantUsersPage() },
+                new SectionNavigationItem { Title = "Bank / Konto", CreatePage = () => new BankingPage() }
             });
     }
 

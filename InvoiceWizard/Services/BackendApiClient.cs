@@ -334,6 +334,75 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task<BankAccountSummaryEntity> GetBankingSummaryAsync()
+    {
+        var item = await _httpClient.GetFromJsonAsync<BankAccountSummaryDto>("api/banking/summary", _jsonOptions) ?? new BankAccountSummaryDto();
+        return new BankAccountSummaryEntity
+        {
+            TransactionCount = item.TransactionCount,
+            CurrentBalance = item.CurrentBalance,
+            LastBookingDate = item.LastBookingDate,
+            AccountIban = item.AccountIban,
+            AccountName = item.AccountName
+        };
+    }
+
+    public async Task<BankImportResultEntity> ImportBankStatementCsvAsync(string fileName, byte[] fileBytes)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/banking/imports/csv", new
+        {
+            fileName,
+            csvContentBase64 = Convert.ToBase64String(fileBytes)
+        });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<BankImportResultDto>(_jsonOptions) ?? new BankImportResultDto();
+        return new BankImportResultEntity
+        {
+            ImportId = item.ImportId,
+            FileName = item.FileName,
+            AccountName = item.AccountName,
+            AccountIban = item.AccountIban,
+            Currency = item.Currency,
+            ImportedTransactions = item.ImportedTransactions,
+            SkippedTransactions = item.SkippedTransactions,
+            CurrentBalance = item.CurrentBalance,
+            Warnings = item.Warnings ?? []
+        };
+    }
+
+    public async Task<List<BankTransactionEntity>> GetBankTransactionsAsync(bool showAssigned = true)
+    {
+        var items = await _httpClient.GetFromJsonAsync<List<BankTransactionDto>>($"api/banking/transactions?showAssigned={showAssigned.ToString().ToLowerInvariant()}", _jsonOptions) ?? [];
+        return items.Select(MapBankTransaction).ToList();
+    }
+
+    public async Task<List<BankInvoiceCandidateEntity>> GetBankInvoiceCandidatesAsync(int bankTransactionId)
+    {
+        var items = await _httpClient.GetFromJsonAsync<List<BankInvoiceCandidateDto>>($"api/banking/transactions/{bankTransactionId}/candidates", _jsonOptions) ?? [];
+        return items.Select(MapBankInvoiceCandidate).ToList();
+    }
+
+    public async Task<BankTransactionEntity> AssignBankTransactionAsync(int bankTransactionId, BankInvoiceCandidateEntity candidate, decimal? assignedAmount = null, string? note = null)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/banking/transactions/{bankTransactionId}/assignments", new
+        {
+            supplierInvoiceId = candidate.SupplierInvoiceId,
+            customerInvoiceNumber = candidate.CustomerInvoiceNumber,
+            customerId = candidate.CustomerId,
+            assignedAmount,
+            note = note ?? string.Empty
+        });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<BankTransactionDto>(_jsonOptions) ?? new BankTransactionDto();
+        return MapBankTransaction(item);
+    }
+
+    public async Task DeleteBankTransactionAssignmentAsync(int assignmentId)
+    {
+        var response = await _httpClient.DeleteAsync($"api/banking/assignments/{assignmentId}");
+        await EnsureSuccessWithMessageAsync(response);
+    }
+
     public async Task<List<TodoListEntity>> GetTodoListsAsync(int customerId, int? projectId = null)
     {
         var url = projectId.HasValue
@@ -658,6 +727,64 @@ public partial class BackendApiClient
         };
     }
 
+    private static BankTransactionEntity MapBankTransaction(BankTransactionDto item)
+    {
+        return new BankTransactionEntity
+        {
+            BankTransactionId = item.BankTransactionId,
+            ImportId = item.ImportId,
+            BookingDate = item.BookingDate,
+            ValueDate = item.ValueDate,
+            Amount = item.Amount,
+            BalanceAfterBooking = item.BalanceAfterBooking,
+            Currency = item.Currency,
+            CounterpartyName = item.CounterpartyName,
+            CounterpartyIban = item.CounterpartyIban,
+            Purpose = item.Purpose,
+            Reference = item.Reference,
+            TransactionType = item.TransactionType,
+            AccountIban = item.AccountIban,
+            ImportFileName = item.ImportFileName,
+            ImportedAt = item.ImportedAt,
+            AssignedAmount = item.AssignedAmount,
+            RemainingAmount = item.RemainingAmount,
+            Assignments = item.Assignments.Select(x => new BankTransactionAssignmentEntity
+            {
+                BankTransactionAssignmentId = x.BankTransactionAssignmentId,
+                BankTransactionId = x.BankTransactionId,
+                AssignmentType = x.AssignmentType,
+                SupplierInvoiceId = x.SupplierInvoiceId,
+                SupplierInvoiceNumber = x.SupplierInvoiceNumber,
+                CustomerInvoiceNumber = x.CustomerInvoiceNumber,
+                CustomerId = x.CustomerId,
+                PartyName = x.PartyName,
+                AssignedAmount = x.AssignedAmount,
+                Note = x.Note,
+                AssignedAt = x.AssignedAt
+            }).ToList()
+        };
+    }
+
+    private static BankInvoiceCandidateEntity MapBankInvoiceCandidate(BankInvoiceCandidateDto item)
+    {
+        return new BankInvoiceCandidateEntity
+        {
+            CandidateType = item.CandidateType,
+            SupplierInvoiceId = item.SupplierInvoiceId,
+            SupplierInvoiceNumber = item.SupplierInvoiceNumber,
+            CustomerInvoiceNumber = item.CustomerInvoiceNumber,
+            CustomerId = item.CustomerId,
+            PartyName = item.PartyName,
+            InvoiceDate = item.InvoiceDate,
+            TotalAmount = item.TotalAmount,
+            AssignedAmount = item.AssignedAmount,
+            RemainingAmount = item.RemainingAmount,
+            IsPaid = item.IsPaid,
+            MatchScore = item.MatchScore,
+            MatchReason = item.MatchReason
+        };
+    }
+
     private static TodoListEntity MapTodoList(TodoListDto item)
     {
         return new TodoListEntity
@@ -908,6 +1035,11 @@ public partial class BackendApiClient
     public class ProjectDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public int OpenWorkItems { get; set; } public decimal LoggedHours { get; set; } }
     private class ProjectDetailsDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public bool ConnectionUserSameAsCustomer { get; set; } public string ConnectionUserFirstName { get; set; } = ""; public string ConnectionUserLastName { get; set; } = ""; public string ConnectionUserStreet { get; set; } = ""; public string ConnectionUserHouseNumber { get; set; } = ""; public string ConnectionUserPostalCode { get; set; } = ""; public string ConnectionUserCity { get; set; } = ""; public string ConnectionUserParcelNumber { get; set; } = ""; public string ConnectionUserEmailAddress { get; set; } = ""; public string ConnectionUserPhoneNumber { get; set; } = ""; public bool PropertyOwnerSameAsCustomer { get; set; } public string PropertyOwnerFirstName { get; set; } = ""; public string PropertyOwnerLastName { get; set; } = ""; public string PropertyOwnerStreet { get; set; } = ""; public string PropertyOwnerHouseNumber { get; set; } = ""; public string PropertyOwnerPostalCode { get; set; } = ""; public string PropertyOwnerCity { get; set; } = ""; public string PropertyOwnerEmailAddress { get; set; } = ""; public string PropertyOwnerPhoneNumber { get; set; } = ""; }
     private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int? AppUserId { get; set; } public string? UserDisplayName { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public bool IsClockActive { get; set; } public DateTime? PauseStartedAtUtc { get; set; } public decimal LineTotal { get; set; } }
+    private class BankAccountSummaryDto { public int TransactionCount { get; set; } public decimal? CurrentBalance { get; set; } public DateTime? LastBookingDate { get; set; } public string AccountIban { get; set; } = ""; public string AccountName { get; set; } = ""; }
+    private class BankImportResultDto { public int ImportId { get; set; } public string FileName { get; set; } = ""; public string AccountName { get; set; } = ""; public string AccountIban { get; set; } = ""; public string Currency { get; set; } = "EUR"; public int ImportedTransactions { get; set; } public int SkippedTransactions { get; set; } public decimal? CurrentBalance { get; set; } public List<string>? Warnings { get; set; } }
+    private class BankTransactionDto { public int BankTransactionId { get; set; } public int ImportId { get; set; } public DateTime BookingDate { get; set; } public DateTime? ValueDate { get; set; } public decimal Amount { get; set; } public decimal? BalanceAfterBooking { get; set; } public string Currency { get; set; } = "EUR"; public string CounterpartyName { get; set; } = ""; public string CounterpartyIban { get; set; } = ""; public string Purpose { get; set; } = ""; public string Reference { get; set; } = ""; public string TransactionType { get; set; } = ""; public string AccountIban { get; set; } = ""; public string ImportFileName { get; set; } = ""; public DateTime ImportedAt { get; set; } public decimal AssignedAmount { get; set; } public decimal RemainingAmount { get; set; } public List<BankTransactionAssignmentDto> Assignments { get; set; } = []; }
+    private class BankTransactionAssignmentDto { public int BankTransactionAssignmentId { get; set; } public int BankTransactionId { get; set; } public string AssignmentType { get; set; } = ""; public int? SupplierInvoiceId { get; set; } public string? SupplierInvoiceNumber { get; set; } public string? CustomerInvoiceNumber { get; set; } public int? CustomerId { get; set; } public string PartyName { get; set; } = ""; public decimal AssignedAmount { get; set; } public string Note { get; set; } = ""; public DateTime AssignedAt { get; set; } }
+    private class BankInvoiceCandidateDto { public string CandidateType { get; set; } = ""; public int? SupplierInvoiceId { get; set; } public string? SupplierInvoiceNumber { get; set; } public string? CustomerInvoiceNumber { get; set; } public int? CustomerId { get; set; } public string PartyName { get; set; } = ""; public DateTime InvoiceDate { get; set; } public decimal TotalAmount { get; set; } public decimal AssignedAmount { get; set; } public decimal RemainingAmount { get; set; } public bool IsPaid { get; set; } public decimal MatchScore { get; set; } public string MatchReason { get; set; } = ""; }
     private class TodoListDto { public int TodoListId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public string Title { get; set; } = ""; public DateTime CreatedAt { get; set; } public DateTime UpdatedAt { get; set; } public int OpenItemCount { get; set; } public int CompletedItemCount { get; set; } public List<TodoItemDto> Items { get; set; } = []; public List<TodoAttachmentDto> Attachments { get; set; } = []; }
     private class TodoItemDto { public int TodoItemId { get; set; } public int TodoListId { get; set; } public int? ParentTodoItemId { get; set; } public string Text { get; set; } = ""; public bool IsCompleted { get; set; } public int SortOrder { get; set; } public List<TodoItemDto> Children { get; set; } = []; }
     private class TodoAttachmentDto { public int TodoAttachmentId { get; set; } public string FileName { get; set; } = ""; public string ContentType { get; set; } = ""; public string Caption { get; set; } = ""; public long FileSize { get; set; } public DateTime UploadedAt { get; set; } public string DownloadUrl { get; set; } = ""; }
