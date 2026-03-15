@@ -145,11 +145,18 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
     }
 
     [HttpGet("transactions")]
-    public async Task<ActionResult<IReadOnlyList<BankTransactionListItemDto>>> GetTransactions([FromQuery] bool showAssigned = true)
+    public async Task<ActionResult<IReadOnlyList<BankTransactionListItemDto>>> GetTransactions([FromQuery] bool showAssigned = true, [FromQuery] bool showIgnored = false)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        var transactions = await db.BankTransactions
-            .Where(x => x.TenantId == tenantId)
+        var query = db.BankTransactions
+            .Where(x => x.TenantId == tenantId);
+
+        if (!showIgnored)
+        {
+            query = query.Where(x => !x.IsIgnored);
+        }
+
+        var transactions = await query
             .Include(x => x.BankStatementImport)
             .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
             .Include(x => x.Assignments).ThenInclude(x => x.Customer)
@@ -166,6 +173,71 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         return Ok(result);
     }
 
+    [HttpPut("transactions/{bankTransactionId:int}/ignore")]
+    public async Task<ActionResult<BankTransactionListItemDto>> IgnoreTransaction(int bankTransactionId, [FromBody] IgnoreBankTransactionRequest request)
+    {
+        if (!User.IsInRole(TenantRoles.Admin))
+        {
+            return Forbid();
+        }
+
+        var comment = (request.Comment ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            return ValidationProblem("Bitte einen Kommentar eingeben, warum der Umsatz ignoriert wird.");
+        }
+
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var transaction = await db.BankTransactions
+            .Where(x => x.BankTransactionId == bankTransactionId && x.TenantId == tenantId)
+            .Include(x => x.BankStatementImport)
+            .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.Customer)
+            .FirstOrDefaultAsync(HttpContext.RequestAborted);
+        if (transaction is null)
+        {
+            return NotFound();
+        }
+
+        if (transaction.Assignments.Count > 0)
+        {
+            return ValidationProblem("Zugeordnete Buchungen koennen nicht ignoriert werden. Bitte zuerst die Zuordnungen loeschen.");
+        }
+
+        transaction.IsIgnored = true;
+        transaction.IgnoredComment = comment;
+        transaction.IgnoredAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(MapTransaction(transaction));
+    }
+
+    [HttpDelete("transactions/{bankTransactionId:int}/ignore")]
+    public async Task<ActionResult<BankTransactionListItemDto>> UnignoreTransaction(int bankTransactionId)
+    {
+        if (!User.IsInRole(TenantRoles.Admin))
+        {
+            return Forbid();
+        }
+
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var transaction = await db.BankTransactions
+            .Where(x => x.BankTransactionId == bankTransactionId && x.TenantId == tenantId)
+            .Include(x => x.BankStatementImport)
+            .Include(x => x.Assignments).ThenInclude(x => x.SupplierInvoice)
+            .Include(x => x.Assignments).ThenInclude(x => x.Customer)
+            .FirstOrDefaultAsync(HttpContext.RequestAborted);
+        if (transaction is null)
+        {
+            return NotFound();
+        }
+
+        transaction.IsIgnored = false;
+        transaction.IgnoredComment = string.Empty;
+        transaction.IgnoredAt = null;
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(MapTransaction(transaction));
+    }
+
     [HttpGet("transactions/{bankTransactionId:int}/candidates")]
     public async Task<ActionResult<IReadOnlyList<BankInvoiceCandidateDto>>> GetCandidates(int bankTransactionId)
     {
@@ -176,6 +248,11 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         if (transaction is null)
         {
             return NotFound();
+        }
+
+        if (transaction.IsIgnored)
+        {
+            return Ok(Array.Empty<BankInvoiceCandidateDto>());
         }
 
         var candidates = transaction.Amount >= 0m
@@ -211,6 +288,11 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
         }
 
         var directionIsIncoming = transaction.Amount >= 0m;
+        if (transaction.IsIgnored)
+        {
+            return ValidationProblem("Ignorierte Buchungen koennen nicht zugeordnet werden.");
+        }
+
         if (directionIsIncoming && string.IsNullOrWhiteSpace(request.CustomerInvoiceNumber))
         {
             return ValidationProblem("Eingehende Buchungen koennen nur Kundenrechnungen zugewiesen werden.");
@@ -553,6 +635,9 @@ public class BankingController(InvoiceWizardDbContext db, ICurrentTenantAccessor
             AccountIban = transaction.AccountIban,
             ImportFileName = transaction.BankStatementImport.FileName,
             ImportedAt = transaction.ImportedAt,
+            IsIgnored = transaction.IsIgnored,
+            IgnoredComment = transaction.IgnoredComment,
+            IgnoredAt = transaction.IgnoredAt,
             AssignedAmount = assignedAmount,
             RemainingAmount = CalculateRemainingAmount(transaction.Amount, assignedAmount),
             Assignments = transaction.Assignments

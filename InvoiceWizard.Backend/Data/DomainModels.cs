@@ -249,6 +249,9 @@ public class BankTransaction
     public string TransactionType { get; set; } = "";
     public string AccountIban { get; set; } = "";
     public string ContentHash { get; set; } = "";
+    public bool IsIgnored { get; set; }
+    public string IgnoredComment { get; set; } = "";
+    public DateTime? IgnoredAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
     public List<BankTransactionAssignment> Assignments { get; set; } = new();
 }

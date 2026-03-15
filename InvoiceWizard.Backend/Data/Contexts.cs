@@ -131,6 +131,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<BankTransaction>().Property(x => x.TransactionType).HasMaxLength(120);
         modelBuilder.Entity<BankTransaction>().Property(x => x.AccountIban).HasMaxLength(64);
         modelBuilder.Entity<BankTransaction>().Property(x => x.ContentHash).HasMaxLength(200);
+        modelBuilder.Entity<BankTransaction>().Property(x => x.IgnoredComment).HasMaxLength(500);
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.CustomerInvoiceNumber).HasMaxLength(120);
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.AssignedAmount).HasColumnType("numeric(12,2)");
         modelBuilder.Entity<BankTransactionAssignment>().Property(x => x.Note).HasMaxLength(500);

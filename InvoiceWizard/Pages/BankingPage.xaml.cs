@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using InvoiceWizard.Data.Entities;
+using InvoiceWizard.Dialogs;
 using Microsoft.Win32;
 
 namespace InvoiceWizard;
@@ -25,7 +26,7 @@ public partial class BankingPage : Page
             var summary = await App.Api.GetBankingSummaryAsync();
             PopulateSummary(summary);
 
-            _transactions = await App.Api.GetBankTransactionsAsync(ShowAssignedCheckBox.IsChecked == true);
+            _transactions = await App.Api.GetBankTransactionsAsync(ShowAssignedCheckBox.IsChecked == true, ShowIgnoredCheckBox.IsChecked == true);
             TransactionsGrid.ItemsSource = _transactions;
 
             var selected = selectedTransactionId.HasValue
@@ -65,6 +66,9 @@ public partial class BankingPage : Page
             AssignmentsGrid.ItemsSource = null;
             CandidatesGrid.ItemsSource = null;
             CandidateHintText.Text = "Noch keine Rechnungsvorschlaege geladen.";
+            IgnoredInfoText.Visibility = Visibility.Collapsed;
+            IgnoreTransactionButton.IsEnabled = false;
+            UnignoreTransactionButton.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -72,11 +76,32 @@ public partial class BankingPage : Page
         SelectedTransactionDetailsText.Text = string.IsNullOrWhiteSpace(transaction.Purpose)
             ? $"Import: {transaction.ImportFileName}"
             : $"{transaction.Purpose}\nImport: {transaction.ImportFileName}";
+        if (transaction.IsIgnored)
+        {
+            IgnoredInfoText.Text = $"Dieser Umsatz wurde ignoriert am {(transaction.IgnoredAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "-")}. Grund: {transaction.IgnoredComment}";
+            IgnoredInfoText.Visibility = Visibility.Visible;
+            IgnoreTransactionButton.IsEnabled = false;
+            UnignoreTransactionButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            IgnoredInfoText.Visibility = Visibility.Collapsed;
+            IgnoreTransactionButton.IsEnabled = true;
+            UnignoreTransactionButton.Visibility = Visibility.Collapsed;
+        }
+
         AssignmentsGrid.ItemsSource = transaction.Assignments;
 
         var directionHint = transaction.Amount >= 0m
             ? "Fuer diese eingehende Buchung werden passende Kundenrechnungen vorgeschlagen."
             : "Fuer diese ausgehende Buchung werden passende Lieferantenrechnungen vorgeschlagen.";
+
+        if (transaction.IsIgnored)
+        {
+            CandidatesGrid.ItemsSource = null;
+            CandidateHintText.Text = "Ignorierte Umsaetze werden nicht mehr automatisch zugeordnet.";
+            return;
+        }
 
         try
         {
@@ -206,6 +231,58 @@ public partial class BankingPage : Page
         }
 
         await ReloadAsync();
+    }
+
+    private async void IgnoreTransaction_Click(object sender, RoutedEventArgs e)
+    {
+        if (TransactionsGrid.SelectedItem is not BankTransactionEntity transaction)
+        {
+            SetStatus("Bitte zuerst eine Buchung auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        var dialog = new TextPromptDialog(
+            "Umsatz ignorieren",
+            "Bitte begruende, warum dieser Umsatz ignoriert werden soll. Ohne Kommentar kann er nicht ausgeblendet werden.")
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var updated = await App.Api.IgnoreBankTransactionAsync(transaction.BankTransactionId, dialog.Result);
+            await ReloadAsync(ShowIgnoredCheckBox.IsChecked == true ? updated.BankTransactionId : null);
+            SetStatus("Umsatz wurde ignoriert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Umsatz konnte nicht ignoriert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void UnignoreTransaction_Click(object sender, RoutedEventArgs e)
+    {
+        if (TransactionsGrid.SelectedItem is not BankTransactionEntity transaction)
+        {
+            SetStatus("Bitte zuerst eine Buchung auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        try
+        {
+            var updated = await App.Api.UnignoreBankTransactionAsync(transaction.BankTransactionId);
+            await ReloadAsync(updated.BankTransactionId);
+            SetStatus("Ignorierter Umsatz wurde wieder aktiviert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Ignorierung konnte nicht aufgehoben werden: {ex.Message}", StatusMessageType.Error);
+        }
     }
 
     private static bool TryParseDecimal(string? text, out decimal value)

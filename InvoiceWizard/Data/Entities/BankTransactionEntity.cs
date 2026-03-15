@@ -17,6 +17,9 @@ public class BankTransactionEntity
     public string AccountIban { get; set; } = "";
     public string ImportFileName { get; set; } = "";
     public DateTime ImportedAt { get; set; }
+    public bool IsIgnored { get; set; }
+    public string IgnoredComment { get; set; } = "";
+    public DateTime? IgnoredAt { get; set; }
     public decimal AssignedAmount { get; set; }
     public decimal RemainingAmount { get; set; }
     public List<BankTransactionAssignmentEntity> Assignments { get; set; } = new();
@@ -24,6 +27,7 @@ public class BankTransactionEntity
     public string AmountLabel => $"{Amount:N2} {Currency}";
     public string RemainingAmountLabel => $"{RemainingAmount:N2} {Currency}";
     public string DirectionLabel => Amount >= 0m ? "Eingang" : "Ausgang";
+    public string IgnoreStatusLabel => IsIgnored ? "Ignoriert" : "Aktiv";
     public string AssignmentSummary => Assignments.Count == 0
         ? "Offen"
         : string.Join(" | ", Assignments.Select(x => $"{x.DisplayNumber} ({x.AssignedAmount:N2} {Currency})"));

@@ -41,6 +41,9 @@ public class BankTransactionListItemDto
     public string AccountIban { get; set; } = "";
     public string ImportFileName { get; set; } = "";
     public DateTime ImportedAt { get; set; }
+    public bool IsIgnored { get; set; }
+    public string IgnoredComment { get; set; } = "";
+    public DateTime? IgnoredAt { get; set; }
     public decimal AssignedAmount { get; set; }
     public decimal RemainingAmount { get; set; }
     public List<BankTransactionAssignmentDto> Assignments { get; set; } = [];
@@ -87,6 +90,13 @@ public class AssignBankTransactionRequest
     public decimal? AssignedAmount { get; set; }
     [MaxLength(500)]
     public string Note { get; set; } = "";
+}
+
+public class IgnoreBankTransactionRequest
+{
+    [Required]
+    [MaxLength(500)]
+    public string Comment { get; set; } = "";
 }
 
 public class BankAccountSummaryDto

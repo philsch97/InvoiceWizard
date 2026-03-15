@@ -49,6 +49,7 @@
                             <TextBlock Text="Buchungen" Style="{StaticResource MutedLabelStyle}"/>
                             <TextBlock x:Name="TransactionCountText" FontSize="24" FontWeight="SemiBold" Margin="0,8,0,0"/>
                             <CheckBox x:Name="ShowAssignedCheckBox" Margin="0,10,0,0" Content="Bereits zugeordnete anzeigen" Checked="ShowAssignedCheckBox_Changed" Unchecked="ShowAssignedCheckBox_Changed"/>
+                            <CheckBox x:Name="ShowIgnoredCheckBox" Margin="0,6,0,0" Content="Ignorierte anzeigen" Checked="ShowAssignedCheckBox_Changed" Unchecked="ShowAssignedCheckBox_Changed"/>
                         </StackPanel>
                     </Grid>
 
@@ -78,6 +79,7 @@
                                 <DataGridTextColumn Header="Richtung" Binding="{Binding DirectionLabel}" Width="90"/>
                                 <DataGridTextColumn Header="Betrag" Binding="{Binding AmountLabel}" Width="110"/>
                                 <DataGridTextColumn Header="Saldo" Binding="{Binding BalanceAfterBooking, StringFormat=N2}" Width="110"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding IgnoreStatusLabel}" Width="90"/>
                                 <DataGridTextColumn Header="Gegenpartei" Binding="{Binding CounterpartyName}" Width="180"/>
                                 <DataGridTextColumn Header="Verwendungszweck" Binding="{Binding Purpose}" Width="*"/>
                                 <DataGridTextColumn Header="Zuordnung" Binding="{Binding AssignmentSummary}" Width="220"/>
@@ -92,6 +94,11 @@
                             <TextBlock Text="Ausgewaehlte Buchung" Style="{StaticResource SectionTitleStyle}"/>
                             <TextBlock x:Name="SelectedTransactionText" Margin="0,14,0,0" TextWrapping="Wrap"/>
                             <TextBlock x:Name="SelectedTransactionDetailsText" Margin="0,10,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="IgnoredInfoText" Margin="0,10,0,0" Foreground="{StaticResource StatusWarningTextBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
+                            <WrapPanel Margin="0,14,0,0">
+                                <Button x:Name="IgnoreTransactionButton" Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Umsatz ignorieren" Click="IgnoreTransaction_Click"/>
+                                <Button x:Name="UnignoreTransactionButton" Width="180" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="Ignorieren aufheben" Click="UnignoreTransaction_Click" Visibility="Collapsed"/>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
