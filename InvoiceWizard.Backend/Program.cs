@@ -1,7 +1,9 @@
 using System.Text;
 using InvoiceWizard.Backend.Data;
 using InvoiceWizard.Backend.Security;
+using InvoiceWizard.Backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
@@ -36,6 +38,10 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenantAccessor, CurrentTenantAccessor>();
 builder.Services.AddScoped<IPasswordHashService, PasswordHashService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddHttpClient<ISoneparService, SoneparService>();
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, ".keys")))
+    .SetApplicationName("InvoiceWizard");
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>

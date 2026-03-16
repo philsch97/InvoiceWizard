@@ -70,6 +70,7 @@ public partial class MainWindow : Window
             new[]
             {
                 new SectionNavigationItem { Title = "Rechnungsimport", CreatePage = () => new Datenimport() },
+                new SectionNavigationItem { Title = "Sonepar", CreatePage = () => new SoneparPage() },
                 new SectionNavigationItem { Title = "Rechnungsarchiv", CreatePage = () => new InvoiceArchivePage() },
                 new SectionNavigationItem { Title = "Positionen zuweisen", CreatePage = () => new DataHandling() },
                 new SectionNavigationItem { Title = "Abrechnung / Export", CreatePage = () => new BillingExportPage() },
