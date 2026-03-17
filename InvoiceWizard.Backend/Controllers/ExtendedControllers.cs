@@ -128,7 +128,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
 
         if (!string.IsNullOrWhiteSpace(request.PdfContentBase64))
         {
-            invoice.StoredPdfPath = await SavePdfAsync(tenantId, invoice.InvoiceId, invoice.OriginalPdfFileName, request.PdfContentBase64, HttpContext.RequestAborted);
+            invoice.StoredPdfContent = DecodePdf(request.PdfContentBase64);
+            invoice.StoredPdfPath = string.Empty;
             await db.SaveChangesAsync();
         }
 
@@ -159,7 +160,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 ApplySmallBusinessRegulation = x.ApplySmallBusinessRegulation,
                 InvoiceTotalAmount = x.InvoiceTotalAmount,
                 OriginalPdfFileName = x.OriginalPdfFileName,
-                HasStoredPdf = !string.IsNullOrWhiteSpace(x.StoredPdfPath),
+                HasStoredPdf = x.StoredPdfContent.Length > 0 || !string.IsNullOrWhiteSpace(x.StoredPdfPath),
                 DraftSavedAt = x.DraftSavedAt,
                 FinalizedAt = x.FinalizedAt,
                 CancelledAt = x.CancelledAt,
@@ -246,12 +247,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
 
         if (!string.IsNullOrWhiteSpace(request.PdfContentBase64))
         {
-            if (!string.IsNullOrWhiteSpace(invoice.StoredPdfPath) && System.IO.File.Exists(invoice.StoredPdfPath))
-            {
-                System.IO.File.Delete(invoice.StoredPdfPath);
-            }
-
-            invoice.StoredPdfPath = await SavePdfAsync(tenantId, invoice.InvoiceId, invoice.OriginalPdfFileName, request.PdfContentBase64, HttpContext.RequestAborted);
+            invoice.StoredPdfContent = DecodePdf(request.PdfContentBase64);
+            invoice.StoredPdfPath = string.Empty;
         }
 
         await db.SaveChangesAsync(HttpContext.RequestAborted);
@@ -357,7 +354,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return NotFound();
         }
 
-        if (string.IsNullOrWhiteSpace(invoice.StoredPdfPath) || !System.IO.File.Exists(invoice.StoredPdfPath))
+        if (invoice.StoredPdfContent.Length == 0 && (string.IsNullOrWhiteSpace(invoice.StoredPdfPath) || !System.IO.File.Exists(invoice.StoredPdfPath)))
         {
             return NotFound(new { message = "Fuer diese Rechnung ist keine gespeicherte PDF vorhanden." });
         }
@@ -365,7 +362,9 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         var fileName = string.IsNullOrWhiteSpace(invoice.OriginalPdfFileName)
             ? $"{SanitizeFileName(invoice.InvoiceNumber)}.pdf"
             : invoice.OriginalPdfFileName;
-        var bytes = await System.IO.File.ReadAllBytesAsync(invoice.StoredPdfPath, HttpContext.RequestAborted);
+        var bytes = invoice.StoredPdfContent.Length > 0
+            ? invoice.StoredPdfContent
+            : await System.IO.File.ReadAllBytesAsync(invoice.StoredPdfPath, HttpContext.RequestAborted);
         return File(bytes, "application/pdf", fileName);
     }
 
@@ -384,30 +383,16 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return ValidationProblem("Bitte eine PDF-Datei hochladen.");
         }
 
-        if (!string.IsNullOrWhiteSpace(invoice.StoredPdfPath) && System.IO.File.Exists(invoice.StoredPdfPath))
-        {
-            System.IO.File.Delete(invoice.StoredPdfPath);
-        }
-
         invoice.OriginalPdfFileName = request.OriginalPdfFileName.Trim();
-        invoice.StoredPdfPath = await SavePdfAsync(tenantId, invoice.InvoiceId, invoice.OriginalPdfFileName, request.PdfContentBase64, HttpContext.RequestAborted);
+        invoice.StoredPdfContent = DecodePdf(request.PdfContentBase64);
+        invoice.StoredPdfPath = string.Empty;
         await db.SaveChangesAsync(HttpContext.RequestAborted);
 
         return Ok(new { invoice.InvoiceId, invoice.OriginalPdfFileName });
     }
 
-    private async Task<string> SavePdfAsync(int tenantId, int invoiceId, string originalPdfFileName, string pdfContentBase64, CancellationToken cancellationToken)
-    {
-        var storageRoot = Path.Combine(environment.ContentRootPath, "storage", "invoices", tenantId.ToString());
-        Directory.CreateDirectory(storageRoot);
-        var safeName = string.IsNullOrWhiteSpace(originalPdfFileName)
-            ? $"invoice_{invoiceId}.pdf"
-            : $"{Path.GetFileNameWithoutExtension(SanitizeFileName(originalPdfFileName))}.pdf";
-        var finalPath = Path.Combine(storageRoot, $"{invoiceId}_{safeName}");
-        var bytes = Convert.FromBase64String(pdfContentBase64);
-        await System.IO.File.WriteAllBytesAsync(finalPath, bytes, cancellationToken);
-        return finalPath;
-    }
+    private static byte[] DecodePdf(string pdfContentBase64)
+        => Convert.FromBase64String(pdfContentBase64);
 
     private static string NormalizeAccountingCategory(string? value)
     {
@@ -462,7 +447,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             ApplySmallBusinessRegulation = invoice.ApplySmallBusinessRegulation,
             InvoiceTotalAmount = invoice.InvoiceTotalAmount,
             OriginalPdfFileName = invoice.OriginalPdfFileName,
-            HasStoredPdf = !string.IsNullOrWhiteSpace(invoice.StoredPdfPath),
+            HasStoredPdf = invoice.StoredPdfContent.Length > 0 || !string.IsNullOrWhiteSpace(invoice.StoredPdfPath),
             DraftSavedAt = invoice.DraftSavedAt,
             FinalizedAt = invoice.FinalizedAt,
             CancelledAt = invoice.CancelledAt,

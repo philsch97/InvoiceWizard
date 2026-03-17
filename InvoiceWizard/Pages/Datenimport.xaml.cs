@@ -476,29 +476,6 @@ public partial class Datenimport : Page
                 return;
             }
 
-            var dialog = new GenerateInvoiceDialog(
-                detail.InvoiceNumber,
-                customer.CustomerNumber,
-                customer.Name,
-                isDraftMode: true,
-                initialOptions: new GeneratedInvoiceOptions
-                {
-                    InvoiceNumber = detail.InvoiceNumber,
-                    CustomerNumber = customer.CustomerNumber,
-                    InvoiceDate = detail.InvoiceDate,
-                    DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
-                    Subject = detail.Subject,
-                    ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
-                })
-            {
-                Owner = Window.GetWindow(this)
-            };
-
-            if (dialog.ShowDialog() != true || dialog.Result is null)
-            {
-                return;
-            }
-
             var lines = detail.Lines.Select(x => new ManualInvoiceLineInput
             {
                 Position = x.Position,
@@ -512,6 +489,31 @@ public partial class Datenimport : Page
                 GrossListPrice = x.GrossListPrice,
                 PriceBasisQuantity = x.PriceBasisQuantity
             }).ToList();
+
+            var dialog = new DraftInvoiceEditorDialog(
+                detail.InvoiceNumber,
+                customer.CustomerNumber,
+                customer.Name,
+                new GeneratedInvoiceOptions
+                {
+                    InvoiceNumber = detail.InvoiceNumber,
+                    CustomerNumber = customer.CustomerNumber,
+                    InvoiceDate = detail.InvoiceDate,
+                    DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
+                    Subject = detail.Subject,
+                    ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
+                },
+                lines)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() != true || dialog.Result is null)
+            {
+                return;
+            }
+
+            lines = dialog.ResultLines;
 
             var saveDialog = new SaveFileDialog
             {

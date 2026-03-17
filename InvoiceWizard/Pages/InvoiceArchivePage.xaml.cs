@@ -90,16 +90,6 @@ public partial class InvoiceArchivePage : Page
                 ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
             };
 
-            var dialog = new GenerateInvoiceDialog(detail.InvoiceNumber, customer.CustomerNumber, customer.Name, true, options)
-            {
-                Owner = Window.GetWindow(this)
-            };
-
-            if (dialog.ShowDialog() != true || dialog.Result is null)
-            {
-                return;
-            }
-
             var lines = detail.Lines
                 .OrderBy(x => x.Position)
                 .Select(line => new ManualInvoiceLineInput
@@ -116,6 +106,18 @@ public partial class InvoiceArchivePage : Page
                     PriceBasisQuantity = line.PriceBasisQuantity
                 })
                 .ToList();
+
+            var dialog = new DraftInvoiceEditorDialog(detail.InvoiceNumber, customer.CustomerNumber, customer.Name, options, lines)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() != true || dialog.Result is null)
+            {
+                return;
+            }
+
+            lines = dialog.ResultLines;
 
             var pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
             {

@@ -139,6 +139,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<Invoice>().Property(x => x.SourcePdfPath).HasMaxLength(500);
         modelBuilder.Entity<Invoice>().Property(x => x.OriginalPdfFileName).HasMaxLength(260);
         modelBuilder.Entity<Invoice>().Property(x => x.StoredPdfPath).HasMaxLength(500);
+        modelBuilder.Entity<Invoice>().Property(x => x.StoredPdfContent).HasColumnType("bytea");
         modelBuilder.Entity<TenantLicense>().Property(x => x.BillingCycle).HasMaxLength(50);
         modelBuilder.Entity<TenantLicense>().Property(x => x.PriceNet).HasColumnType("numeric(12,2)");
         modelBuilder.Entity<LicenseActivation>().Property(x => x.BillingCycle).HasMaxLength(50);

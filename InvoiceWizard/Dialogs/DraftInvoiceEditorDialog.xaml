@@ -1,0 +1,103 @@
+<Window x:Class="InvoiceWizard.Dialogs.DraftInvoiceEditorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Entwurf bearbeiten"
+        Width="1180"
+        Height="860"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Rechnungsentwurf bearbeiten" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
+            <TextBlock Text="Du kannst Lieferdatum, Betreff und alle Positionen des Entwurfs anpassen. Beim Speichern wird die PDF erneut mit ENTWURF-Wasserzeichen erstellt." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,18,0,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Margin="0,0,8,14">
+                <TextBlock Text="Rechnungsnummer" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="InvoiceNumberText" IsReadOnly="True"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="8,0,0,14">
+                <TextBlock Text="Kundennummer" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="CustomerNumberText" IsReadOnly="True"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="CustomerNameText" IsReadOnly="True"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Margin="0,0,8,0">
+                <TextBlock Text="Rechnungsdatum" Style="{StaticResource MutedLabelStyle}"/>
+                <DatePicker x:Name="InvoiceDatePicker" IsEnabled="False"/>
+            </StackPanel>
+            <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,0">
+                <TextBlock Text="Lieferdatum" Style="{StaticResource MutedLabelStyle}"/>
+                <DatePicker x:Name="DeliveryDatePicker"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel>
+                <TextBlock Text="Betreff / Einleitung" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="SubjectText" AcceptsReturn="True" TextWrapping="Wrap" Height="96" VerticalScrollBarVisibility="Auto"/>
+                <CheckBox x:Name="SmallBusinessCheck" Content="Umsatzsteuerfreie Leistungen gemaess §19 UStG ausgeben" Margin="0,12,0,0"/>
+            </StackPanel>
+
+            <DockPanel Grid.Row="1" Margin="0,18,0,12">
+                <TextBlock Text="Positionen" Style="{StaticResource SectionTitleStyle}" VerticalAlignment="Center"/>
+                <WrapPanel DockPanel.Dock="Right">
+                    <Button Width="140" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Position hinzufuegen" Click="AddLine_Click"/>
+                    <Button Width="150" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte loeschen" Click="RemoveLine_Click"/>
+                </WrapPanel>
+            </DockPanel>
+
+            <DataGrid x:Name="LinesGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="340">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Pos." Binding="{Binding Position}" IsReadOnly="True" Width="60"/>
+                    <DataGridTextColumn Header="Artikelnr." Binding="{Binding ArticleNumber, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
+                    <DataGridTextColumn Header="EAN" Binding="{Binding Ean, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                    <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                    <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Einheit" Binding="{Binding Unit, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                    <DataGridTextColumn Header="Netto" Binding="{Binding NetUnitPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Metall" Binding="{Binding MetalSurcharge, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Brutto" Binding="{Binding GrossListPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="80"/>
+                    <DataGridTextColumn Header="Gesamt" Binding="{Binding LineTotal, StringFormat=N2}" IsReadOnly="True" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
+
+        <TextBlock x:Name="TotalText" Grid.Row="3" Margin="0,14,0,0" FontWeight="SemiBold"/>
+
+        <WrapPanel Grid.Row="4" HorizontalAlignment="Right" Margin="0,18,0,0">
+            <Button Width="180" Height="40" Margin="0,0,10,0" Content="Entwurf speichern" Click="Confirm_Click"/>
+            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
+        </WrapPanel>
+    </Grid>
+</Window>

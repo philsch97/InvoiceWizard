@@ -4,6 +4,7 @@ using iText.Kernel.Colors;
 using iText.Kernel.Font;
 using iText.Kernel.Geom;
 using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Extgstate;
 using iText.Layout;
 using iText.Layout.Borders;
 using iText.Layout.Element;
@@ -295,13 +296,17 @@ internal sealed class DraftWatermarkHandler : iText.Kernel.Events.IEventHandler
         var page = documentEvent.GetPage();
         var pageSize = page.GetPageSize();
         var pdfCanvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), documentEvent.GetDocument());
-        using var layoutCanvas = new Canvas(pdfCanvas, pageSize);
-        layoutCanvas.Add(
-            new Paragraph("ENTWURF")
-                .SetFontSize(72)
-                .SetFontColor(new DeviceRgb(210, 220, 236), 0.35f)
-                .SetBold()
-                .SetRotationAngle(Math.PI / 4)
-                .SetFixedPosition(pageSize.GetWidth() / 2 - 180, pageSize.GetHeight() / 2 - 20, 360));
+        var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+        var gs = new PdfExtGState().SetFillOpacity(0.22f);
+
+        pdfCanvas.SaveState();
+        pdfCanvas.SetExtGState(gs);
+        pdfCanvas.BeginText();
+        pdfCanvas.SetFontAndSize(font, 96);
+        pdfCanvas.SetColor(new DeviceRgb(180, 40, 40), true);
+        pdfCanvas.SetTextMatrix((float)Math.Cos(Math.PI / 4), (float)Math.Sin(Math.PI / 4), (float)-Math.Sin(Math.PI / 4), (float)Math.Cos(Math.PI / 4), pageSize.GetWidth() / 2 - 170, pageSize.GetHeight() / 2 - 40);
+        pdfCanvas.ShowText("ENTWURF");
+        pdfCanvas.EndText();
+        pdfCanvas.RestoreState();
     }
 }
