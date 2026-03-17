@@ -1,20 +1,28 @@
+using System.IO;
+using System.Globalization;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using iText.Barcodes;
 using iText.IO.Font.Constants;
 using iText.Kernel.Colors;
 using iText.Kernel.Font;
 using iText.Kernel.Geom;
 using iText.Kernel.Pdf;
+using iText.Kernel.Pdf.Canvas;
 using iText.Kernel.Pdf.Extgstate;
+using iText.Kernel.Pdf.Filespec;
+using iText.Kernel.XMP;
+using iText.Kernel.XMP.Options;
 using iText.Layout;
 using iText.Layout.Borders;
 using iText.Layout.Element;
 using iText.Layout.Properties;
+using iText.Pdfa;
 using InvoiceWizard.Data.Entities;
-using System.IO;
 
 namespace InvoiceWizard.Services;
 
-public static class CustomerInvoicePdfService
+public static partial class CustomerInvoicePdfService
 {
     public sealed class InvoiceDocument
     {
@@ -45,10 +53,26 @@ public static class CustomerInvoicePdfService
     {
         using var stream = new MemoryStream();
         using var writer = new PdfWriter(stream);
-        using var pdf = new PdfDocument(writer);
-        using var document = new Document(pdf, PageSize.A4);
+        Stream? colorProfileStream = null;
+        try
+        {
+            if (!invoice.IsDraft)
+            {
+                colorProfileStream = OpenPdfAColorProfileStream();
+            }
 
-        document.SetMargins(42, 42, 52, 42);
+            using var pdf = invoice.IsDraft
+                ? new PdfDocument(writer)
+                : CreatePdfAInvoiceDocument(writer, colorProfileStream!);
+            ConfigureDocumentMetadata(invoice, pdf);
+            using var document = new Document(pdf, PageSize.A4);
+
+            document.SetMargins(42, 42, 78, 42);
+            if (!invoice.IsDraft)
+            {
+                AttachZugferdXml(invoice, pdf);
+            }
+        pdf.AddEventHandler(iText.Kernel.Events.PdfDocumentEvent.END_PAGE, new InvoiceFooterHandler(invoice));
 
         if (invoice.IsDraft)
         {
@@ -68,22 +92,182 @@ public static class CustomerInvoicePdfService
             .SetFontSize(11)
             .SetMarginTop(18)
             .SetMarginBottom(18));
-        document.Add(BuildLinesTable(invoice, bold, font, accent));
-        document.Add(BuildSummarySection(invoice, pdf, bold, font));
+
+        var pages = PaginateLines(invoice.Lines);
+        for (var i = 0; i < pages.Count; i++)
+        {
+            if (i > 0)
+            {
+                document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                document.Add(new Paragraph($"Rechnungsnummer: {invoice.InvoiceNumber}")
+                    .SetFont(font)
+                    .SetFontSize(10)
+                    .SetMarginTop(0)
+                    .SetMarginBottom(10));
+            }
+
+            var page = pages[i];
+            document.Add(BuildLinesTable(page.Lines, bold, font, accent, pages.Count > 1, page.PageSubtotal));
+        }
+
+        var closingSection = new Div().SetKeepTogether(true);
+        closingSection.Add(BuildSummarySection(invoice, pdf, bold, font));
 
         if (invoice.ApplySmallBusinessRegulation)
         {
-            document.Add(new Paragraph("Umsatzsteuerfreie Leistungen gemaess §19 UStG")
+            closingSection.Add(new Paragraph("Umsatzsteuerfreie Leistungen gemaess §19 UStG")
                 .SetFont(font)
                 .SetFontSize(10)
                 .SetMarginTop(16)
-                .SetMarginBottom(12));
+                .SetMarginBottom(4));
         }
 
-        document.Add(BuildFooter(invoice, bold, font, muted));
+            document.Add(closingSection);
+            document.Close();
+            return stream.ToArray();
+        }
+        finally
+        {
+            colorProfileStream?.Dispose();
+        }
+    }
 
-        document.Close();
-        return stream.ToArray();
+    private static PdfADocument CreatePdfAInvoiceDocument(PdfWriter writer, Stream colorProfileStream)
+    {
+        var outputIntent = new PdfOutputIntent(
+            "Custom",
+            string.Empty,
+            "http://www.color.org",
+            "sRGB IEC61966-2.1",
+            colorProfileStream);
+
+        return new PdfADocument(writer, PdfAConformanceLevel.PDF_A_3B, outputIntent);
+    }
+
+    private static Stream OpenPdfAColorProfileStream()
+    {
+        return File.OpenRead(GetPdfAColorProfilePath());
+    }
+
+    private static string GetPdfAColorProfilePath()
+    {
+        var candidates = new[]
+        {
+            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "spool", "drivers", "color", "sRGB Color Space Profile.icm"),
+            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "spool", "drivers", "color", "surface-srgb.icm")
+        };
+
+        return candidates.FirstOrDefault(candidate => File.Exists(candidate))
+            ?? throw new FileNotFoundException("Kein lokales sRGB-Farbprofil fuer PDF/A-3 gefunden.");
+    }
+
+    private static void ConfigureDocumentMetadata(InvoiceDocument invoice, PdfDocument pdf)
+    {
+        pdf.GetCatalog().SetLang(new PdfString("de-DE"));
+
+        var info = pdf.GetDocumentInfo();
+        info.SetTitle($"Rechnung {invoice.InvoiceNumber}");
+        info.SetAuthor(Safe(invoice.Company.CompanyName));
+        info.SetCreator("InvoiceWizard");
+        info.SetProducer("InvoiceWizard");
+        info.SetSubject(string.IsNullOrWhiteSpace(invoice.Subject) ? "Rechnung" : invoice.Subject);
+
+        if (!invoice.IsDraft)
+        {
+            pdf.SetXmpMetadata(XMPMetaFactory.ParseFromString(BuildZugferdXmpMetadata(invoice)), new SerializeOptions(SerializeOptions.USE_CANONICAL_FORMAT));
+        }
+    }
+
+    private static string BuildZugferdXmpMetadata(InvoiceDocument invoice)
+    {
+        XNamespace x = "adobe:ns:meta/";
+        XNamespace rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+        XNamespace dc = "http://purl.org/dc/elements/1.1/";
+        XNamespace pdf = "http://ns.adobe.com/pdf/1.3/";
+        XNamespace xmp = "http://ns.adobe.com/xap/1.0/";
+        XNamespace pdfaid = "http://www.aiim.org/pdfa/ns/id/";
+        XNamespace pdfaExtension = "http://www.aiim.org/pdfa/ns/extension/";
+        XNamespace pdfaSchema = "http://www.aiim.org/pdfa/ns/schema#";
+        XNamespace pdfaProperty = "http://www.aiim.org/pdfa/ns/property#";
+        XNamespace fx = "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#";
+
+        var title = $"Rechnung {invoice.InvoiceNumber}";
+        var subject = string.IsNullOrWhiteSpace(invoice.Subject) ? "Rechnung" : invoice.Subject;
+
+        var extensionProperties = new[]
+        {
+            BuildPdfaExtensionProperty(rdf, pdfaProperty, "DocumentFileName", "Text", "external", "The name of the embedded XML document"),
+            BuildPdfaExtensionProperty(rdf, pdfaProperty, "DocumentType", "Text", "external", "The type of the hybrid document"),
+            BuildPdfaExtensionProperty(rdf, pdfaProperty, "Version", "Text", "external", "The Factur-X/ZUGFeRD version"),
+            BuildPdfaExtensionProperty(rdf, pdfaProperty, "ConformanceLevel", "Text", "external", "The Factur-X/ZUGFeRD conformance level")
+        };
+
+        var extensionSchemaDescription = new XElement(rdf + "Description",
+            new XAttribute(rdf + "about", string.Empty),
+            new XAttribute(XNamespace.Xmlns + "pdfaExtension", pdfaExtension),
+            new XAttribute(XNamespace.Xmlns + "pdfaSchema", pdfaSchema),
+            new XAttribute(XNamespace.Xmlns + "pdfaProperty", pdfaProperty),
+            new XElement(pdfaExtension + "schemas",
+                new XElement(rdf + "Bag",
+                    new XElement(rdf + "li",
+                        new XAttribute(rdf + "parseType", "Resource"),
+                        new XElement(pdfaSchema + "schema", "Factur-X PDFA Extension Schema"),
+                        new XElement(pdfaSchema + "namespaceURI", fx.NamespaceName),
+                        new XElement(pdfaSchema + "prefix", "fx"),
+                        new XElement(pdfaSchema + "property",
+                            new XElement(rdf + "Seq", extensionProperties))))));
+
+        var document = new XDocument(
+            new XDeclaration("1.0", "utf-8", null),
+            new XElement(x + "xmpmeta",
+                new XAttribute(XNamespace.Xmlns + "x", x),
+                new XAttribute(x + "xmptk", "InvoiceWizard"),
+                new XElement(rdf + "RDF",
+                    new XElement(rdf + "Description",
+                        new XAttribute(rdf + "about", string.Empty),
+                        new XAttribute(XNamespace.Xmlns + "pdfaid", pdfaid),
+                        new XElement(pdfaid + "part", "3"),
+                        new XElement(pdfaid + "conformance", "B")),
+                    new XElement(rdf + "Description",
+                        new XAttribute(rdf + "about", string.Empty),
+                        new XAttribute(XNamespace.Xmlns + "dc", dc),
+                        new XAttribute(XNamespace.Xmlns + "pdf", pdf),
+                        new XAttribute(XNamespace.Xmlns + "xmp", xmp),
+                        new XElement(dc + "format", "application/pdf"),
+                        new XElement(dc + "title",
+                            new XElement(rdf + "Alt",
+                                new XElement(rdf + "li",
+                                    new XAttribute(XNamespace.Xml + "lang", "x-default"),
+                                    title))),
+                        new XElement(dc + "creator",
+                            new XElement(rdf + "Seq",
+                                new XElement(rdf + "li", Safe(invoice.Company.CompanyName)))),
+                        new XElement(pdf + "Producer", "InvoiceWizard"),
+                        new XElement(xmp + "CreatorTool", "InvoiceWizard"),
+                        new XElement(xmp + "CreateDate", invoice.InvoiceDate.ToString("yyyy-MM-ddTHH:mm:ssK")),
+                        new XElement(xmp + "ModifyDate", DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ssK")),
+                        new XElement(xmp + "MetadataDate", DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ssK")),
+                        new XElement(xmp + "Label", subject)),
+                    new XElement(rdf + "Description",
+                        new XAttribute(rdf + "about", string.Empty),
+                        new XAttribute(XNamespace.Xmlns + "fx", fx),
+                        new XElement(fx + "DocumentType", "INVOICE"),
+                        new XElement(fx + "DocumentFileName", "factur-x.xml"),
+                        new XElement(fx + "Version", "1.0"),
+                        new XElement(fx + "ConformanceLevel", "BASIC WL")),
+                    extensionSchemaDescription)));
+
+        return document.ToString(SaveOptions.DisableFormatting);
+    }
+
+    private static XElement BuildPdfaExtensionProperty(XNamespace rdf, XNamespace pdfaProperty, string name, string valueType, string category, string description)
+    {
+        return new XElement(rdf + "li",
+            new XAttribute(rdf + "parseType", "Resource"),
+            new XElement(pdfaProperty + "name", name),
+            new XElement(pdfaProperty + "valueType", valueType),
+            new XElement(pdfaProperty + "category", category),
+            new XElement(pdfaProperty + "description", description));
     }
 
     private static IBlockElement BuildTopSection(InvoiceDocument invoice, PdfFont bold, PdfFont font, DeviceRgb muted)
@@ -103,7 +287,7 @@ public static class CustomerInvoicePdfService
             .Add(new Text(Safe(invoice.Company.CompanyName)).SetFont(bold))
             .Add($"\n{BuildAddressLine(invoice.Company.CompanyStreet, invoice.Company.CompanyHouseNumber)}")
             .Add($"\n{BuildAddressLine(invoice.Company.CompanyPostalCode, invoice.Company.CompanyCity)}")
-            .Add(string.IsNullOrWhiteSpace(invoice.Company.CompanyPhoneNumber) ? string.Empty : $"\nTelefon {invoice.Company.CompanyPhoneNumber}")
+            .Add(string.IsNullOrWhiteSpace(invoice.Company.CompanyPhoneNumber) ? string.Empty : $"\nTelefon: {invoice.Company.CompanyPhoneNumber}")
             .Add(string.IsNullOrWhiteSpace(invoice.Company.CompanyEmailAddress) ? string.Empty : $"\n{invoice.Company.CompanyEmailAddress}")
             .SetFont(font)
             .SetFontSize(10)
@@ -140,11 +324,12 @@ public static class CustomerInvoicePdfService
         return wrapper;
     }
 
-    private static Table BuildLinesTable(InvoiceDocument invoice, PdfFont bold, PdfFont font, DeviceRgb accent)
+    private static Table BuildLinesTable(IReadOnlyList<InvoiceLine> lines, PdfFont bold, PdfFont font, DeviceRgb accent, bool showPageSubtotal, decimal pageSubtotal)
     {
         var table = new Table(UnitValue.CreatePercentArray(new float[] { 0.6f, 3.6f, 0.8f, 0.8f, 1.1f, 1.2f })).UseAllAvailableWidth();
         table.SetFixedLayout();
         table.SetMarginTop(10);
+        table.SetKeepTogether(false);
 
         AddHeaderCell(table, "Pos.", bold, accent);
         AddHeaderCell(table, "Beschreibung", bold, accent);
@@ -153,14 +338,32 @@ public static class CustomerInvoicePdfService
         AddHeaderCell(table, "Preis", bold, accent);
         AddHeaderCell(table, "Gesamt", bold, accent);
 
-        foreach (var line in invoice.Lines)
+        foreach (var line in lines)
         {
             AddBodyCell(table, line.Position.ToString(), font, TextAlignment.LEFT);
-            AddBodyCell(table, line.Description, font, TextAlignment.LEFT);
+            AddBodyCell(table, SanitizeLineDescription(line.Description), font, TextAlignment.LEFT);
             AddBodyCell(table, line.Quantity.ToString("0.##"), font, TextAlignment.RIGHT);
             AddBodyCell(table, line.Unit, font, TextAlignment.LEFT);
             AddBodyCell(table, FormatCurrency(line.UnitPrice), font, TextAlignment.RIGHT);
             AddBodyCell(table, FormatCurrency(line.LineTotal), font, TextAlignment.RIGHT);
+        }
+
+        if (showPageSubtotal)
+        {
+            table.AddCell(new Cell(1, 5)
+                .Add(new Paragraph("Seitensumme").SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .SetPadding(6)
+                .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderLeft(Border.NO_BORDER)
+                .SetBorderRight(Border.NO_BORDER));
+            table.AddCell(new Cell()
+                .Add(new Paragraph(FormatCurrency(pageSubtotal)).SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .SetPadding(6)
+                .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderLeft(Border.NO_BORDER)
+                .SetBorderRight(Border.NO_BORDER));
         }
 
         return table;
@@ -171,10 +374,11 @@ public static class CustomerInvoicePdfService
         var table = new Table(UnitValue.CreatePercentArray(new float[] { 1.6f, 0.8f })).UseAllAvailableWidth();
         table.SetBorder(Border.NO_BORDER);
         table.SetMarginTop(14);
+        table.SetKeepTogether(true);
 
         var qrText = BuildEpcQrPayload(invoice);
         var qr = new BarcodeQRCode(qrText).CreateFormXObject(ColorConstants.BLACK, pdf);
-        var image = new Image(qr).ScaleToFit(110, 110);
+        var image = new Image(qr).ScaleToFit(82, 82);
 
         var left = new Paragraph("Bitte ueberweisen Sie den Rechnungsbetrag unter Angabe von Kundennummer und Rechnungsnummer.")
             .SetFont(font)
@@ -189,40 +393,15 @@ public static class CustomerInvoicePdfService
 
         var rightWrapper = new Div();
         rightWrapper.Add(totalTable);
-        rightWrapper.Add(new Paragraph().Add(image).SetMarginTop(10).SetTextAlignment(TextAlignment.RIGHT));
+        rightWrapper.Add(new Paragraph("Ueber diesen QR-Code kann die Ueberweisung direkt vorbereitet werden.")
+            .SetFont(font)
+            .SetFontSize(8)
+            .SetMarginTop(10)
+            .SetTextAlignment(TextAlignment.RIGHT));
+        rightWrapper.Add(new Paragraph().Add(image).SetMarginTop(4).SetTextAlignment(TextAlignment.RIGHT));
 
         table.AddCell(new Cell().Add(left).SetBorder(Border.NO_BORDER).SetPadding(0).SetVerticalAlignment(VerticalAlignment.TOP));
         table.AddCell(new Cell().Add(rightWrapper).SetBorder(Border.NO_BORDER).SetPadding(0));
-        return table;
-    }
-
-    private static IBlockElement BuildFooter(InvoiceDocument invoice, PdfFont bold, PdfFont font, DeviceRgb muted)
-    {
-        var table = new Table(UnitValue.CreatePercentArray(new float[] { 1f, 1f })).UseAllAvailableWidth();
-        table.SetMarginTop(20);
-        table.SetBorderTop(new SolidBorder(muted, 1));
-
-        var left = new Paragraph()
-            .Add(new Text("Steuernummer\n").SetFont(bold))
-            .Add(string.IsNullOrWhiteSpace(invoice.Company.TaxNumber) ? "-" : invoice.Company.TaxNumber)
-            .SetFont(font)
-            .SetFontSize(9)
-            .SetFontColor(muted)
-            .SetMarginTop(8);
-
-        var right = new Paragraph()
-            .Add(new Text("Bankverbindung\n").SetFont(bold))
-            .Add(string.IsNullOrWhiteSpace(invoice.Company.BankName) ? "-" : invoice.Company.BankName)
-            .Add(string.IsNullOrWhiteSpace(invoice.Company.BankIban) ? string.Empty : $"\nIBAN {invoice.Company.BankIban}")
-            .Add(string.IsNullOrWhiteSpace(invoice.Company.BankBic) ? string.Empty : $"\nBIC {invoice.Company.BankBic}")
-            .SetFont(font)
-            .SetFontSize(9)
-            .SetFontColor(muted)
-            .SetMarginTop(8)
-            .SetTextAlignment(TextAlignment.RIGHT);
-
-        table.AddCell(new Cell().Add(left).SetBorder(Border.NO_BORDER).SetPadding(0));
-        table.AddCell(new Cell().Add(right).SetBorder(Border.NO_BORDER).SetPadding(0));
         return table;
     }
 
@@ -282,9 +461,236 @@ public static class CustomerInvoicePdfService
         return value ?? string.Empty;
     }
 
+    private static string SanitizeLineDescription(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return ProjectPrefixRegex().Replace(value.Trim(), string.Empty);
+    }
+
     private static string FormatCurrency(decimal value)
     {
         return value.ToString("0.00") + " EUR";
+    }
+
+    private static void AttachZugferdXml(InvoiceDocument invoice, PdfDocument pdf)
+    {
+        var xmlBytes = BuildZugferdXml(invoice);
+        var fileSpec = PdfFileSpec.CreateEmbeddedFileSpec(
+            pdf,
+            xmlBytes,
+            "Factur-X invoice",
+            "factur-x.xml",
+            new PdfName("application/xml"),
+            null,
+            PdfName.Alternative);
+
+        pdf.AddAssociatedFile("factur-x.xml", fileSpec);
+    }
+
+    private static byte[] BuildZugferdXml(InvoiceDocument invoice)
+    {
+        XNamespace rsm = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100";
+        XNamespace ram = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100";
+        XNamespace udt = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100";
+        XNamespace qdt = "urn:un:unece:uncefact:data:standard:QualifiedDataType:100";
+
+        var sellerParty = BuildTradeParty(
+            invoice.Company.CompanyName,
+            invoice.Company.CompanyStreet,
+            invoice.Company.CompanyHouseNumber,
+            invoice.Company.CompanyPostalCode,
+            invoice.Company.CompanyCity,
+            invoice.Company.CompanyEmailAddress,
+            ram);
+
+        var buyerParty = new XElement(ram + "BuyerTradeParty",
+            new XElement(ram + "Name", Safe(invoice.Customer.Name)),
+            new XElement(ram + "PostalTradeAddress",
+                new XElement(ram + "PostcodeCode", Safe(invoice.Customer.PostalCode)),
+                new XElement(ram + "LineOne", BuildAddressLine(invoice.Customer.Street, invoice.Customer.HouseNumber)),
+                new XElement(ram + "CityName", Safe(invoice.Customer.City))),
+            new XElement(ram + "URIUniversalCommunication",
+                new XElement(ram + "URIID", Safe(invoice.Customer.EmailAddress))));
+
+        var lineTotal = invoice.TotalAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        var taxRate = invoice.ApplySmallBusinessRegulation ? "0.00" : "19.00";
+        var taxCategory = invoice.ApplySmallBusinessRegulation ? "E" : "S";
+
+        var exchangedDocumentContext = new XElement(rsm + "ExchangedDocumentContext",
+            new XElement(ram + "GuidelineSpecifiedDocumentContextParameter",
+                new XElement(ram + "ID", "urn:factur-x.eu:1p0:basicwl")),
+            new XElement(ram + "BusinessProcessSpecifiedDocumentContextParameter",
+                new XElement(ram + "ID", "A1")));
+
+        var exchangedDocument = new XElement(rsm + "ExchangedDocument",
+            new XElement(ram + "ID", invoice.InvoiceNumber),
+            new XElement(ram + "TypeCode", "380"),
+            new XElement(ram + "IssueDateTime",
+                new XElement(udt + "DateTimeString",
+                    new XAttribute("format", "102"),
+                    invoice.InvoiceDate.ToString("yyyyMMdd"))),
+            new XElement(ram + "IncludedNote",
+                new XElement(ram + "Content", string.IsNullOrWhiteSpace(invoice.Subject) ? "Rechnung" : invoice.Subject)));
+
+        var headerAgreement = new XElement(ram + "ApplicableHeaderTradeAgreement",
+            sellerParty,
+            buyerParty);
+
+        var headerDelivery = new XElement(ram + "ApplicableHeaderTradeDelivery",
+            new XElement(ram + "ActualDeliverySupplyChainEvent",
+                new XElement(ram + "OccurrenceDateTime",
+                    new XElement(udt + "DateTimeString",
+                        new XAttribute("format", "102"),
+                        invoice.DeliveryDate.ToString("yyyyMMdd")))));
+
+        var settlement = new XElement(ram + "ApplicableHeaderTradeSettlement",
+            new XElement(ram + "InvoiceCurrencyCode", "EUR"),
+            new XElement(ram + "SpecifiedTradeSettlementPaymentMeans",
+                new XElement(ram + "TypeCode", "58"),
+                new XElement(ram + "PayeePartyCreditorFinancialAccount",
+                    new XElement(ram + "IBANID", Safe(invoice.Company.BankIban))),
+                new XElement(ram + "PayeeSpecifiedCreditorFinancialInstitution",
+                    new XElement(ram + "BICID", Safe(invoice.Company.BankBic)))),
+            new XElement(ram + "ApplicableTradeTax",
+                new XElement(ram + "CalculatedAmount", "0.00"),
+                new XElement(ram + "TypeCode", "VAT"),
+                new XElement(ram + "BasisAmount", lineTotal),
+                new XElement(ram + "CategoryCode", taxCategory),
+                new XElement(ram + "RateApplicablePercent", taxRate)),
+            new XElement(ram + "SpecifiedTradeSettlementHeaderMonetarySummation",
+                new XElement(ram + "LineTotalAmount", lineTotal),
+                new XElement(ram + "TaxBasisTotalAmount", lineTotal),
+                new XElement(ram + "TaxTotalAmount",
+                    new XAttribute("currencyID", "EUR"),
+                    "0.00"),
+                new XElement(ram + "GrandTotalAmount", lineTotal),
+                new XElement(ram + "DuePayableAmount", lineTotal)));
+
+        var tradeTransaction = new XElement(rsm + "SupplyChainTradeTransaction",
+            invoice.Lines.Select(line => BuildTradeLine(invoice, line, ram, qdt)),
+            headerAgreement,
+            headerDelivery,
+            settlement);
+
+        var document = new XDocument(
+            new XDeclaration("1.0", "UTF-8", "yes"),
+            new XElement(rsm + "CrossIndustryInvoice",
+                new XAttribute(XNamespace.Xmlns + "rsm", rsm),
+                new XAttribute(XNamespace.Xmlns + "ram", ram),
+                new XAttribute(XNamespace.Xmlns + "udt", udt),
+                new XAttribute(XNamespace.Xmlns + "qdt", qdt),
+                exchangedDocumentContext,
+                exchangedDocument,
+                tradeTransaction));
+
+        using var stream = new MemoryStream();
+        document.Save(stream);
+        return stream.ToArray();
+    }
+
+    private static XElement BuildTradeLine(InvoiceDocument invoice, InvoiceLine line, XNamespace ram, XNamespace qdt)
+    {
+        return new XElement(ram + "IncludedSupplyChainTradeLineItem",
+            new XElement(ram + "AssociatedDocumentLineDocument",
+                new XElement(ram + "LineID", line.Position)),
+            new XElement(ram + "SpecifiedTradeProduct",
+                new XElement(ram + "Name", SanitizeLineDescription(line.Description))),
+            new XElement(ram + "SpecifiedLineTradeAgreement",
+                new XElement(ram + "GrossPriceProductTradePrice",
+                    new XElement(ram + "ChargeAmount", line.UnitPrice.ToString("0.00", CultureInfo.InvariantCulture))),
+                new XElement(ram + "NetPriceProductTradePrice",
+                    new XElement(ram + "ChargeAmount", line.UnitPrice.ToString("0.00", CultureInfo.InvariantCulture)))),
+            new XElement(ram + "SpecifiedLineTradeDelivery",
+                new XElement(ram + "BilledQuantity",
+                    new XAttribute("unitCode", MapUnitCode(line.Unit)),
+                    line.Quantity.ToString("0.##", CultureInfo.InvariantCulture))),
+            new XElement(ram + "SpecifiedLineTradeSettlement",
+                new XElement(ram + "ApplicableTradeTax",
+                    new XElement(ram + "TypeCode", "VAT"),
+                    new XElement(ram + "CategoryCode", invoice.ApplySmallBusinessRegulation ? "E" : "S"),
+                    new XElement(ram + "RateApplicablePercent", invoice.ApplySmallBusinessRegulation ? "0.00" : "19.00")),
+                new XElement(ram + "SpecifiedTradeSettlementLineMonetarySummation",
+                    new XElement(ram + "LineTotalAmount", line.LineTotal.ToString("0.00", CultureInfo.InvariantCulture)))));
+    }
+
+    private static XElement BuildTradeParty(string name, string street, string houseNumber, string postalCode, string city, string email, XNamespace ram)
+    {
+        return new XElement(ram + "SellerTradeParty",
+            new XElement(ram + "Name", Safe(name)),
+            new XElement(ram + "PostalTradeAddress",
+                new XElement(ram + "PostcodeCode", Safe(postalCode)),
+                new XElement(ram + "LineOne", BuildAddressLine(street, houseNumber)),
+                new XElement(ram + "CityName", Safe(city))),
+            new XElement(ram + "URIUniversalCommunication",
+                new XElement(ram + "URIID", Safe(email))));
+    }
+
+    private static string MapUnitCode(string? unit)
+    {
+        var normalized = (unit ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            "ST" => "H87",
+            "H" => "HUR",
+            "M" => "MTR",
+            "KG" => "KGM",
+            _ => "C62"
+        };
+    }
+
+    private static List<InvoicePage> PaginateLines(IReadOnlyList<InvoiceLine> lines)
+    {
+        const int firstPageCapacity = 16;
+        const int followingPageCapacity = 24;
+
+        var pages = new List<InvoicePage>();
+        var current = new List<InvoiceLine>();
+        var capacity = firstPageCapacity;
+        var usage = 0;
+
+        foreach (var line in lines)
+        {
+            var rowUnits = EstimateRowUnits(line);
+            if (current.Count > 0 && usage + rowUnits > capacity)
+            {
+                pages.Add(new InvoicePage(current));
+                current = [];
+                capacity = followingPageCapacity;
+                usage = 0;
+            }
+
+            current.Add(line);
+            usage += rowUnits;
+        }
+
+        if (current.Count > 0)
+        {
+            pages.Add(new InvoicePage(current));
+        }
+
+        return pages.Count == 0 ? [new InvoicePage([])] : pages;
+    }
+
+    private static int EstimateRowUnits(InvoiceLine line)
+    {
+        var sanitized = SanitizeLineDescription(line.Description);
+        var lineBreaks = sanitized.Count(c => c == '\n');
+        var textLength = sanitized.Replace("\r", string.Empty).Replace("\n", string.Empty).Length;
+        var wrappedLines = Math.Max(1, (int)Math.Ceiling(textLength / 34d));
+        return Math.Max(1, wrappedLines + lineBreaks);
+    }
+
+    [GeneratedRegex(@"^\[[^\]]+\]\s*", RegexOptions.Compiled)]
+    private static partial Regex ProjectPrefixRegex();
+
+    private sealed class InvoicePage(List<InvoiceLine> lines)
+    {
+        public List<InvoiceLine> Lines { get; } = lines;
+        public decimal PageSubtotal => Lines.Sum(x => x.LineTotal);
     }
 }
 
@@ -295,7 +701,7 @@ internal sealed class DraftWatermarkHandler : iText.Kernel.Events.IEventHandler
         var documentEvent = (iText.Kernel.Events.PdfDocumentEvent)@event;
         var page = documentEvent.GetPage();
         var pageSize = page.GetPageSize();
-        var pdfCanvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), documentEvent.GetDocument());
+        var pdfCanvas = new PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), documentEvent.GetDocument());
         var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
         var gs = new PdfExtGState().SetFillOpacity(0.22f);
 
@@ -308,5 +714,46 @@ internal sealed class DraftWatermarkHandler : iText.Kernel.Events.IEventHandler
         pdfCanvas.ShowText("ENTWURF");
         pdfCanvas.EndText();
         pdfCanvas.RestoreState();
+    }
+}
+
+internal sealed class InvoiceFooterHandler(CustomerInvoicePdfService.InvoiceDocument invoice) : iText.Kernel.Events.IEventHandler
+{
+    public void HandleEvent(iText.Kernel.Events.Event @event)
+    {
+        var documentEvent = (iText.Kernel.Events.PdfDocumentEvent)@event;
+        var page = documentEvent.GetPage();
+        var pageSize = page.GetPageSize();
+        var pdfCanvas = new PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), documentEvent.GetDocument());
+        using var canvas = new Canvas(pdfCanvas, pageSize);
+        var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
+        var bold = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+        var muted = new DeviceRgb(96, 108, 128);
+
+        pdfCanvas.SaveState();
+        pdfCanvas.SetStrokeColor(muted);
+        pdfCanvas.MoveTo(pageSize.GetLeft() + 42, pageSize.GetBottom() + 56);
+        pdfCanvas.LineTo(pageSize.GetRight() - 42, pageSize.GetBottom() + 56);
+        pdfCanvas.Stroke();
+        pdfCanvas.RestoreState();
+
+        canvas.Add(new Paragraph()
+            .Add(new Text("Steuernummer\n").SetFont(bold))
+            .Add(string.IsNullOrWhiteSpace(invoice.Company.TaxNumber) ? "-" : invoice.Company.TaxNumber)
+            .SetFont(font)
+            .SetFontSize(8)
+            .SetFontColor(muted)
+            .SetFixedPosition(pageSize.GetLeft() + 42, pageSize.GetBottom() + 18, 220));
+
+        canvas.Add(new Paragraph()
+            .Add(new Text("Bankverbindung\n").SetFont(bold))
+            .Add(string.IsNullOrWhiteSpace(invoice.Company.BankName) ? "-" : invoice.Company.BankName)
+            .Add(string.IsNullOrWhiteSpace(invoice.Company.BankIban) ? string.Empty : $"\nIBAN {invoice.Company.BankIban}")
+            .Add(string.IsNullOrWhiteSpace(invoice.Company.BankBic) ? string.Empty : $"\nBIC {invoice.Company.BankBic}")
+            .SetFont(font)
+            .SetFontSize(8)
+            .SetFontColor(muted)
+            .SetTextAlignment(TextAlignment.RIGHT)
+            .SetFixedPosition(pageSize.GetRight() - 262, pageSize.GetBottom() + 18, 220));
     }
 }
