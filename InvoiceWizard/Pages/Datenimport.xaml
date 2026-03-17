@@ -32,7 +32,6 @@
                     <WrapPanel Grid.Row="1" Margin="0,18,0,0">
                         <Button Width="180" Height="40" Margin="0,0,10,0" Content="ZUGFeRD-PDF laden" Click="ChoosePdf_Click"/>
                         <Button Width="180" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF-Rechnung laden" Click="ChooseClassicPdf_Click"/>
-                        <Button Width="190" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte Position loeschen" Click="RemoveSelectedLine_Click"/>
                         <Button Width="190" Height="40" Content="Rechnung speichern" Click="SaveInvoice_Click"/>
                     </WrapPanel>
                 </Grid>
@@ -247,13 +246,25 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Positionen der aktuellen Erfassung" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                    <Grid Margin="18,18,18,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Positionen der aktuellen Erfassung" Style="{StaticResource SectionTitleStyle}"/>
+                        <Button Grid.Column="1"
+                                Width="190"
+                                Height="36"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Content="Markierte Positionen löschen"
+                                Click="RemoveSelectedLine_Click"/>
+                    </Grid>
                     <DataGrid x:Name="ManualLinesGrid"
                               Grid.Row="1"
                               Margin="0,16,0,0"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              SelectionMode="Single">
+                              SelectionMode="Extended">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
                             <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>

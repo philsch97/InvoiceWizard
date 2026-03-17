@@ -61,66 +61,78 @@ public static partial class CustomerInvoicePdfService
                 colorProfileStream = OpenPdfAColorProfileStream();
             }
 
-            using var pdf = invoice.IsDraft
+            var pdf = invoice.IsDraft
                 ? new PdfDocument(writer)
                 : CreatePdfAInvoiceDocument(writer, colorProfileStream!);
             ConfigureDocumentMetadata(invoice, pdf);
-            using var document = new Document(pdf, PageSize.A4);
+            var document = new Document(pdf, PageSize.A4, false);
 
             document.SetMargins(42, 42, 78, 42);
             if (!invoice.IsDraft)
             {
                 AttachZugferdXml(invoice, pdf);
             }
-        pdf.AddEventHandler(iText.Kernel.Events.PdfDocumentEvent.END_PAGE, new InvoiceFooterHandler(invoice));
+            pdf.AddEventHandler(iText.Kernel.Events.PdfDocumentEvent.END_PAGE, new InvoiceFooterHandler(invoice));
 
-        if (invoice.IsDraft)
-        {
-            pdf.AddEventHandler(iText.Kernel.Events.PdfDocumentEvent.END_PAGE, new DraftWatermarkHandler());
-        }
-
-        var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
-        var bold = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
-        var accent = new DeviceRgb(78, 154, 248);
-        var muted = new DeviceRgb(96, 108, 128);
-
-        document.Add(BuildTopSection(invoice, bold, font, muted));
-        document.Add(new Paragraph("Rechnung").SetFont(bold).SetFontSize(18).SetMarginTop(18).SetMarginBottom(8));
-        document.Add(BuildMetaTable(invoice, bold, font, accent));
-        document.Add(new Paragraph(string.IsNullOrWhiteSpace(invoice.Subject) ? "Unsere Lieferungen/Leistungen stellen wir Ihnen wie folgt in Rechnung." : invoice.Subject)
-            .SetFont(font)
-            .SetFontSize(11)
-            .SetMarginTop(18)
-            .SetMarginBottom(18));
-
-        var pages = PaginateLines(invoice.Lines);
-        for (var i = 0; i < pages.Count; i++)
-        {
-            if (i > 0)
+            if (invoice.IsDraft)
             {
-                document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
-                document.Add(new Paragraph($"Rechnungsnummer: {invoice.InvoiceNumber}")
-                    .SetFont(font)
-                    .SetFontSize(10)
-                    .SetMarginTop(0)
-                    .SetMarginBottom(10));
+                pdf.AddEventHandler(iText.Kernel.Events.PdfDocumentEvent.END_PAGE, new DraftWatermarkHandler());
             }
 
-            var page = pages[i];
-            document.Add(BuildLinesTable(page.Lines, bold, font, accent, pages.Count > 1, page.PageSubtotal));
-        }
+            var font = CreateRegularPdfFont();
+            var bold = CreateBoldPdfFont();
+            var accent = new DeviceRgb(78, 154, 248);
+            var muted = new DeviceRgb(96, 108, 128);
 
-        var closingSection = new Div().SetKeepTogether(true);
-        closingSection.Add(BuildSummarySection(invoice, pdf, bold, font));
-
-        if (invoice.ApplySmallBusinessRegulation)
-        {
-            closingSection.Add(new Paragraph("Umsatzsteuerfreie Leistungen gemaess §19 UStG")
+            document.Add(BuildTopSection(invoice, bold, font, muted));
+            document.Add(new Paragraph("Rechnung").SetFont(bold).SetFontSize(18).SetMarginTop(18).SetMarginBottom(8));
+            document.Add(BuildMetaTable(invoice, bold, font, accent));
+            document.Add(new Paragraph(string.IsNullOrWhiteSpace(invoice.Subject) ? "Unsere Lieferungen/Leistungen stellen wir Ihnen wie folgt in Rechnung." : invoice.Subject)
                 .SetFont(font)
-                .SetFontSize(10)
-                .SetMarginTop(16)
-                .SetMarginBottom(4));
-        }
+                .SetFontSize(11)
+                .SetMarginTop(18)
+                .SetMarginBottom(18));
+
+            var pages = PaginateLines(invoice.Lines);
+            for (var i = 0; i < pages.Count; i++)
+            {
+                if (i > 0)
+                {
+                    document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+                    document.Add(new Paragraph($"Rechnungsnummer: {invoice.InvoiceNumber}")
+                        .SetFont(font)
+                        .SetFontSize(10)
+                        .SetMarginTop(0)
+                        .SetMarginBottom(10));
+                }
+
+                var page = pages[i];
+                var isLastPage = i == pages.Count - 1;
+                var carryForward = pages.Take(i).Sum(x => x.PageSubtotal);
+                document.Add(BuildLinesTable(
+                    page.Lines,
+                    bold,
+                    font,
+                    accent,
+                    !isLastPage,
+                    carryForward + page.PageSubtotal,
+                    i > 0,
+                    carryForward,
+                    isLastPage,
+                    invoice.TotalAmount,
+                    invoice.ApplySmallBusinessRegulation));
+            }
+
+            var closingSection = new Div().SetKeepTogether(true);
+            closingSection.Add(BuildSummarySection(invoice, pdf, bold, font));
+            if (invoice.ApplySmallBusinessRegulation)
+            {
+                closingSection.Add(new Paragraph("Umsatzsteuerfreie Leistungen gemäß §19 UStG.*")
+                    .SetFont(font)
+                    .SetFontSize(10)
+                    .SetMarginTop(18)
+                    .SetMarginBottom(0));
+            }
 
             document.Add(closingSection);
             document.Close();
@@ -144,6 +156,27 @@ public static partial class CustomerInvoicePdfService
         return new PdfADocument(writer, PdfAConformanceLevel.PDF_A_3B, outputIntent);
     }
 
+    internal static PdfFont CreateRegularPdfFont()
+    {
+        return PdfFontFactory.CreateFont(GetWindowsFontPath("arial.ttf"), iText.IO.Font.PdfEncodings.IDENTITY_H, PdfFontFactory.EmbeddingStrategy.FORCE_EMBEDDED);
+    }
+
+    internal static PdfFont CreateBoldPdfFont()
+    {
+        return PdfFontFactory.CreateFont(GetWindowsFontPath("arialbd.ttf"), iText.IO.Font.PdfEncodings.IDENTITY_H, PdfFontFactory.EmbeddingStrategy.FORCE_EMBEDDED);
+    }
+
+    private static string GetWindowsFontPath(string fileName)
+    {
+        var path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts", fileName);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"Die benoetigte Schriftdatei wurde nicht gefunden: {fileName}");
+        }
+
+        return path;
+    }
+
     private static Stream OpenPdfAColorProfileStream()
     {
         return File.OpenRead(GetPdfAColorProfilePath());
@@ -158,7 +191,7 @@ public static partial class CustomerInvoicePdfService
         };
 
         return candidates.FirstOrDefault(candidate => File.Exists(candidate))
-            ?? throw new FileNotFoundException("Kein lokales sRGB-Farbprofil fuer PDF/A-3 gefunden.");
+            ?? throw new FileNotFoundException("Kein lokales sRGB-Farbprofil für PDF/A-3 gefunden.");
     }
 
     private static void ConfigureDocumentMetadata(InvoiceDocument invoice, PdfDocument pdf)
@@ -174,7 +207,9 @@ public static partial class CustomerInvoicePdfService
 
         if (!invoice.IsDraft)
         {
-            pdf.SetXmpMetadata(XMPMetaFactory.ParseFromString(BuildZugferdXmpMetadata(invoice)), new SerializeOptions(SerializeOptions.USE_CANONICAL_FORMAT));
+            var serializeOptions = new SerializeOptions();
+            serializeOptions.SetUseCanonicalFormat(true);
+            pdf.SetXmpMetadata(XMPMetaFactory.ParseFromString(BuildZugferdXmpMetadata(invoice)), serializeOptions);
         }
     }
 
@@ -324,12 +359,41 @@ public static partial class CustomerInvoicePdfService
         return wrapper;
     }
 
-    private static Table BuildLinesTable(IReadOnlyList<InvoiceLine> lines, PdfFont bold, PdfFont font, DeviceRgb accent, bool showPageSubtotal, decimal pageSubtotal)
+    private static Table BuildLinesTable(
+        IReadOnlyList<InvoiceLine> lines,
+        PdfFont bold,
+        PdfFont font,
+        DeviceRgb accent,
+        bool showIntermediateSubtotal,
+        decimal intermediateSubtotal,
+        bool showCarryForward,
+        decimal carryForward,
+        bool showGrandTotal,
+        decimal grandTotal,
+        bool markGrandTotal)
     {
         var table = new Table(UnitValue.CreatePercentArray(new float[] { 0.6f, 3.6f, 0.8f, 0.8f, 1.1f, 1.2f })).UseAllAvailableWidth();
         table.SetFixedLayout();
         table.SetMarginTop(10);
         table.SetKeepTogether(false);
+
+        if (showCarryForward)
+        {
+            table.AddCell(new Cell(1, 5)
+                .Add(new Paragraph("Übertrag").SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .SetPadding(6)
+                .SetBorderTop(Border.NO_BORDER)
+                .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderLeft(Border.NO_BORDER)
+                .SetBorderRight(Border.NO_BORDER));
+            table.AddCell(new Cell()
+                .Add(new Paragraph(FormatCurrency(carryForward)).SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .SetPadding(6)
+                .SetBorderTop(Border.NO_BORDER)
+                .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderLeft(Border.NO_BORDER)
+                .SetBorderRight(Border.NO_BORDER));
+        }
 
         AddHeaderCell(table, "Pos.", bold, accent);
         AddHeaderCell(table, "Beschreibung", bold, accent);
@@ -348,17 +412,17 @@ public static partial class CustomerInvoicePdfService
             AddBodyCell(table, FormatCurrency(line.LineTotal), font, TextAlignment.RIGHT);
         }
 
-        if (showPageSubtotal)
+        if (showIntermediateSubtotal)
         {
             table.AddCell(new Cell(1, 5)
-                .Add(new Paragraph("Seitensumme").SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .Add(new Paragraph("Zwischensumme").SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
                 .SetPadding(6)
                 .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderLeft(Border.NO_BORDER)
                 .SetBorderRight(Border.NO_BORDER));
             table.AddCell(new Cell()
-                .Add(new Paragraph(FormatCurrency(pageSubtotal)).SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .Add(new Paragraph(FormatCurrency(intermediateSubtotal)).SetFont(bold).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
                 .SetPadding(6)
                 .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
@@ -366,39 +430,91 @@ public static partial class CustomerInvoicePdfService
                 .SetBorderRight(Border.NO_BORDER));
         }
 
+        if (showGrandTotal)
+        {
+            var totalTable = new Table(UnitValue.CreatePercentArray(new float[] { 1f, 1f })).UseAllAvailableWidth();
+            totalTable.AddCell(new Cell()
+                .Add(new Paragraph(markGrandTotal ? "Gesamtbetrag*" : "Gesamtbetrag").SetFont(bold).SetFontSize(10))
+                .SetPadding(6)
+                .SetKeepTogether(true)
+                .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderLeft(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderRight(Border.NO_BORDER));
+            totalTable.AddCell(new Cell()
+                .Add(new Paragraph(FormatCurrency(grandTotal)).SetFont(font).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                .SetPadding(6)
+                .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderLeft(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderRight(new SolidBorder(ColorConstants.BLACK, 1)));
+
+            table.AddCell(new Cell(1, 3)
+                .SetBorder(Border.NO_BORDER)
+                .SetPadding(0));
+            table.AddCell(new Cell(1, 3)
+                .Add(totalTable)
+                .SetBorder(Border.NO_BORDER)
+                .SetPaddingTop(0)
+                .SetPaddingBottom(0)
+                .SetPaddingLeft(0)
+                .SetPaddingRight(0));
+        }
+
         return table;
     }
 
     private static IBlockElement BuildSummarySection(InvoiceDocument invoice, PdfDocument pdf, PdfFont bold, PdfFont font)
     {
-        var table = new Table(UnitValue.CreatePercentArray(new float[] { 1.6f, 0.8f })).UseAllAvailableWidth();
+        var table = new Table(UnitValue.CreatePercentArray(new float[] { 1.4f, 1f })).UseAllAvailableWidth();
         table.SetBorder(Border.NO_BORDER);
         table.SetMarginTop(14);
         table.SetKeepTogether(true);
 
         var qrText = BuildEpcQrPayload(invoice);
         var qr = new BarcodeQRCode(qrText).CreateFormXObject(ColorConstants.BLACK, pdf);
-        var image = new Image(qr).ScaleToFit(82, 82);
+        var image = new Image(qr).ScaleToFit(88, 88);
 
-        var left = new Paragraph("Bitte ueberweisen Sie den Rechnungsbetrag unter Angabe von Kundennummer und Rechnungsnummer.")
+        var left = new Paragraph("Bitte überweisen Sie den Rechnungsbetrag unter Angabe von Kundennummer und Rechnungsnummer.")
             .SetFont(font)
             .SetFontSize(10)
             .SetMargin(0);
         left.Add($"\nKundennummer: {invoice.CustomerNumber}");
         left.Add($"\nRechnungsnummer: {invoice.InvoiceNumber}");
+        left.Add("\n\nVielen Dank für die gute Zusammenarbeit.");
 
-        var totalTable = new Table(UnitValue.CreatePercentArray(new float[] { 1f, 1f })).UseAllAvailableWidth();
-        totalTable.SetBorder(new SolidBorder(ColorConstants.BLACK, 1));
-        AddMetaRow(totalTable, "Gesamtbetrag", FormatCurrency(invoice.TotalAmount), bold, font);
-
-        var rightWrapper = new Div();
-        rightWrapper.Add(totalTable);
-        rightWrapper.Add(new Paragraph("Ueber diesen QR-Code kann die Ueberweisung direkt vorbereitet werden.")
-            .SetFont(font)
-            .SetFontSize(8)
-            .SetMarginTop(10)
-            .SetTextAlignment(TextAlignment.RIGHT));
-        rightWrapper.Add(new Paragraph().Add(image).SetMarginTop(4).SetTextAlignment(TextAlignment.RIGHT));
+        var rightWrapper = new Div().SetTextAlignment(TextAlignment.RIGHT);
+        var qrCard = new Table(UnitValue.CreatePercentArray(new float[] { 1.2f, 1f })).UseAllAvailableWidth();
+        qrCard.SetBorder(new SolidBorder(new DeviceRgb(210, 210, 210), 1));
+        qrCard.SetPadding(0);
+        qrCard.AddCell(new Cell(1, 2)
+            .Add(new Paragraph("Überweisen per QR Code")
+                .SetFont(bold)
+                .SetFontSize(11)
+                .SetTextAlignment(TextAlignment.CENTER)
+                .SetMarginTop(0)
+                .SetMarginBottom(0))
+            .SetBorder(Border.NO_BORDER)
+            .SetPaddingTop(12)
+            .SetPaddingBottom(4)
+            .SetPaddingLeft(12)
+            .SetPaddingRight(12));
+        qrCard.AddCell(new Cell()
+            .Add(new Paragraph("Ganz bequem Code mit der\nBanking-App scannen.")
+                .SetFont(font)
+                .SetFontSize(10)
+                .SetMargin(0)
+                .SetMultipliedLeading(1.2f))
+            .SetBorder(Border.NO_BORDER)
+            .SetPadding(12)
+            .SetVerticalAlignment(VerticalAlignment.MIDDLE));
+        qrCard.AddCell(new Cell()
+            .Add(new Paragraph().Add(image).SetTextAlignment(TextAlignment.CENTER).SetMargin(0))
+            .SetBorder(Border.NO_BORDER)
+            .SetPadding(12)
+            .SetTextAlignment(TextAlignment.CENTER)
+            .SetVerticalAlignment(VerticalAlignment.MIDDLE));
+        rightWrapper.Add(qrCard);
 
         table.AddCell(new Cell().Add(left).SetBorder(Border.NO_BORDER).SetPadding(0).SetVerticalAlignment(VerticalAlignment.TOP));
         table.AddCell(new Cell().Add(rightWrapper).SetBorder(Border.NO_BORDER).SetPadding(0));
@@ -702,7 +818,7 @@ internal sealed class DraftWatermarkHandler : iText.Kernel.Events.IEventHandler
         var page = documentEvent.GetPage();
         var pageSize = page.GetPageSize();
         var pdfCanvas = new PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), documentEvent.GetDocument());
-        var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+        var font = CustomerInvoicePdfService.CreateBoldPdfFont();
         var gs = new PdfExtGState().SetFillOpacity(0.22f);
 
         pdfCanvas.SaveState();
@@ -722,13 +838,16 @@ internal sealed class InvoiceFooterHandler(CustomerInvoicePdfService.InvoiceDocu
     public void HandleEvent(iText.Kernel.Events.Event @event)
     {
         var documentEvent = (iText.Kernel.Events.PdfDocumentEvent)@event;
+        var pdfDocument = documentEvent.GetDocument();
         var page = documentEvent.GetPage();
         var pageSize = page.GetPageSize();
-        var pdfCanvas = new PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), documentEvent.GetDocument());
+        var pdfCanvas = new PdfCanvas(page.NewContentStreamAfter(), page.GetResources(), pdfDocument);
         using var canvas = new Canvas(pdfCanvas, pageSize);
-        var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
-        var bold = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+        var font = CustomerInvoicePdfService.CreateRegularPdfFont();
+        var bold = CustomerInvoicePdfService.CreateBoldPdfFont();
         var muted = new DeviceRgb(96, 108, 128);
+        var currentPage = pdfDocument.GetPageNumber(page);
+        var totalPages = pdfDocument.GetNumberOfPages();
 
         pdfCanvas.SaveState();
         pdfCanvas.SetStrokeColor(muted);
@@ -755,5 +874,12 @@ internal sealed class InvoiceFooterHandler(CustomerInvoicePdfService.InvoiceDocu
             .SetFontColor(muted)
             .SetTextAlignment(TextAlignment.RIGHT)
             .SetFixedPosition(pageSize.GetRight() - 262, pageSize.GetBottom() + 18, 220));
+
+        canvas.Add(new Paragraph($"Seite {currentPage} von {totalPages}")
+            .SetFont(font)
+            .SetFontSize(8)
+            .SetFontColor(muted)
+            .SetTextAlignment(TextAlignment.CENTER)
+            .SetFixedPosition(pageSize.GetLeft() + 220, pageSize.GetBottom() + 30, pageSize.GetWidth() - 440));
     }
 }

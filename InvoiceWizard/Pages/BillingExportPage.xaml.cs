@@ -668,21 +668,33 @@ public partial class BillingExportPage : Page
             }
         }
 
-        foreach (var workEntry in workEntries)
+        if (workEntries.Count > 0)
         {
-            workEntry.ExportedLineTotal = workEntry.CalculatedLineTotal;
-            workEntry.ExportedUnitPrice = workEntry.HoursWorked > 0m ? workEntry.ExportedLineTotal / workEntry.HoursWorked : workEntry.ExportedLineTotal;
-            workEntry.LastExportedAt = DateTime.Now;
+            foreach (var workEntry in workEntries)
+            {
+                workEntry.ExportedLineTotal = workEntry.CalculatedLineTotal;
+                workEntry.ExportedUnitPrice = workEntry.HoursWorked > 0m ? workEntry.ExportedLineTotal / workEntry.HoursWorked : workEntry.ExportedLineTotal;
+                workEntry.LastExportedAt = DateTime.Now;
+            }
+
+            var totalHours = workEntries.Sum(x => x.HoursWorked);
+            var totalAmount = workEntries.Sum(x => x.ExportedLineTotal);
+            var distinctDescriptions = workEntries
+                .Select(x => string.IsNullOrWhiteSpace(x.Description) ? "Arbeitszeit" : x.Description.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var description = distinctDescriptions.Count == 1
+                ? distinctDescriptions[0]
+                : "Arbeitszeit";
+
             lines.Add(new GeneratedInvoiceLine
             {
                 Position = position++,
-                Description = workEntry.TravelKilometers > 0m
-                    ? $"{workEntry.Description} ({workEntry.WorkDate:dd.MM.yyyy}, {workEntry.TimeRange}, {workEntry.TravelKilometers:0.##} km Anfahrt)"
-                    : $"{workEntry.Description} ({workEntry.WorkDate:dd.MM.yyyy}, {workEntry.TimeRange})",
-                Quantity = workEntry.HoursWorked,
+                Description = description,
+                Quantity = totalHours,
                 Unit = "h",
-                UnitPrice = workEntry.ExportedUnitPrice,
-                LineTotal = workEntry.ExportedLineTotal
+                UnitPrice = totalHours > 0m ? totalAmount / totalHours : totalAmount,
+                LineTotal = totalAmount
             });
         }
 

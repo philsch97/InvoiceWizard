@@ -71,6 +71,7 @@ public partial class InvoiceArchivePage : Page
 
         try
         {
+            var finalizationDate = DateTime.Today;
             var detail = await App.Api.GetInvoiceAsync(invoice.InvoiceId);
             var company = await App.Api.GetCompanyProfileAsync();
             var customer = (await App.Api.GetCustomersAsync()).FirstOrDefault(x => x.CustomerId == detail.CustomerId);
@@ -84,7 +85,7 @@ public partial class InvoiceArchivePage : Page
             {
                 InvoiceNumber = detail.InvoiceNumber,
                 CustomerNumber = customer.CustomerNumber,
-                InvoiceDate = detail.InvoiceDate,
+                InvoiceDate = finalizationDate,
                 DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
                 Subject = detail.Subject,
                 ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
@@ -125,7 +126,7 @@ public partial class InvoiceArchivePage : Page
                 Customer = customer,
                 InvoiceNumber = detail.InvoiceNumber,
                 CustomerNumber = customer.CustomerNumber,
-                InvoiceDate = dialog.Result.InvoiceDate.Date,
+                InvoiceDate = finalizationDate,
                 DeliveryDate = dialog.Result.DeliveryDate.Date,
                 Subject = dialog.Result.Subject,
                 ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
@@ -146,7 +147,7 @@ public partial class InvoiceArchivePage : Page
                 "Revenue",
                 "Draft",
                 detail.InvoiceNumber,
-                dialog.Result.InvoiceDate.Date,
+                finalizationDate,
                 dialog.Result.DeliveryDate.Date,
                 detail.CustomerId,
                 detail.SupplierName,
@@ -180,6 +181,7 @@ public partial class InvoiceArchivePage : Page
 
         try
         {
+            var finalizationDate = DateTime.Today;
             var detail = await App.Api.GetInvoiceAsync(invoice.InvoiceId);
             var company = await App.Api.GetCompanyProfileAsync();
             var customer = (await App.Api.GetCustomersAsync()).FirstOrDefault(x => x.CustomerId == detail.CustomerId);
@@ -193,7 +195,7 @@ public partial class InvoiceArchivePage : Page
             {
                 InvoiceNumber = detail.InvoiceNumber,
                 CustomerNumber = customer.CustomerNumber,
-                InvoiceDate = detail.InvoiceDate,
+                InvoiceDate = finalizationDate,
                 DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
                 Subject = detail.Subject,
                 ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
@@ -243,7 +245,7 @@ public partial class InvoiceArchivePage : Page
                 Customer = customer,
                 InvoiceNumber = detail.InvoiceNumber,
                 CustomerNumber = customer.CustomerNumber,
-                InvoiceDate = dialog.Result.InvoiceDate.Date,
+                InvoiceDate = finalizationDate,
                 DeliveryDate = dialog.Result.DeliveryDate.Date,
                 Subject = dialog.Result.Subject,
                 ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
@@ -265,7 +267,7 @@ public partial class InvoiceArchivePage : Page
                 "Revenue",
                 "Draft",
                 detail.InvoiceNumber,
-                dialog.Result.InvoiceDate.Date,
+                finalizationDate,
                 dialog.Result.DeliveryDate.Date,
                 detail.CustomerId,
                 detail.SupplierName,
