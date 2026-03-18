@@ -45,11 +45,6 @@ public partial class BillingExportPage : Page
 
     private void AllocationsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (AllocationsGrid.SelectedItems.Count > 0 && WorkEntriesGrid.SelectedItems.Count > 0)
-        {
-            WorkEntriesGrid.SelectedItems.Clear();
-        }
-
         if (AllocationsGrid.SelectedItem is LineAllocationEntity allocation)
         {
             EditAllocationQtyText.Text = allocation.AllocatedQuantity.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
@@ -58,10 +53,6 @@ public partial class BillingExportPage : Page
 
     private void WorkEntriesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (WorkEntriesGrid.SelectedItems.Count > 0 && AllocationsGrid.SelectedItems.Count > 0)
-        {
-            AllocationsGrid.SelectedItems.Clear();
-        }
     }
 
     private async void UpdateSelectedAllocation_Click(object sender, RoutedEventArgs e)
@@ -291,20 +282,34 @@ public partial class BillingExportPage : Page
 
             var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
             var selectedProjectName = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.Name;
+            var selectedAllocationIds = AllocationsGrid.SelectedItems
+                .OfType<LineAllocationEntity>()
+                .Select(x => x.LineAllocationId)
+                .ToHashSet();
+            var selectedWorkEntryIds = WorkEntriesGrid.SelectedItems
+                .OfType<WorkTimeEntryEntity>()
+                .Select(x => x.WorkTimeEntryId)
+                .ToHashSet();
+            var hasExplicitSelection = selectedAllocationIds.Count > 0 || selectedWorkEntryIds.Count > 0;
+
             var allocations = (await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId))
                 .Where(a => string.IsNullOrWhiteSpace(a.CustomerInvoiceNumber) && !a.RevenueInvoiceId.HasValue)
+                .Where(a => !hasExplicitSelection || selectedAllocationIds.Contains(a.LineAllocationId))
                 .OrderBy(GetAllocationInvoiceDate)
                 .ThenBy(GetAllocationPosition)
                 .ToList();
             var workEntries = (await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId))
                 .Where(w => string.IsNullOrWhiteSpace(w.CustomerInvoiceNumber) && !w.RevenueInvoiceId.HasValue)
+                .Where(w => !hasExplicitSelection || selectedWorkEntryIds.Contains(w.WorkTimeEntryId))
                 .OrderBy(w => w.WorkDate)
                 .ThenBy(w => w.StartTime)
                 .ToList();
 
             if (allocations.Count == 0 && workEntries.Count == 0)
             {
-                SetStatus("Fuer diese Auswahl gibt es keine offenen Positionen fuer eine Rechnung.", StatusMessageType.Warning);
+                SetStatus(hasExplicitSelection
+                    ? "Die markierten Positionen sind nicht offen genug fuer eine Rechnung oder passen nicht zum aktuellen Filter."
+                    : "Fuer diese Auswahl gibt es keine offenen Positionen fuer eine Rechnung.", StatusMessageType.Warning);
                 return;
             }
 
@@ -423,7 +428,11 @@ public partial class BillingExportPage : Page
                         NetUnitPrice = x.UnitPrice,
                         MetalSurcharge = 0m,
                         GrossListPrice = 0m,
-                        PriceBasisQuantity = 1m
+                        GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(
+                            PricingHelper.CalculateRevenueGrossTotal(x.LineTotal, dialog.Result.ApplySmallBusinessRegulation),
+                            x.Quantity),
+                        PriceBasisQuantity = 1m,
+                        GrossLineTotal = PricingHelper.CalculateRevenueGrossTotal(x.LineTotal, dialog.Result.ApplySmallBusinessRegulation)
                     }),
                     hasSupplierInvoice: true);
             }
@@ -597,11 +606,6 @@ public partial class BillingExportPage : Page
 
     private decimal GetPurchaseUnitPrice(LineAllocationEntity allocation)
     {
-        if (allocation.CustomerUnitPrice > 0m)
-        {
-            return allocation.CustomerUnitPrice;
-        }
-
         if (allocation.InvoiceLine is null)
         {
             return 0m;

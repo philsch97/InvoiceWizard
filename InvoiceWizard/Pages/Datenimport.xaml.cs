@@ -116,9 +116,13 @@ public partial class Datenimport : Page
                     NetUnitPrice = line.NetUnitPrice,
                     MetalSurcharge = line.MetalSurcharge,
                     GrossListPrice = line.GrossListPrice,
-                    PriceBasisQuantity = line.PriceBasisQuantity
+                    GrossUnitPrice = line.GrossUnitPrice,
+                    PriceBasisQuantity = line.PriceBasisQuantity,
+                    GrossLineTotal = line.GrossLineTotal
                 });
             }
+
+            ApplyGrossAmountsFromInvoiceTotal(_manualLines, grossInvoiceTotal);
 
             UpdateInvoiceModeUi();
             SetStatus($"{_manualLines.Count} Position(en) aus ZUGFeRD geladen.", StatusMessageType.Success);
@@ -200,6 +204,16 @@ public partial class Datenimport : Page
         SetStatus($"{selectedLines.Count} Position(en) entfernt.", StatusMessageType.Success);
     }
 
+    private void ManualLinesGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            _ = TryParseOptionalDecimal(InvoiceTotalAmountText.Text, out var invoiceTotalAmount);
+            ApplyGrossAmountsFromInvoiceTotal(_manualLines, invoiceTotalAmount);
+            ManualLinesGrid.Items.Refresh();
+        });
+    }
+
     private async void SaveInvoice_Click(object sender, RoutedEventArgs e)
     {
         var hasSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked != true;
@@ -239,8 +253,9 @@ public partial class Datenimport : Page
 
         var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var invoiceDate = InvoiceDatePicker.SelectedDate.Value;
+        var preparedLines = PrepareLinesForPersistence(_manualLines, invoiceTotalAmount);
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
-            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, supplierName, invoiceTotalAmount, hasSupplierInvoice, _manualLines)
+            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, supplierName, invoiceTotalAmount, hasSupplierInvoice, preparedLines)
             : _currentContentHash;
 
         try
@@ -261,9 +276,9 @@ public partial class Datenimport : Page
                 _currentOriginalPdfFileName,
                 _currentPdfBytes is null ? null : Convert.ToBase64String(_currentPdfBytes),
                 hash,
-                _manualLines,
+                preparedLines,
                 hasSupplierInvoice);
-            var importedLineCount = _manualLines.Count;
+            var importedLineCount = preparedLines.Count;
             ResetForm();
             await LoadStoredInvoicesAsync();
             var summary = hasSupplierInvoice
@@ -400,6 +415,7 @@ public partial class Datenimport : Page
             GrossListPrice = grossPrice,
             PriceBasisQuantity = priceBasis
         };
+        InitializeManualLineAmounts(line);
 
         return true;
     }
@@ -497,7 +513,9 @@ public partial class Datenimport : Page
                 NetUnitPrice = x.NetUnitPrice,
                 MetalSurcharge = x.MetalSurcharge,
                 GrossListPrice = x.GrossListPrice,
-                PriceBasisQuantity = x.PriceBasisQuantity
+                GrossUnitPrice = x.GrossUnitPrice,
+                PriceBasisQuantity = x.PriceBasisQuantity,
+                GrossLineTotal = x.GrossLineTotal
             }).ToList();
 
             var dialog = new DraftInvoiceEditorDialog(
@@ -642,7 +660,9 @@ public partial class Datenimport : Page
                 NetUnitPrice = x.NetUnitPrice,
                 MetalSurcharge = x.MetalSurcharge,
                 GrossListPrice = x.GrossListPrice,
-                PriceBasisQuantity = x.PriceBasisQuantity
+                GrossUnitPrice = x.GrossUnitPrice,
+                PriceBasisQuantity = x.PriceBasisQuantity,
+                GrossLineTotal = x.GrossLineTotal
             }).ToList();
 
             var saveDialog = new SaveFileDialog
@@ -845,6 +865,93 @@ public partial class Datenimport : Page
     }
 
     private static string BuildManualDocumentNumber() => $"MANUELL-{DateTime.Now:yyyyMMdd-HHmmss}";
+
+    private static List<ManualInvoiceLineInput> PrepareLinesForPersistence(IEnumerable<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount)
+    {
+        var preparedLines = lines.Select(CloneLine).ToList();
+        foreach (var line in preparedLines)
+        {
+            InitializeManualLineAmounts(line);
+        }
+
+        ApplyGrossAmountsFromInvoiceTotal(preparedLines, invoiceTotalAmount);
+        return preparedLines;
+    }
+
+    private static ManualInvoiceLineInput CloneLine(ManualInvoiceLineInput line)
+    {
+        return new ManualInvoiceLineInput
+        {
+            Position = line.Position,
+            ArticleNumber = line.ArticleNumber,
+            Ean = line.Ean,
+            Description = line.Description,
+            Quantity = line.Quantity,
+            Unit = line.Unit,
+            NetUnitPrice = line.NetUnitPrice,
+            MetalSurcharge = line.MetalSurcharge,
+            GrossListPrice = line.GrossListPrice,
+            GrossUnitPrice = line.GrossUnitPrice,
+            PriceBasisQuantity = line.PriceBasisQuantity,
+            GrossLineTotal = line.GrossLineTotal
+        };
+    }
+
+    private static void InitializeManualLineAmounts(ManualInvoiceLineInput line)
+    {
+        var normalizedNetUnitPrice = PricingHelper.NormalizeUnitPrice(line.NetUnitPrice, line.MetalSurcharge, line.PriceBasisQuantity);
+        var normalizedGrossListPrice = line.GrossListPrice > 0m
+            ? PricingHelper.NormalizeUnitPrice(line.GrossListPrice, line.PriceBasisQuantity)
+            : 0m;
+
+        line.GrossUnitPrice = normalizedGrossListPrice > 0m
+            ? PricingHelper.RoundUnitPrice(normalizedGrossListPrice)
+            : PricingHelper.RoundUnitPrice(normalizedNetUnitPrice);
+        line.GrossLineTotal = PricingHelper.RoundCurrency(line.Quantity * line.GrossUnitPrice);
+    }
+
+    private static void ApplyGrossAmountsFromInvoiceTotal(IEnumerable<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount)
+    {
+        var preparedLines = lines.ToList();
+        if (preparedLines.Count == 0)
+        {
+            return;
+        }
+
+        var netTotal = PricingHelper.RoundCurrency(preparedLines.Sum(x => x.LineTotal));
+        if (netTotal <= 0m)
+        {
+            foreach (var line in preparedLines)
+            {
+                InitializeManualLineAmounts(line);
+            }
+
+            return;
+        }
+
+        var fallbackGrossTotal = PricingHelper.RoundCurrency(preparedLines.Sum(x => x.GrossLineTotal));
+        var effectiveGrossTotal = invoiceTotalAmount > 0m
+            ? PricingHelper.RoundCurrency(invoiceTotalAmount)
+            : (fallbackGrossTotal > 0m ? fallbackGrossTotal : netTotal);
+        var grossFactor = effectiveGrossTotal / netTotal;
+        if (grossFactor < 1m || grossFactor > 2m)
+        {
+            grossFactor = 1m;
+            effectiveGrossTotal = netTotal;
+        }
+
+        var assignedGrossTotal = 0m;
+        for (var i = 0; i < preparedLines.Count; i++)
+        {
+            var line = preparedLines[i];
+            var grossLineTotal = i == preparedLines.Count - 1
+                ? PricingHelper.RoundCurrency(effectiveGrossTotal - assignedGrossTotal)
+                : PricingHelper.CalculateGrossLineTotal(line.LineTotal, grossFactor);
+            line.GrossLineTotal = grossLineTotal;
+            line.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(grossLineTotal, line.Quantity);
+            assignedGrossTotal += grossLineTotal;
+        }
+    }
 
     private static string DetectAccountingCategory(string rawText)
     {
@@ -1062,8 +1169,14 @@ public partial class Datenimport : Page
                 NetUnitPrice = netPrice,
                 MetalSurcharge = metalSurcharge,
                 GrossListPrice = grossPrice,
+                GrossUnitPrice = grossPrice > 0m
+                    ? PricingHelper.RoundUnitPrice(PricingHelper.NormalizeUnitPrice(grossPrice, basisQty))
+                    : 0m,
                 PriceBasisQuantity = basisQty,
-                LineTotal = lineTotal > 0m ? lineTotal : PricingHelper.CalculateLineTotal(quantity, netPrice, metalSurcharge, basisQty)
+                LineTotal = lineTotal > 0m ? lineTotal : PricingHelper.CalculateLineTotal(quantity, netPrice, metalSurcharge, basisQty),
+                GrossLineTotal = grossPrice > 0m
+                    ? PricingHelper.RoundCurrency(quantity * PricingHelper.NormalizeUnitPrice(grossPrice, basisQty))
+                    : 0m
             });
         }
 

@@ -118,8 +118,10 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 NetUnitPrice = line.NetUnitPrice,
                 MetalSurcharge = line.MetalSurcharge,
                 GrossListPrice = line.GrossListPrice,
+                GrossUnitPrice = line.GrossUnitPrice,
                 PriceBasisQuantity = line.PriceBasisQuantity,
-                LineTotal = line.LineTotal
+                LineTotal = line.LineTotal,
+                GrossLineTotal = line.GrossLineTotal
             }).ToList()
         };
 
@@ -241,8 +243,10 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             NetUnitPrice = line.NetUnitPrice,
             MetalSurcharge = line.MetalSurcharge,
             GrossListPrice = line.GrossListPrice,
+            GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
-            LineTotal = line.LineTotal
+            LineTotal = line.LineTotal,
+            GrossLineTotal = line.GrossLineTotal
         }).ToList();
 
         if (!string.IsNullOrWhiteSpace(request.PdfContentBase64))
@@ -463,8 +467,10 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 NetUnitPrice = x.NetUnitPrice,
                 MetalSurcharge = x.MetalSurcharge,
                 GrossListPrice = x.GrossListPrice,
+                GrossUnitPrice = x.GrossUnitPrice,
                 PriceBasisQuantity = x.PriceBasisQuantity,
-                LineTotal = x.LineTotal
+                LineTotal = x.LineTotal,
+                GrossLineTotal = x.GrossLineTotal
             }).ToList()
         };
     }
@@ -541,8 +547,10 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             NetUnitPrice = line.NetUnitPrice,
             MetalSurcharge = line.MetalSurcharge,
             GrossListPrice = line.GrossListPrice,
+            GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
             LineTotal = line.LineTotal,
+            GrossLineTotal = line.GrossLineTotal,
             IsPaid = line.IsPaid,
             PaidAt = line.PaidAt,
             Allocations = line.Allocations.Select(MapAllocation).ToList()

@@ -17,7 +17,7 @@
 
         <StackPanel>
             <TextBlock Text="Rechnungsentwurf bearbeiten" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
-            <TextBlock Text="Du kannst Lieferdatum, Betreff und alle Positionen des Entwurfs anpassen. Beim Speichern wird die PDF erneut mit ENTWURF-Wasserzeichen erstellt." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+            <TextBlock Text="Du kannst Lieferdatum, Umsatzsteuer, Betreff und alle Positionen des Entwurfs anpassen. Beim Speichern wird die PDF erneut mit ENTWURF-Wasserzeichen erstellt." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="0,18,0,18">
@@ -59,16 +59,24 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <StackPanel>
                 <TextBlock Text="Betreff / Einleitung" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="SubjectText" AcceptsReturn="True" TextWrapping="Wrap" Height="96" VerticalScrollBarVisibility="Auto"/>
-                <CheckBox x:Name="SmallBusinessCheck" Content="Umsatzsteuerfreie Leistungen gemaess §19 UStG ausgeben" Margin="0,12,0,0"/>
             </StackPanel>
 
-            <DockPanel Grid.Row="1" Margin="0,18,0,12">
+            <StackPanel Grid.Row="1" Margin="0,12,0,0">
+                <TextBlock Text="Umsatzsteuer" Style="{StaticResource MutedLabelStyle}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <RadioButton x:Name="WithVatRadio" Content="Mit Umsatzsteuer" Margin="0,0,20,0"/>
+                    <RadioButton x:Name="WithoutVatRadio" Content="Ohne Umsatzsteuer (§19 UStG)"/>
+                </StackPanel>
+            </StackPanel>
+
+            <DockPanel Grid.Row="2" Margin="0,18,0,12">
                 <TextBlock Text="Positionen" Style="{StaticResource SectionTitleStyle}" VerticalAlignment="Center"/>
                 <WrapPanel DockPanel.Dock="Right">
                     <Button Width="140" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Position hinzufuegen" Click="AddLine_Click"/>
@@ -76,7 +84,7 @@
                 </WrapPanel>
             </DockPanel>
 
-            <DataGrid x:Name="LinesGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="340">
+            <DataGrid x:Name="LinesGrid" Grid.Row="3" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single" MinHeight="340">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Pos." Binding="{Binding Position}" IsReadOnly="True" Width="60"/>
                     <DataGridTextColumn Header="Artikelnr." Binding="{Binding ArticleNumber, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
@@ -85,8 +93,9 @@
                     <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
                     <DataGridTextColumn Header="Einheit" Binding="{Binding Unit, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
                     <DataGridTextColumn Header="Netto" Binding="{Binding NetUnitPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Brutto" Binding="{Binding GrossUnitPrice, StringFormat=N2}" IsReadOnly="True" Width="90"/>
                     <DataGridTextColumn Header="Metall" Binding="{Binding MetalSurcharge, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
-                    <DataGridTextColumn Header="Brutto" Binding="{Binding GrossListPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Brutto-Liste" Binding="{Binding GrossListPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
                     <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="80"/>
                     <DataGridTextColumn Header="Gesamt" Binding="{Binding LineTotal, StringFormat=N2}" IsReadOnly="True" Width="100"/>
                 </DataGrid.Columns>

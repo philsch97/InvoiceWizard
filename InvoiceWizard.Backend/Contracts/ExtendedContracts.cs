@@ -20,8 +20,10 @@ public class InvoiceLineItemDto
     public decimal NetUnitPrice { get; set; }
     public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
+    public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }
+    public decimal GrossLineTotal { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
     public List<AllocationItemDto> Allocations { get; set; } = new();
@@ -144,8 +146,10 @@ public class SaveInvoiceLineRequest
     public decimal NetUnitPrice { get; set; }
     public decimal MetalSurcharge { get; set; }
     public decimal GrossListPrice { get; set; }
+    public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }
+    public decimal GrossLineTotal { get; set; }
 }
 
 public class UpdateRevenueLinkRequest

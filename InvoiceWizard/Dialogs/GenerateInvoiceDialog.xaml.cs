@@ -15,12 +15,14 @@ public partial class GenerateInvoiceDialog : Window
         SubjectText.Text = string.IsNullOrWhiteSpace(initialOptions?.Subject)
             ? "Unsere Lieferungen/Leistungen stellen wir Ihnen wie folgt in Rechnung."
             : initialOptions!.Subject;
-        SmallBusinessCheck.IsChecked = initialOptions?.ApplySmallBusinessRegulation ?? true;
+        var applySmallBusinessRegulation = initialOptions?.ApplySmallBusinessRegulation ?? true;
+        WithoutVatRadio.IsChecked = applySmallBusinessRegulation;
+        WithVatRadio.IsChecked = !applySmallBusinessRegulation;
         ConfirmButton.Content = isDraftMode ? "Entwurf speichern" : "Rechnung erzeugen";
         DialogTitleText.Text = isDraftMode ? "Rechnungsentwurf speichern" : "Rechnung erzeugen";
         DialogHintText.Text = isDraftMode
             ? "Der Entwurf wird mit Wasserzeichen gespeichert und kann spaeter noch bearbeitet oder finalisiert werden."
-            : "Die Rechnungsnummer wird automatisch eindeutig vergeben. Lieferdatum und Betreff kannst du vor dem Export noch anpassen.";
+            : "Die Rechnungsnummer wird automatisch eindeutig vergeben. Lieferdatum, Umsatzsteuer und Betreff kannst du vor dem Export noch anpassen.";
     }
 
     public GeneratedInvoiceOptions? Result { get; private set; }
@@ -40,7 +42,7 @@ public partial class GenerateInvoiceDialog : Window
             InvoiceDate = InvoiceDatePicker.SelectedDate ?? DateTime.Today,
             DeliveryDate = DeliveryDatePicker.SelectedDate.Value.Date,
             Subject = (SubjectText.Text ?? string.Empty).Trim(),
-            ApplySmallBusinessRegulation = SmallBusinessCheck.IsChecked == true
+            ApplySmallBusinessRegulation = WithoutVatRadio.IsChecked == true
         };
 
         DialogResult = true;

@@ -264,6 +264,7 @@
                               Margin="0,16,0,0"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
+                              CellEditEnding="ManualLinesGrid_CellEditEnding"
                               SelectionMode="Extended">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
@@ -273,6 +274,7 @@
                             <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="90"/>
                             <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
                             <DataGridTextColumn Header="Netto" Binding="{Binding NetUnitPrice}" Width="100"/>
+                            <DataGridTextColumn Header="Brutto" Binding="{Binding GrossUnitPrice}" Width="100"/>
                             <DataGridTextColumn Header="Metall" Binding="{Binding MetalSurcharge}" Width="100"/>
                             <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity}" Width="80"/>
                             <DataGridTextColumn Header="Gesamt" Binding="{Binding LineTotal}" Width="110"/>

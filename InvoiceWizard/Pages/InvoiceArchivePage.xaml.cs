@@ -104,7 +104,9 @@ public partial class InvoiceArchivePage : Page
                     NetUnitPrice = line.NetUnitPrice,
                     MetalSurcharge = line.MetalSurcharge,
                     GrossListPrice = line.GrossListPrice,
-                    PriceBasisQuantity = line.PriceBasisQuantity
+                    GrossUnitPrice = line.GrossUnitPrice,
+                    PriceBasisQuantity = line.PriceBasisQuantity,
+                    GrossLineTotal = line.GrossLineTotal
                 })
                 .ToList();
 
@@ -119,6 +121,7 @@ public partial class InvoiceArchivePage : Page
             }
 
             lines = dialog.ResultLines;
+            UpdateRevenueLineGrossAmounts(lines, dialog.Result.ApplySmallBusinessRegulation);
 
             var pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
             {
@@ -235,9 +238,12 @@ public partial class InvoiceArchivePage : Page
                     NetUnitPrice = line.NetUnitPrice,
                     MetalSurcharge = line.MetalSurcharge,
                     GrossListPrice = line.GrossListPrice,
-                    PriceBasisQuantity = line.PriceBasisQuantity
+                    GrossUnitPrice = line.GrossUnitPrice,
+                    PriceBasisQuantity = line.PriceBasisQuantity,
+                    GrossLineTotal = line.GrossLineTotal
                 })
                 .ToList();
+            UpdateRevenueLineGrossAmounts(lines, dialog.Result.ApplySmallBusinessRegulation);
 
             var pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
             {
@@ -409,5 +415,14 @@ public partial class InvoiceArchivePage : Page
 
         var sanitized = builder.ToString().Trim();
         return string.IsNullOrWhiteSpace(sanitized) ? "rechnung.pdf" : sanitized;
+    }
+
+    private static void UpdateRevenueLineGrossAmounts(IEnumerable<ManualInvoiceLineInput> lines, bool applySmallBusinessRegulation)
+    {
+        foreach (var line in lines)
+        {
+            line.GrossLineTotal = PricingHelper.CalculateRevenueGrossTotal(line.LineTotal, applySmallBusinessRegulation);
+            line.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(line.GrossLineTotal, line.Quantity);
+        }
     }
 }

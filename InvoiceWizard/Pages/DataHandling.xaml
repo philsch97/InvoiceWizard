@@ -67,7 +67,8 @@
                         <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="80"/>
                         <DataGridTextColumn Header="Noch offen" Binding="{Binding RemainingQuantity}" Width="90"/>
                         <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
-                        <DataGridTextColumn Header="EK/Stk" Binding="{Binding EffectivePurchaseUnitPrice}" Width="90"/>
+                        <DataGridTextColumn Header="EK netto" Binding="{Binding EffectivePurchaseUnitPrice}" Width="90"/>
+                        <DataGridTextColumn Header="EK brutto" Binding="{Binding GrossUnitPrice}" Width="90"/>
                         <DataGridTextColumn Header="Zugeordnet" Binding="{Binding AllocationSummary}" Width="280"/>
                         <DataGridTextColumn Header="Bezahlt" Binding="{Binding PaidStatus}" Width="120"/>
                     </DataGrid.Columns>

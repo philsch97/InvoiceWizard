@@ -13,8 +13,10 @@ namespace InvoiceWizard
         public decimal Quantity { get; set; }
         public string Unit { get; set; } = "";
         public decimal LineTotal { get; set; }
+        public decimal GrossLineTotal { get; set; }
         public string Ean { get; set; } = "";
         public decimal GrossListPrice { get; set; }   // Bruttolistenpreis (GrossPriceProductTradePrice)
+        public decimal GrossUnitPrice { get; set; }
         public decimal NetUnitPrice { get; set; }     // Netto-Einzelpreis (NetPriceProductTradePrice)
         public decimal MetalSurcharge { get; set; }   // Metallzuschlag auf derselben Preisbasis
         public decimal PriceBasisQuantity { get; set; } = 1; // PE (1, 100, ...)

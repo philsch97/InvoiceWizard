@@ -22,9 +22,11 @@ public class InvoiceLineRow
     public string Unit => Line.Unit;
     public decimal GrossListPrice => Line.GrossListPrice;
     public decimal NetUnitPrice => Line.NetUnitPrice;
+    public decimal GrossUnitPrice => Line.GrossUnitPrice;
     public decimal MetalSurcharge => Line.MetalSurcharge;
     public decimal PriceBasisQuantity => Line.PriceBasisQuantity;
     public decimal LineTotal => Line.LineTotal;
+    public decimal GrossLineTotal => Line.GrossLineTotal;
     public decimal EffectivePurchaseUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
     public decimal AllocatedQuantity => Line.Allocations?.Sum(a => a.AllocatedQuantity) ?? 0m;
     public decimal RemainingQuantity => Quantity - AllocatedQuantity;

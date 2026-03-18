@@ -3,12 +3,14 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Services;
 
 namespace InvoiceWizard.Dialogs;
 
 public partial class DraftInvoiceEditorDialog : Window
 {
     private readonly ObservableCollection<ManualInvoiceLineInput> _lines;
+    private bool _applySmallBusinessRegulation;
 
     public DraftInvoiceEditorDialog(string invoiceNumber, string customerNumber, string customerName, GeneratedInvoiceOptions initialOptions, IEnumerable<ManualInvoiceLineInput> initialLines)
     {
@@ -19,10 +21,14 @@ public partial class DraftInvoiceEditorDialog : Window
         InvoiceDatePicker.SelectedDate = initialOptions.InvoiceDate.Date;
         DeliveryDatePicker.SelectedDate = initialOptions.DeliveryDate.Date;
         SubjectText.Text = initialOptions.Subject;
-        SmallBusinessCheck.IsChecked = initialOptions.ApplySmallBusinessRegulation;
+        _applySmallBusinessRegulation = initialOptions.ApplySmallBusinessRegulation;
+        WithoutVatRadio.IsChecked = initialOptions.ApplySmallBusinessRegulation;
+        WithVatRadio.IsChecked = !initialOptions.ApplySmallBusinessRegulation;
         _lines = new ObservableCollection<ManualInvoiceLineInput>(initialLines.Select(line => CloneLine(line)));
         LinesGrid.ItemsSource = _lines;
         LinesGrid.CellEditEnding += (_, _) => Dispatcher.BeginInvoke(UpdateTotals);
+        WithVatRadio.Checked += TaxModeRadio_Checked;
+        WithoutVatRadio.Checked += TaxModeRadio_Checked;
         UpdateTotals();
     }
 
@@ -90,7 +96,7 @@ public partial class DraftInvoiceEditorDialog : Window
             InvoiceDate = InvoiceDatePicker.SelectedDate ?? DateTime.Today,
             DeliveryDate = DeliveryDatePicker.SelectedDate.Value.Date,
             Subject = (SubjectText.Text ?? string.Empty).Trim(),
-            ApplySmallBusinessRegulation = SmallBusinessCheck.IsChecked == true
+            ApplySmallBusinessRegulation = WithoutVatRadio.IsChecked == true
         };
         ResultLines = normalizedLines;
         DialogResult = true;
@@ -99,6 +105,18 @@ public partial class DraftInvoiceEditorDialog : Window
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
+    }
+
+    private void TaxModeRadio_Checked(object sender, RoutedEventArgs e)
+    {
+        var newApplySmallBusinessRegulation = WithoutVatRadio.IsChecked == true;
+        if (newApplySmallBusinessRegulation == _applySmallBusinessRegulation)
+        {
+            return;
+        }
+
+        _applySmallBusinessRegulation = newApplySmallBusinessRegulation;
+        UpdateTotals();
     }
 
     private void RenumberLines()
@@ -114,7 +132,15 @@ public partial class DraftInvoiceEditorDialog : Window
     private void UpdateTotals()
     {
         RenumberLines();
-        TotalText.Text = $"Gesamtbetrag Positionen: {_lines.Sum(x => x.LineTotal).ToString("N2", CultureInfo.GetCultureInfo("de-DE"))} EUR";
+        foreach (var line in _lines)
+        {
+            line.GrossLineTotal = PricingHelper.CalculateRevenueGrossTotal(line.LineTotal, _applySmallBusinessRegulation);
+            line.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(line.GrossLineTotal, line.Quantity);
+        }
+
+        LinesGrid.Items.Refresh();
+        var culture = CultureInfo.GetCultureInfo("de-DE");
+        TotalText.Text = $"Netto: {_lines.Sum(x => x.LineTotal).ToString("N2", culture)} EUR   Brutto: {_lines.Sum(x => x.GrossLineTotal).ToString("N2", culture)} EUR";
     }
 
     private static string? ValidateLine(ManualInvoiceLineInput line, int position)
@@ -165,7 +191,9 @@ public partial class DraftInvoiceEditorDialog : Window
             NetUnitPrice = line.NetUnitPrice,
             MetalSurcharge = line.MetalSurcharge,
             GrossListPrice = line.GrossListPrice,
-            PriceBasisQuantity = line.PriceBasisQuantity
+            GrossUnitPrice = line.GrossUnitPrice,
+            PriceBasisQuantity = line.PriceBasisQuantity,
+            GrossLineTotal = line.GrossLineTotal
         };
     }
 }
