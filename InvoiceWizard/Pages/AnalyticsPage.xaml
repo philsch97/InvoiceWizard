@@ -26,7 +26,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel>
                         <TextBlock Text="Auswertung" Style="{StaticResource PageTitleStyle}"/>
-                        <TextBlock Text="Bezahlte Umsaetze, erfasste Ausgaben, Gewinn/Verlust und eine Projektuebersicht auf einen Blick." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
+                        <TextBlock Text="Bezahlte Umsaetze inkl. USt., erfasste Ausgaben inkl. USt., Gewinn/Verlust und eine Projektuebersicht auf einen Blick." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
                     </StackPanel>
                     <Button Grid.Column="1" Width="120" Height="40" Content="Aktualisieren" Click="Refresh_Click"/>
                 </Grid>
@@ -49,13 +49,13 @@
             <UniformGrid Grid.Row="2" Columns="4" Margin="0,0,0,16">
                 <Border Style="{StaticResource CardStyle}" Margin="0,0,12,0">
                     <StackPanel>
-                        <TextBlock Text="Bezahlter Umsatz" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBlock Text="Bezahlter Umsatz inkl. USt." Style="{StaticResource MutedLabelStyle}"/>
                         <TextBlock x:Name="RevenueText" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardStyle}" Margin="0,0,12,0">
                     <StackPanel>
-                        <TextBlock Text="Gefilterte Ausgaben" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBlock Text="Gefilterte Ausgaben inkl. USt." Style="{StaticResource MutedLabelStyle}"/>
                         <TextBlock x:Name="ExpensesText" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
                     </StackPanel>
                 </Border>
@@ -67,7 +67,7 @@
                 </Border>
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Offen exportiert" Style="{StaticResource MutedLabelStyle}"/>
+                        <TextBlock Text="Offen exportiert inkl. USt." Style="{StaticResource MutedLabelStyle}"/>
                         <TextBlock x:Name="OpenRevenueText" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
                     </StackPanel>
                 </Border>
@@ -134,13 +134,13 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Kunde" Binding="{Binding CustomerName}" Width="180"/>
                             <DataGridTextColumn Header="Projekt" Binding="{Binding ProjectName}" Width="220"/>
-                            <DataGridTextColumn Header="Bezahlter Umsatz" Binding="{Binding PaidRevenue}" Width="130"/>
-                            <DataGridTextColumn Header="Offen exportiert" Binding="{Binding OpenRevenue}" Width="130"/>
+                            <DataGridTextColumn Header="Bezahlter Umsatz inkl. USt." Binding="{Binding PaidRevenue}" Width="160"/>
+                            <DataGridTextColumn Header="Offen exportiert inkl. USt." Binding="{Binding OpenRevenue}" Width="170"/>
                             <DataGridTextColumn Header="Arbeitsstunden" Binding="{Binding LoggedHours}" Width="110"/>
                             <DataGridTextColumn Header="Offene Positionen" Binding="{Binding OpenItemCount}" Width="120"/>
                         </DataGrid.Columns>
                     </DataGrid>
-                    <TextBlock Grid.Row="2" Margin="18,12,18,18" Foreground="{StaticResource MutedTextBrush}" Text="Die Projektansicht zeigt Umsatz, offene exportierte Werte und erfasste Stunden pro Projekt. Die gefilterten Ausgaben werden proportional aus zugewiesenem Material berechnet." TextWrapping="Wrap"/>
+                    <TextBlock Grid.Row="2" Margin="18,12,18,18" Foreground="{StaticResource MutedTextBrush}" Text="Die Projektansicht zeigt Umsatz inkl. USt., offene exportierte Werte inkl. USt. und erfasste Stunden pro Projekt. Die gefilterten Ausgaben werden proportional aus zugewiesenem Material inklusive USt. berechnet." TextWrapping="Wrap"/>
                 </Grid>
             </Border>
 

@@ -36,7 +36,9 @@ public static partial class CustomerInvoicePdfService
         public bool ApplySmallBusinessRegulation { get; set; }
         public bool IsDraft { get; set; }
         public List<InvoiceLine> Lines { get; set; } = new();
-        public decimal TotalAmount => Lines.Sum(x => x.LineTotal);
+        public decimal NetTotal => Lines.Sum(x => x.LineTotal);
+        public decimal VatAmount => PricingHelper.CalculateRevenueVatAmount(NetTotal, ApplySmallBusinessRegulation);
+        public decimal TotalAmount => PricingHelper.CalculateRevenueGrossTotal(NetTotal, ApplySmallBusinessRegulation);
     }
 
     public sealed class InvoiceLine
@@ -119,6 +121,7 @@ public static partial class CustomerInvoicePdfService
                     i > 0,
                     carryForward,
                     isLastPage,
+                    invoice.VatAmount,
                     invoice.TotalAmount,
                     invoice.ApplySmallBusinessRegulation));
             }
@@ -369,6 +372,7 @@ public static partial class CustomerInvoicePdfService
         bool showCarryForward,
         decimal carryForward,
         bool showGrandTotal,
+        decimal vatAmount,
         decimal grandTotal,
         bool markGrandTotal)
     {
@@ -433,18 +437,36 @@ public static partial class CustomerInvoicePdfService
         if (showGrandTotal)
         {
             var totalTable = new Table(UnitValue.CreatePercentArray(new float[] { 1f, 1f })).UseAllAvailableWidth();
+            if (vatAmount > 0m)
+            {
+                totalTable.AddCell(new Cell()
+                    .Add(new Paragraph("zzgl. 19 % USt.").SetFont(font).SetFontSize(10))
+                    .SetPadding(6)
+                    .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                    .SetBorderBottom(Border.NO_BORDER)
+                    .SetBorderLeft(new SolidBorder(ColorConstants.BLACK, 1))
+                    .SetBorderRight(Border.NO_BORDER));
+                totalTable.AddCell(new Cell()
+                    .Add(new Paragraph(FormatCurrency(vatAmount)).SetFont(font).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
+                    .SetPadding(6)
+                    .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                    .SetBorderBottom(Border.NO_BORDER)
+                    .SetBorderLeft(new SolidBorder(ColorConstants.BLACK, 1))
+                    .SetBorderRight(new SolidBorder(ColorConstants.BLACK, 1)));
+            }
+
             totalTable.AddCell(new Cell()
                 .Add(new Paragraph(markGrandTotal ? "Gesamtbetrag*" : "Gesamtbetrag").SetFont(bold).SetFontSize(10))
                 .SetPadding(6)
                 .SetKeepTogether(true)
-                .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderTop(vatAmount > 0m ? Border.NO_BORDER : new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderLeft(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderRight(Border.NO_BORDER));
             totalTable.AddCell(new Cell()
                 .Add(new Paragraph(FormatCurrency(grandTotal)).SetFont(font).SetFontSize(10).SetTextAlignment(TextAlignment.RIGHT))
                 .SetPadding(6)
-                .SetBorderTop(new SolidBorder(ColorConstants.BLACK, 1))
+                .SetBorderTop(vatAmount > 0m ? Border.NO_BORDER : new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderLeft(new SolidBorder(ColorConstants.BLACK, 1))
                 .SetBorderRight(new SolidBorder(ColorConstants.BLACK, 1)));
@@ -632,7 +654,9 @@ public static partial class CustomerInvoicePdfService
             new XElement(ram + "URIUniversalCommunication",
                 new XElement(ram + "URIID", Safe(invoice.Customer.EmailAddress))));
 
-        var lineTotal = invoice.TotalAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        var netTotal = invoice.NetTotal.ToString("0.00", CultureInfo.InvariantCulture);
+        var vatAmount = invoice.VatAmount.ToString("0.00", CultureInfo.InvariantCulture);
+        var grossTotal = invoice.TotalAmount.ToString("0.00", CultureInfo.InvariantCulture);
         var taxRate = invoice.ApplySmallBusinessRegulation ? "0.00" : "19.00";
         var taxCategory = invoice.ApplySmallBusinessRegulation ? "E" : "S";
 
@@ -672,19 +696,19 @@ public static partial class CustomerInvoicePdfService
                 new XElement(ram + "PayeeSpecifiedCreditorFinancialInstitution",
                     new XElement(ram + "BICID", Safe(invoice.Company.BankBic)))),
             new XElement(ram + "ApplicableTradeTax",
-                new XElement(ram + "CalculatedAmount", "0.00"),
+                new XElement(ram + "CalculatedAmount", vatAmount),
                 new XElement(ram + "TypeCode", "VAT"),
-                new XElement(ram + "BasisAmount", lineTotal),
+                new XElement(ram + "BasisAmount", netTotal),
                 new XElement(ram + "CategoryCode", taxCategory),
                 new XElement(ram + "RateApplicablePercent", taxRate)),
             new XElement(ram + "SpecifiedTradeSettlementHeaderMonetarySummation",
-                new XElement(ram + "LineTotalAmount", lineTotal),
-                new XElement(ram + "TaxBasisTotalAmount", lineTotal),
+                new XElement(ram + "LineTotalAmount", netTotal),
+                new XElement(ram + "TaxBasisTotalAmount", netTotal),
                 new XElement(ram + "TaxTotalAmount",
                     new XAttribute("currencyID", "EUR"),
-                    "0.00"),
-                new XElement(ram + "GrandTotalAmount", lineTotal),
-                new XElement(ram + "DuePayableAmount", lineTotal)));
+                    vatAmount),
+                new XElement(ram + "GrandTotalAmount", grossTotal),
+                new XElement(ram + "DuePayableAmount", grossTotal)));
 
         var tradeTransaction = new XElement(rsm + "SupplyChainTradeTransaction",
             invoice.Lines.Select(line => BuildTradeLine(invoice, line, ram, qdt)),

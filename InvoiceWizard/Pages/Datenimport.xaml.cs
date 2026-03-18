@@ -93,6 +93,10 @@ public partial class Datenimport : Page
             InvoiceNumberText.Text = ExtractInvoiceNumberFromXml(doc);
             InvoiceDatePicker.SelectedDate = ExtractInvoiceDateFromXml(doc);
             SupplierNameText.Text = ExtractSupplierNameFromXml(doc);
+            var grossInvoiceTotal = ExtractInvoiceGrossTotalFromXml(doc);
+            InvoiceTotalAmountText.Text = grossInvoiceTotal > 0m
+                ? grossInvoiceTotal.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
+                : string.Empty;
             SourceInfoText.Text = dlg.FileName;
             _currentSourcePdfPath = dlg.FileName;
             NoSupplierInvoiceCheckBox.IsChecked = false;
@@ -567,7 +571,7 @@ public partial class Datenimport : Page
                 detail.AccountingCategory,
                 dialog.Result.Subject,
                 dialog.Result.ApplySmallBusinessRegulation,
-                lines.Sum(x => x.LineTotal),
+                PricingHelper.CalculateRevenueGrossTotal(lines.Sum(x => x.LineTotal), dialog.Result.ApplySmallBusinessRegulation),
                 saveDialog.FileName,
                 Path.GetFileName(saveDialog.FileName),
                 Convert.ToBase64String(pdfBytes),
@@ -687,7 +691,7 @@ public partial class Datenimport : Page
                 detail.AccountingCategory,
                 dialog.Result.Subject,
                 dialog.Result.ApplySmallBusinessRegulation,
-                lines.Sum(x => x.LineTotal),
+                PricingHelper.CalculateRevenueGrossTotal(lines.Sum(x => x.LineTotal), dialog.Result.ApplySmallBusinessRegulation),
                 saveDialog.FileName,
                 Path.GetFileName(saveDialog.FileName),
                 Convert.ToBase64String(pdfBytes),
@@ -926,6 +930,38 @@ public partial class Datenimport : Page
         }
 
         return DateTime.TryParseExact(value.Trim(), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : DateTime.Today;
+    }
+
+    private static decimal ExtractInvoiceGrossTotalFromXml(XDocument doc)
+    {
+        var settlement = FindFirstByLocalName(doc.Root, "ApplicableHeaderTradeSettlement");
+        var summation = FindFirstByLocalName(settlement, "SpecifiedTradeSettlementHeaderMonetarySummation")
+            ?? FindFirstByLocalName(doc.Root, "SpecifiedTradeSettlementHeaderMonetarySummation");
+
+        var candidates = new[]
+        {
+            FindChildValueByLocalName(summation, "DuePayableAmount"),
+            FindChildValueByLocalName(summation, "GrandTotalAmount"),
+            FindChildValueByLocalName(summation, "TaxInclusiveTotalAmount")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            var value = ParseInvariant(candidate);
+            if (value > 0m)
+            {
+                return value;
+            }
+        }
+
+        var taxBasis = ParseInvariant(FindChildValueByLocalName(summation, "TaxBasisTotalAmount"));
+        var taxTotal = ParseInvariant(FindChildValueByLocalName(summation, "TaxTotalAmount"));
+        if (taxBasis > 0m || taxTotal > 0m)
+        {
+            return taxBasis + taxTotal;
+        }
+
+        return 0m;
     }
 
     private static string NormalizeInvoiceNumberCandidate(string? candidate)

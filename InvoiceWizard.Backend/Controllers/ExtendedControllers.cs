@@ -880,6 +880,8 @@ public class WorkTimeEntryExportsController(InvoiceWizardDbContext db, ICurrentT
 [Route("api/analytics")]
 public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
+    private const decimal GermanVatRate = 0.19m;
+
     [HttpGet("details")]
     public async Task<ActionResult<AnalyticsResponseDto>> GetDetails([FromQuery] int? customerId, [FromQuery] int? projectId)
     {
@@ -889,12 +891,14 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
             .Include(x => x.Project)
             .Include(x => x.Customer)
             .Include(x => x.InvoiceLine).ThenInclude(x => x.Invoice)
+            .Include(x => x.RevenueInvoice)
             .ToListAsync();
 
         var workEntries = await db.WorkTimeEntries
             .Where(x => x.TenantId == tenantId)
             .Include(x => x.Project)
             .Include(x => x.Customer)
+            .Include(x => x.RevenueInvoice)
             .ToListAsync();
 
         if (customerId.HasValue)
@@ -909,10 +913,10 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
             workEntries = workEntries.Where(x => x.ProjectId == projectId.Value).ToList();
         }
 
-        var paidAllocationRevenue = allocations.Where(x => x.IsPaid).Sum(GetAllocationRevenue);
-        var paidWorkRevenue = workEntries.Where(x => x.IsPaid).Sum(x => x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer));
-        var openRevenue = allocations.Where(x => !x.IsPaid).Sum(GetAllocationRevenue)
-            + workEntries.Where(x => !x.IsPaid).Sum(x => x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer));
+        var paidAllocationRevenue = allocations.Where(x => x.IsPaid).Sum(GetAllocationRevenueGross);
+        var paidWorkRevenue = workEntries.Where(x => x.IsPaid).Sum(GetWorkRevenueGross);
+        var openRevenue = allocations.Where(x => !x.IsPaid).Sum(GetAllocationRevenueGross)
+            + workEntries.Where(x => !x.IsPaid).Sum(GetWorkRevenueGross);
 
         decimal expenses;
         List<ExpenseCategoryTotalDto> expenseCategories;
@@ -922,26 +926,26 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
                 .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense" && x.HasSupplierInvoice)
                 .Include(x => x.Lines)
                 .ToListAsync();
-            expenses = expenseInvoices.Sum(GetInvoiceTotal);
+            expenses = expenseInvoices.Sum(GetExpenseInvoiceGrossTotal);
             expenseCategories = expenseInvoices
                 .GroupBy(x => x.AccountingCategory)
                 .Select(g => new ExpenseCategoryTotalDto
                 {
                     AccountingCategory = g.Key,
-                    Amount = g.Sum(GetInvoiceTotal)
+                    Amount = g.Sum(GetExpenseInvoiceGrossTotal)
                 })
                 .OrderByDescending(x => x.Amount)
                 .ToList();
         }
         else
         {
-            expenses = allocations.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine));
+            expenses = allocations.Sum(GetAllocatedExpenseGross);
             expenseCategories = allocations
                 .GroupBy(x => x.InvoiceLine.Invoice.AccountingCategory)
                 .Select(g => new ExpenseCategoryTotalDto
                 {
                     AccountingCategory = g.Key,
-                    Amount = g.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine))
+                    Amount = g.Sum(GetAllocatedExpenseGross)
                 })
                 .OrderByDescending(x => x.Amount)
                 .ToList();
@@ -951,14 +955,14 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         var months = Enumerable.Range(0, 6).Select(offset => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-5 + offset)).ToList();
         var revenueByMonth = allocations.Where(x => x.IsPaid && x.PaidAt != null)
             .GroupBy(x => new DateTime(x.PaidAt!.Value.Year, x.PaidAt.Value.Month, 1))
-            .ToDictionary(g => g.Key, g => g.Sum(GetAllocationRevenue));
+            .ToDictionary(g => g.Key, g => g.Sum(GetAllocationRevenueGross));
 
         foreach (var group in workEntries.Where(x => x.IsPaid && x.PaidAt != null)
                      .GroupBy(x => new DateTime(x.PaidAt!.Value.Year, x.PaidAt.Value.Month, 1)))
         {
             revenueByMonth[group.Key] = revenueByMonth.TryGetValue(group.Key, out var existing)
-                ? existing + group.Sum(x => x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer))
-                : group.Sum(x => x.ExportedLineTotal > 0m ? x.ExportedLineTotal : (x.HoursWorked * x.HourlyRate) + (x.TravelKilometers * x.TravelRatePerKilometer));
+                ? existing + group.Sum(GetWorkRevenueGross)
+                : group.Sum(GetWorkRevenueGross);
         }
 
         Dictionary<DateTime, decimal> expensesByMonth;
@@ -971,13 +975,13 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
                 .ToListAsync();
             expensesByMonth = expenseInvoicesForMonths
                 .GroupBy(x => new DateTime(x.InvoiceDate.Year, x.InvoiceDate.Month, 1))
-                .ToDictionary(g => g.Key, g => g.Sum(GetInvoiceTotal));
+                .ToDictionary(g => g.Key, g => g.Sum(GetExpenseInvoiceGrossTotal));
         }
         else
         {
             expensesByMonth = allocations
                 .GroupBy(x => new DateTime(x.InvoiceLine.Invoice.InvoiceDate.Year, x.InvoiceLine.Invoice.InvoiceDate.Month, 1))
-                .ToDictionary(g => g.Key, g => g.Sum(x => x.AllocatedQuantity * GetPurchaseUnitPrice(x.InvoiceLine)));
+                .ToDictionary(g => g.Key, g => g.Sum(GetAllocatedExpenseGross));
         }
 
         var maxValue = months.Select(m => Math.Max(revenueByMonth.GetValueOrDefault(m), expensesByMonth.GetValueOrDefault(m))).DefaultIfEmpty(1m).Max();
@@ -986,7 +990,12 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
             maxValue = 1m;
         }
 
-        var projects = await db.Projects.Where(x => x.TenantId == tenantId).Include(x => x.Customer).Include(x => x.Allocations).ThenInclude(x => x.InvoiceLine).Include(x => x.WorkTimeEntries).ToListAsync();
+        var projects = await db.Projects.Where(x => x.TenantId == tenantId)
+            .Include(x => x.Customer)
+            .Include(x => x.Allocations).ThenInclude(x => x.InvoiceLine)
+            .Include(x => x.Allocations).ThenInclude(x => x.RevenueInvoice)
+            .Include(x => x.WorkTimeEntries).ThenInclude(x => x.RevenueInvoice)
+            .ToListAsync();
         if (customerId.HasValue)
         {
             projects = projects.Where(x => x.CustomerId == customerId.Value).ToList();
@@ -1015,10 +1024,10 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
             {
                 CustomerName = project.Customer.Name,
                 ProjectName = project.Name,
-                PaidRevenue = project.Allocations.Where(a => a.IsPaid).Sum(GetAllocationRevenue)
-                    + project.WorkTimeEntries.Where(w => w.IsPaid).Sum(w => w.ExportedLineTotal > 0m ? w.ExportedLineTotal : (w.HoursWorked * w.HourlyRate) + (w.TravelKilometers * w.TravelRatePerKilometer)),
-                OpenRevenue = project.Allocations.Where(a => !a.IsPaid).Sum(GetAllocationRevenue)
-                    + project.WorkTimeEntries.Where(w => !w.IsPaid).Sum(w => w.ExportedLineTotal > 0m ? w.ExportedLineTotal : (w.HoursWorked * w.HourlyRate) + (w.TravelKilometers * w.TravelRatePerKilometer)),
+                PaidRevenue = project.Allocations.Where(a => a.IsPaid).Sum(GetAllocationRevenueGross)
+                    + project.WorkTimeEntries.Where(w => w.IsPaid).Sum(GetWorkRevenueGross),
+                OpenRevenue = project.Allocations.Where(a => !a.IsPaid).Sum(GetAllocationRevenueGross)
+                    + project.WorkTimeEntries.Where(w => !w.IsPaid).Sum(GetWorkRevenueGross),
                 LoggedHours = project.WorkTimeEntries.Sum(w => w.HoursWorked),
                 OpenItemCount = project.Allocations.Count(a => !a.IsPaid) + project.WorkTimeEntries.Count(w => !w.IsPaid)
             }).OrderBy(x => x.CustomerName).ThenBy(x => x.ProjectName).ToList(),
@@ -1026,14 +1035,12 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         });
     }
 
-    private static decimal GetAllocationRevenue(LineAllocation allocation)
+    private static decimal GetAllocationRevenueGross(LineAllocation allocation)
     {
-        if (allocation.ExportedLineTotal > 0m)
-        {
-            return allocation.ExportedLineTotal;
-        }
-
-        return allocation.AllocatedQuantity * allocation.CustomerUnitPrice;
+        var netAmount = allocation.ExportedLineTotal > 0m
+            ? allocation.ExportedLineTotal
+            : allocation.AllocatedQuantity * allocation.CustomerUnitPrice;
+        return AddRevenueVatIfRequired(netAmount, allocation.RevenueInvoice?.ApplySmallBusinessRegulation ?? false);
     }
 
     private static decimal GetPurchaseUnitPrice(InvoiceLine line)
@@ -1042,9 +1049,55 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         return (line.NetUnitPrice + line.MetalSurcharge) / divisor;
     }
 
-    private static decimal GetInvoiceTotal(Invoice invoice)
+    private static decimal GetAllocatedExpenseGross(LineAllocation allocation)
+    {
+        var netAmount = allocation.AllocatedQuantity * GetPurchaseUnitPrice(allocation.InvoiceLine);
+        return netAmount * GetExpenseGrossFactor(allocation.InvoiceLine.Invoice);
+    }
+
+    private static decimal GetWorkRevenueGross(WorkTimeEntry workEntry)
+    {
+        var netAmount = workEntry.ExportedLineTotal > 0m
+            ? workEntry.ExportedLineTotal
+            : (workEntry.HoursWorked * workEntry.HourlyRate) + (workEntry.TravelKilometers * workEntry.TravelRatePerKilometer);
+        return AddRevenueVatIfRequired(netAmount, workEntry.RevenueInvoice?.ApplySmallBusinessRegulation ?? false);
+    }
+
+    private static decimal GetExpenseInvoiceGrossTotal(Invoice invoice)
+    {
+        if (invoice.InvoiceTotalAmount > 0m)
+        {
+            return invoice.InvoiceTotalAmount;
+        }
+
+        var netTotal = GetInvoiceNetTotal(invoice);
+        return AddVat(netTotal);
+    }
+
+    private static decimal GetInvoiceNetTotal(Invoice invoice)
     {
         var linesTotal = invoice.Lines.Sum(x => x.LineTotal);
         return linesTotal > 0m ? linesTotal : invoice.InvoiceTotalAmount;
+    }
+
+    private static decimal GetExpenseGrossFactor(Invoice invoice)
+    {
+        var netTotal = GetInvoiceNetTotal(invoice);
+        if (invoice.InvoiceTotalAmount > 0m && netTotal > 0m)
+        {
+            return invoice.InvoiceTotalAmount / netTotal;
+        }
+
+        return 1m + GermanVatRate;
+    }
+
+    private static decimal AddRevenueVatIfRequired(decimal amount, bool applySmallBusinessRegulation)
+    {
+        return applySmallBusinessRegulation ? amount : AddVat(amount);
+    }
+
+    private static decimal AddVat(decimal amount)
+    {
+        return amount * (1m + GermanVatRate);
     }
 }
