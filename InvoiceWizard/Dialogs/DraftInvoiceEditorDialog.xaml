@@ -1,4 +1,4 @@
-<Window x:Class="InvoiceWizard.Dialogs.DraftInvoiceEditorDialog"
+﻿<Window x:Class="InvoiceWizard.Dialogs.DraftInvoiceEditorDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Entwurf bearbeiten"
@@ -72,7 +72,7 @@
                 <TextBlock Text="Umsatzsteuer" Style="{StaticResource MutedLabelStyle}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <RadioButton x:Name="WithVatRadio" Content="Mit Umsatzsteuer" Margin="0,0,20,0"/>
-                    <RadioButton x:Name="WithoutVatRadio" Content="Ohne Umsatzsteuer (§19 UStG)"/>
+                    <RadioButton x:Name="WithoutVatRadio" Content="Ohne Umsatzsteuer (Â§19 UStG)"/>
                 </StackPanel>
             </StackPanel>
 
@@ -92,12 +92,13 @@
                     <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
                     <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
                     <DataGridTextColumn Header="Einheit" Binding="{Binding Unit, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
-                    <DataGridTextColumn Header="Netto" Binding="{Binding NetUnitPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
-                    <DataGridTextColumn Header="Brutto" Binding="{Binding GrossUnitPrice, StringFormat=N2}" IsReadOnly="True" Width="90"/>
-                    <DataGridTextColumn Header="Metall" Binding="{Binding MetalSurcharge, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
-                    <DataGridTextColumn Header="Brutto-Liste" Binding="{Binding GrossListPrice, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
+                    <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" IsReadOnly="True" Width="160"/>
+                    <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" IsReadOnly="True" Width="170"/>
+                    <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>
+                    <DataGridTextColumn Header="Materialzuschlag&#10;pro Basis" Binding="{Binding MetalSurcharge, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
+                    <DataGridTextColumn Header="Brutto-Liste" Binding="{Binding GrossListPrice, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N2} &#x20AC;}" Width="100"/>
                     <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="80"/>
-                    <DataGridTextColumn Header="Gesamt" Binding="{Binding LineTotal, StringFormat=N2}" IsReadOnly="True" Width="100"/>
+                    <DataGridTextColumn Header="Gesamtpreis&#10;Netto" Binding="{Binding LineTotal, StringFormat={}{0:N2} &#x20AC;}" IsReadOnly="True" Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>
@@ -110,3 +111,6 @@
         </WrapPanel>
     </Grid>
 </Window>
+
+
+

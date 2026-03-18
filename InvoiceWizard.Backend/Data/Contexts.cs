@@ -175,6 +175,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
 
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceDate).HasColumnType("date");
         modelBuilder.Entity<Invoice>().Property(x => x.DeliveryDate).HasColumnType("date");
+        modelBuilder.Entity<Invoice>().Property(x => x.PaymentDueDate).HasColumnType("date");
         modelBuilder.Entity<WorkTimeEntry>().Property(x => x.WorkDate).HasColumnType("date");
         modelBuilder.Entity<CalendarEntry>().Property(x => x.EntryDate).HasColumnType("date");
         modelBuilder.Entity<BankTransaction>().Property(x => x.BookingDate).HasColumnType("date");

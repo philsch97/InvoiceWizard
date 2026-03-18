@@ -65,9 +65,9 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
     public async Task<IActionResult> SaveInvoice([FromBody] SaveInvoiceRequest request)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        if (request.Lines.Count == 0 && request.InvoiceTotalAmount <= 0m)
+        if (request.InvoiceTotalAmount <= 0m)
         {
-            return ValidationProblem("Bitte entweder Positionen erfassen oder einen Rechnungsbetrag ohne Positionen angeben.");
+            return ValidationProblem("Bitte einen Rechnungsbetrag groesser als 0 angeben.");
         }
 
         var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.ContentHash == request.ContentHash);
@@ -96,6 +96,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? fallbackNumber : request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
             DeliveryDate = request.DeliveryDate?.Date,
+            PaymentDueDate = request.PaymentDueDate?.Date,
             SupplierName = request.SupplierName.Trim(),
             AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory),
             Subject = request.Subject.Trim(),
@@ -154,6 +155,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 InvoiceNumber = x.InvoiceNumber,
                 InvoiceDate = x.InvoiceDate,
                 DeliveryDate = x.DeliveryDate,
+                PaymentDueDate = x.PaymentDueDate,
                 CustomerId = x.CustomerId,
                 SupplierName = x.SupplierName,
                 HasSupplierInvoice = x.HasSupplierInvoice,
@@ -212,14 +214,15 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             }
         }
 
-        if (request.Lines.Count == 0 && request.InvoiceTotalAmount <= 0m)
+        if (request.InvoiceTotalAmount <= 0m)
         {
-            return ValidationProblem("Bitte entweder Positionen erfassen oder einen Rechnungsbetrag ohne Positionen angeben.");
+            return ValidationProblem("Bitte einen Rechnungsbetrag groesser als 0 angeben.");
         }
 
         invoice.CustomerId = request.CustomerId;
         invoice.InvoiceDate = request.InvoiceDate.Date;
         invoice.DeliveryDate = request.DeliveryDate?.Date;
+        invoice.PaymentDueDate = request.PaymentDueDate?.Date;
         invoice.SupplierName = request.SupplierName.Trim();
         invoice.AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory);
         invoice.Subject = request.Subject.Trim();
@@ -443,6 +446,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             InvoiceNumber = invoice.InvoiceNumber,
             InvoiceDate = invoice.InvoiceDate,
             DeliveryDate = invoice.DeliveryDate,
+            PaymentDueDate = invoice.PaymentDueDate,
             CustomerId = invoice.CustomerId,
             SupplierName = invoice.SupplierName,
             HasSupplierInvoice = invoice.HasSupplierInvoice,

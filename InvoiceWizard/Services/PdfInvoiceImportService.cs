@@ -9,6 +9,7 @@ public class PdfInvoiceImportResult
 {
     public string InvoiceNumber { get; set; } = "";
     public DateTime? InvoiceDate { get; set; }
+    public DateTime? PaymentDueDate { get; set; }
     public string SupplierName { get; set; } = "";
     public string RawText { get; set; } = "";
 }
@@ -35,6 +36,7 @@ public static partial class PdfInvoiceImportService
         result.SupplierName = DetectSupplierName(lines, result.RawText, pdfPath);
         result.InvoiceNumber = DetectInvoiceNumber(lines, result.RawText, pdfPath);
         result.InvoiceDate = DetectInvoiceDate(lines, result.RawText, pdfPath);
+        result.PaymentDueDate = DetectPaymentDueDate(lines, result.RawText);
         return result;
     }
 
@@ -130,6 +132,29 @@ public static partial class PdfInvoiceImportService
         if (fileNameMatch.Success && TryParseDate(fileNameMatch.Groups["date"].Value, out var fileNameDate))
         {
             return fileNameDate;
+        }
+
+        return null;
+    }
+
+    private static DateTime? DetectPaymentDueDate(IEnumerable<string> lines, string text)
+    {
+        foreach (var regex in LabeledDueDateRegexes)
+        {
+            var match = regex.Match(text);
+            if (match.Success && TryParseDate(match.Groups["date"].Value, out var labeledDate))
+            {
+                return labeledDate;
+            }
+        }
+
+        foreach (var line in lines.Select(NormalizeWhitespace))
+        {
+            var match = DueDateLineRegex().Match(line);
+            if (match.Success && TryParseDate(match.Groups["date"].Value, out var lineDate))
+            {
+                return lineDate;
+            }
         }
 
         return null;
@@ -239,6 +264,12 @@ public static partial class PdfInvoiceImportService
         AltLabeledDateRegex()
     ];
 
+    private static readonly Regex[] LabeledDueDateRegexes =
+    [
+        LabeledDueDateRegex(),
+        AltLabeledDueDateRegex()
+    ];
+
     private static readonly Dictionary<string, string> KnownSuppliers = new(StringComparer.OrdinalIgnoreCase)
     {
         ["sonepar"] = "Sonepar Deutschland/ Region Sued GmbH",
@@ -266,11 +297,20 @@ public static partial class PdfInvoiceImportService
     [GeneratedRegex(@"(?im)(?:leistungsdatum|erstellt am)\s*[:#]?\s*(?<date>\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{8})", RegexOptions.Compiled)]
     private static partial Regex AltLabeledDateRegex();
 
+    [GeneratedRegex(@"(?im)(?:fälligkeit|faelligkeit|zahlbar\s+bis(?:\s+zum)?|fällig\s+am|faellig\s+am|payment due|due date)\s*[:#]?\s*(?<date>\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{8})", RegexOptions.Compiled)]
+    private static partial Regex LabeledDueDateRegex();
+
+    [GeneratedRegex(@"(?im)(?:zahlbar\s+sofort\s+bis|zahlbar\s+innerhalb\s+\d+\s+tagen\s+bis)\s*[:#]?\s*(?<date>\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{8})", RegexOptions.Compiled)]
+    private static partial Regex AltLabeledDueDateRegex();
+
     [GeneratedRegex(@"(?im)(?:rechnungs(?:nummer|nr\.?)|beleg(?:nummer|nr\.?)|dokument(?:nummer|nr\.?)|rg\.?\s*nr\.?)\s*[:#]?\s*(?<number>[A-Z0-9][A-Z0-9\-\/\.]{5,})", RegexOptions.Compiled)]
     private static partial Regex InvoiceNumberLineRegex();
 
     [GeneratedRegex(@"(?im)(?:rechnungsdatum|datum|belegdatum|leistungsdatum|erstellt am)\s*[:#]?\s*(?<date>\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{8})", RegexOptions.Compiled)]
     private static partial Regex DateLineRegex();
+
+    [GeneratedRegex(@"(?im)(?:fälligkeit|faelligkeit|zahlbar\s+bis(?:\s+zum)?|fällig\s+am|faellig\s+am|payment due|due date)\s*[:#]?\s*(?<date>\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2}|\d{8})", RegexOptions.Compiled)]
+    private static partial Regex DueDateLineRegex();
 
     [GeneratedRegex(@"^(?<number>\d{6,})[_-](?<date>\d{8})$", RegexOptions.Compiled)]
     private static partial Regex FileNamePatternRegex();

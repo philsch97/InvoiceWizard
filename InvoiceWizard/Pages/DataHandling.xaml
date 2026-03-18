@@ -56,19 +56,20 @@
                 </Grid.RowDefinitions>
                 <TextBlock Text="Importierte Positionen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
                 <DataGrid x:Name="LinesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Rechnung" Binding="{Binding InvoiceNumber}" Width="120"/>
-                            <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="110"/>
-                            <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategory}" Width="140"/>
-                            <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
-                            <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Rechnung" Binding="{Binding InvoiceNumber}" Width="120"/>
+                        <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="110"/>
+                        <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategory}" Width="140"/>
+                        <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
+                        <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
                         <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
                         <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
                         <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="80"/>
                         <DataGridTextColumn Header="Noch offen" Binding="{Binding RemainingQuantity}" Width="90"/>
                         <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
-                        <DataGridTextColumn Header="EK netto" Binding="{Binding EffectivePurchaseUnitPrice}" Width="90"/>
-                        <DataGridTextColumn Header="EK brutto" Binding="{Binding GrossUnitPrice}" Width="90"/>
+                        <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="160"/>
+                        <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
+                        <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>
                         <DataGridTextColumn Header="Zugeordnet" Binding="{Binding AllocationSummary}" Width="280"/>
                         <DataGridTextColumn Header="Bezahlt" Binding="{Binding PaidStatus}" Width="120"/>
                     </DataGrid.Columns>

@@ -92,6 +92,7 @@ public partial class Datenimport : Page
             _currentContentHash = Sha256(_currentPdfBytes);
             InvoiceNumberText.Text = ExtractInvoiceNumberFromXml(doc);
             InvoiceDatePicker.SelectedDate = ExtractInvoiceDateFromXml(doc);
+            PaymentDueDatePicker.SelectedDate = ExtractPaymentDueDateFromXml(doc);
             SupplierNameText.Text = ExtractSupplierNameFromXml(doc);
             var grossInvoiceTotal = ExtractInvoiceGrossTotalFromXml(doc);
             InvoiceTotalAmountText.Text = grossInvoiceTotal > 0m
@@ -115,6 +116,7 @@ public partial class Datenimport : Page
                     Unit = line.Unit,
                     NetUnitPrice = line.NetUnitPrice,
                     MetalSurcharge = line.MetalSurcharge,
+                    VatPercent = 0m,
                     GrossListPrice = line.GrossListPrice,
                     GrossUnitPrice = line.GrossUnitPrice,
                     PriceBasisQuantity = line.PriceBasisQuantity,
@@ -153,6 +155,7 @@ public partial class Datenimport : Page
             var parsed = PdfInvoiceImportService.Parse(dlg.FileName);
             InvoiceNumberText.Text = string.IsNullOrWhiteSpace(parsed.InvoiceNumber) ? InvoiceNumberText.Text : parsed.InvoiceNumber;
             InvoiceDatePicker.SelectedDate = parsed.InvoiceDate ?? InvoiceDatePicker.SelectedDate ?? DateTime.Today;
+            PaymentDueDatePicker.SelectedDate = parsed.PaymentDueDate;
             SupplierNameText.Text = string.IsNullOrWhiteSpace(parsed.SupplierName) ? SupplierNameText.Text : parsed.SupplierName;
             AccountingCategoryCombo.SelectedValue = DetectAccountingCategory(parsed.RawText);
             _manualLines.Clear();
@@ -208,7 +211,7 @@ public partial class Datenimport : Page
     {
         Dispatcher.BeginInvoke(() =>
         {
-            _ = TryParseOptionalDecimal(InvoiceTotalAmountText.Text, out var invoiceTotalAmount);
+            _ = TryParseDecimal(InvoiceTotalAmountText.Text, out var invoiceTotalAmount);
             ApplyGrossAmountsFromInvoiceTotal(_manualLines, invoiceTotalAmount);
             ManualLinesGrid.Items.Refresh();
         });
@@ -239,23 +242,36 @@ public partial class Datenimport : Page
             return;
         }
 
-        if (!TryParseOptionalDecimal(InvoiceTotalAmountText.Text, out var invoiceTotalAmount))
+        var hasInvoiceTotal = TryParseDecimal(InvoiceTotalAmountText.Text, out var invoiceTotalAmount) && invoiceTotalAmount > 0m;
+        if (hasSupplierInvoice && !hasInvoiceTotal)
+        {
+            SetStatus("Bitte einen gueltigen Rechnungsbetrag groesser als 0 eingeben.", StatusMessageType.Error);
+            return;
+        }
+
+        if (!hasSupplierInvoice && !string.IsNullOrWhiteSpace(InvoiceTotalAmountText.Text) && !hasInvoiceTotal)
         {
             SetStatus("Bitte einen gueltigen Rechnungsbetrag eingeben oder das Feld leer lassen.", StatusMessageType.Error);
             return;
         }
 
-        if (_manualLines.Count == 0 && invoiceTotalAmount <= 0m)
+        if (!hasInvoiceTotal)
         {
-            SetStatus("Bitte entweder Positionen erfassen oder einen Rechnungsbetrag ohne Positionen angeben.", StatusMessageType.Error);
+            invoiceTotalAmount = 0m;
+        }
+
+        if (!hasSupplierInvoice && _manualLines.Count == 0)
+        {
+            SetStatus("Bei Erfassung ohne Rechnungsbeleg bitte mindestens eine manuelle Position anlegen.", StatusMessageType.Error);
             return;
         }
 
         var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var invoiceDate = InvoiceDatePicker.SelectedDate.Value;
+        var paymentDueDate = PaymentDueDatePicker.SelectedDate?.Date;
         var preparedLines = PrepareLinesForPersistence(_manualLines, invoiceTotalAmount);
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
-            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, supplierName, invoiceTotalAmount, hasSupplierInvoice, preparedLines)
+            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, paymentDueDate, supplierName, invoiceTotalAmount, hasSupplierInvoice, preparedLines)
             : _currentContentHash;
 
         try
@@ -266,6 +282,7 @@ public partial class Datenimport : Page
                 effectiveInvoiceNumber,
                 invoiceDate,
                 null,
+                paymentDueDate,
                 null,
                 supplierName,
                 AccountingCategoryCombo.SelectedValue as string ?? "MaterialAndGoods",
@@ -337,8 +354,10 @@ public partial class Datenimport : Page
             : "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.";
 
         ImportModeInfoText.Text = noSupplierInvoice
-            ? "Fuer manuelle Erfassungen reicht ein Datum sowie entweder Positionen oder ein Rechnungsbetrag. Der EK bleibt fuer die Kalkulation sichtbar, auch wenn aktuell kein Rechnungsbeleg vorliegt."
-            : "Rechnungsnummer, Rechnungsdatum, PDF und entweder Positionen oder ein Rechnungsbetrag sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
+            ? "Fuer manuelle Erfassungen ohne Rechnungsbeleg reicht mindestens eine Position. Der Rechnungsbetrag bleibt optional, pro Position ist dann aber eine MwSt. erforderlich."
+            : "Rechnungsnummer, Rechnungsdatum, Rechnungsbetrag und PDF sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
+        VatPercentLabel.Text = noSupplierInvoice ? "MwSt. in % * Pflicht" : "MwSt. in % optional";
+        VatPercentLabel.Style = (Style)FindResource(noSupplierInvoice ? "RequiredLabelStyle" : "MutedLabelStyle");
 
         if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
         {
@@ -397,6 +416,25 @@ public partial class Datenimport : Page
             return false;
         }
 
+        var vatPercent = 0m;
+        if (!string.IsNullOrWhiteSpace(VatPercentText.Text) && !TryParseDecimal(VatPercentText.Text, out vatPercent))
+        {
+            error = "Bitte einen gueltigen MwSt.-Satz eingeben oder das Feld leer lassen.";
+            return false;
+        }
+
+        if (vatPercent < 0m)
+        {
+            error = "Der MwSt.-Satz darf nicht negativ sein.";
+            return false;
+        }
+
+        if (NoSupplierInvoiceCheckBox.IsChecked == true && vatPercent <= 0m)
+        {
+            error = "Bei Erfassung ohne Rechnungsbeleg bitte pro Position einen MwSt.-Satz groesser als 0 angeben.";
+            return false;
+        }
+
         if (!TryParseDecimal(PriceBasisText.Text, out var priceBasis) || priceBasis <= 0m)
         {
             error = "Bitte eine gueltige Preisbasis eingeben.";
@@ -412,6 +450,7 @@ public partial class Datenimport : Page
             Unit = unit,
             NetUnitPrice = netPrice,
             MetalSurcharge = metalSurcharge,
+            VatPercent = vatPercent,
             GrossListPrice = grossPrice,
             PriceBasisQuantity = priceBasis
         };
@@ -430,6 +469,7 @@ public partial class Datenimport : Page
         NetPriceText.Text = "0";
         MetalSurchargeText.Text = "0";
         GrossPriceText.Text = "0";
+        VatPercentText.Text = "19";
         PriceBasisText.Text = "1";
     }
 
@@ -438,6 +478,7 @@ public partial class Datenimport : Page
         InvoiceNumberText.Clear();
         SupplierNameText.Clear();
         InvoiceDatePicker.SelectedDate = DateTime.Today;
+        PaymentDueDatePicker.SelectedDate = null;
         NoSupplierInvoiceCheckBox.IsChecked = false;
         InvoiceDirectionCombo.SelectedValue = "Expense";
         _manualLines.Clear();
@@ -584,6 +625,7 @@ public partial class Datenimport : Page
                 detail.InvoiceNumber,
                 dialog.Result.InvoiceDate.Date,
                 dialog.Result.DeliveryDate.Date,
+                detail.PaymentDueDate,
                 detail.CustomerId,
                 detail.SupplierName,
                 detail.AccountingCategory,
@@ -706,6 +748,7 @@ public partial class Datenimport : Page
                 detail.InvoiceNumber,
                 finalizationDate,
                 dialog.Result.DeliveryDate.Date,
+                detail.PaymentDueDate,
                 detail.CustomerId,
                 detail.SupplierName,
                 detail.AccountingCategory,
@@ -835,30 +878,20 @@ public partial class Datenimport : Page
             || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
     }
 
-    private static bool TryParseOptionalDecimal(string? text, out decimal value)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            value = 0m;
-            return true;
-        }
-
-        return TryParseDecimal(text, out value);
-    }
-
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
 
-    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, string supplierName, decimal invoiceTotalAmount, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
+    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, DateTime? paymentDueDate, string supplierName, decimal invoiceTotalAmount, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
     {
         var payload = string.Join("|", new[]
         {
             invoiceDirection,
             invoiceNumber,
             invoiceDate.ToString("yyyyMMdd"),
+            paymentDueDate?.ToString("yyyyMMdd") ?? string.Empty,
             supplierName,
             invoiceTotalAmount.ToString(CultureInfo.InvariantCulture),
             hasSupplierInvoice ? "WITH-INVOICE" : "WITHOUT-INVOICE",
-            string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.MetalSurcharge}:{l.PriceBasisQuantity}"))
+            string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.MetalSurcharge}:{l.VatPercent}:{l.PriceBasisQuantity}"))
         });
 
         return Sha256(Encoding.UTF8.GetBytes(payload));
@@ -890,6 +923,7 @@ public partial class Datenimport : Page
             Unit = line.Unit,
             NetUnitPrice = line.NetUnitPrice,
             MetalSurcharge = line.MetalSurcharge,
+            VatPercent = line.VatPercent,
             GrossListPrice = line.GrossListPrice,
             GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
@@ -903,10 +937,15 @@ public partial class Datenimport : Page
         var normalizedGrossListPrice = line.GrossListPrice > 0m
             ? PricingHelper.NormalizeUnitPrice(line.GrossListPrice, line.PriceBasisQuantity)
             : 0m;
+        var grossFromVat = line.VatPercent > 0m
+            ? PricingHelper.RoundUnitPrice(normalizedNetUnitPrice * (1m + (line.VatPercent / 100m)))
+            : 0m;
 
         line.GrossUnitPrice = normalizedGrossListPrice > 0m
             ? PricingHelper.RoundUnitPrice(normalizedGrossListPrice)
-            : PricingHelper.RoundUnitPrice(normalizedNetUnitPrice);
+            : grossFromVat > 0m
+                ? grossFromVat
+                : PricingHelper.RoundUnitPrice(normalizedNetUnitPrice);
         line.GrossLineTotal = PricingHelper.RoundCurrency(line.Quantity * line.GrossUnitPrice);
     }
 
@@ -1037,6 +1076,35 @@ public partial class Datenimport : Page
         }
 
         return DateTime.TryParseExact(value.Trim(), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : DateTime.Today;
+    }
+
+    private static DateTime? ExtractPaymentDueDateFromXml(XDocument doc)
+    {
+        var settlement = FindFirstByLocalName(doc.Root, "ApplicableHeaderTradeSettlement");
+        var paymentTerms = FindFirstByLocalName(settlement, "SpecifiedTradePaymentTerms")
+            ?? FindFirstByLocalName(doc.Root, "SpecifiedTradePaymentTerms");
+        var dueDate = FindFirstByLocalName(paymentTerms, "DueDateDateTime")
+            ?? FindFirstByLocalName(doc.Root, "DueDateDateTime");
+        var value = FindChildValueByLocalName(dueDate, "DateTimeString")
+            ?? FindFirstValueByLocalName(paymentTerms, "DateTimeString");
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (DateTime.TryParseExact(trimmed, ["yyyyMMdd", "yyyy-MM-dd", "dd.MM.yyyy"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            return date;
+        }
+
+        if (DateTime.TryParse(trimmed, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.None, out date))
+        {
+            return date;
+        }
+
+        return null;
     }
 
     private static decimal ExtractInvoiceGrossTotalFromXml(XDocument doc)

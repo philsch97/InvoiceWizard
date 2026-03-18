@@ -66,6 +66,7 @@ public class Invoice
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public DateTime? DeliveryDate { get; set; }
+    public DateTime? PaymentDueDate { get; set; }
     public bool HasSupplierInvoice { get; set; } = true;
     public string SupplierName { get; set; } = "Sonepar";
     public string AccountingCategory { get; set; } = "MaterialAndGoods";

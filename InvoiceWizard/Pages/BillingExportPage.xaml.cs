@@ -409,6 +409,7 @@ public partial class BillingExportPage : Page
                     dialog.Result.InvoiceNumber,
                     dialog.Result.InvoiceDate.Date,
                     dialog.Result.DeliveryDate.Date,
+                    null,
                     customer.CustomerId,
                     customer.Name,
                     "Other",

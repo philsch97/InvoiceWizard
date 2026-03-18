@@ -72,6 +72,7 @@ public class SaveInvoiceRequest
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public DateTime? DeliveryDate { get; set; }
+    public DateTime? PaymentDueDate { get; set; }
     public string SupplierName { get; set; } = "";
     public string AccountingCategory { get; set; } = "MaterialAndGoods";
     public string Subject { get; set; } = "";
@@ -93,6 +94,7 @@ public class InvoiceListItemDto
     public string InvoiceNumber { get; set; } = "";
     public DateTime InvoiceDate { get; set; }
     public DateTime? DeliveryDate { get; set; }
+    public DateTime? PaymentDueDate { get; set; }
     public int? CustomerId { get; set; }
     public string SupplierName { get; set; } = "";
     public bool HasSupplierInvoice { get; set; }

@@ -27,6 +27,7 @@ public class InvoiceLineRow
     public decimal PriceBasisQuantity => Line.PriceBasisQuantity;
     public decimal LineTotal => Line.LineTotal;
     public decimal GrossLineTotal => Line.GrossLineTotal;
+    public decimal EffectiveNetUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
     public decimal EffectivePurchaseUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
     public decimal AllocatedQuantity => Line.Allocations?.Sum(a => a.AllocatedQuantity) ?? 0m;
     public decimal RemainingQuantity => Quantity - AllocatedQuantity;
