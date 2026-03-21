@@ -376,6 +376,37 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         return Ok(MapInvoiceDetail(updated));
     }
 
+    [HttpDelete("{invoiceId:int}")]
+    public async Task<IActionResult> DeleteInvoice(int invoiceId)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var invoice = await db.Invoices
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.InvoiceId == invoiceId && x.TenantId == tenantId, HttpContext.RequestAborted);
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (!string.Equals(NormalizeInvoiceStatus(invoice.InvoiceStatus), "Review", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Rechnungen im Status 'Pruefen' koennen hier geloescht werden.");
+        }
+
+        var hasAssignments = await db.BankTransactionAssignments.AnyAsync(
+            x => x.TenantId == tenantId && (x.SupplierInvoiceId == invoiceId || x.RevenueInvoiceId == invoiceId),
+            HttpContext.RequestAborted);
+        if (hasAssignments)
+        {
+            return ValidationProblem("Diese Pruefrechnung ist bereits verknuepft und kann nicht geloescht werden.");
+        }
+
+        db.InvoiceLines.RemoveRange(invoice.Lines);
+        db.Invoices.Remove(invoice);
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return NoContent();
+    }
+
     [HttpGet("{invoiceId:int}/pdf")]
     public async Task<IActionResult> DownloadPdf(int invoiceId)
     {

@@ -719,6 +719,12 @@ public partial class BackendApiClient
         return MapInvoice(item);
     }
 
+    public async Task DeleteInvoiceAsync(int invoiceId)
+    {
+        var response = await _httpClient.DeleteAsync($"api/invoices/{invoiceId}");
+        await EnsureSuccessWithMessageAsync(response);
+    }
+
     public Task<byte[]> DownloadInvoicePdfAsync(int invoiceId)
         => _httpClient.GetByteArrayAsync($"api/invoices/{invoiceId}/pdf");
 

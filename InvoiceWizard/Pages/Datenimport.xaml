@@ -7,15 +7,14 @@
       d:DesignHeight="700" d:DesignWidth="1200"
       Title="Datenimport">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid Margin="18" AllowDrop="True" PreviewDragOver="ImportRoot_PreviewDragOver" Drop="ImportRoot_Drop">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+            <Grid Margin="18" AllowDrop="True" PreviewDragOver="ImportRoot_PreviewDragOver" Drop="ImportRoot_Drop">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
             <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                 <Grid>
@@ -118,13 +117,37 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0">
-                    <StackPanel>
-                        <TextBlock Text="Pflichtfelder im manuellen Import" Style="{StaticResource SectionTitleStyle}"/>
-                        <TextBlock x:Name="ImportModeInfoText" Text="Rechnungsnummer, Rechnungsdatum, Rechnungsbetrag und PDF sind erforderlich." Foreground="{StaticResource MutedTextBrush}" Margin="0,10,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="Artikelnummer, EAN, Lieferant, Metallzuschlag und Brutto-Listenpreis sind optional." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="Bei Positionen ohne Lieferantenrechnung bleibt der EK fuer die Kalkulation erhalten, wird aber als Ausgabe ohne aktuellen Beleg gekennzeichnet." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                    </StackPanel>
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="8,0,0,0" Padding="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Margin="18,18,18,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Importierte Rechnungen" Style="{StaticResource SectionTitleStyle}"/>
+                            <WrapPanel Grid.Column="1">
+                                <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Prüfrechnung laden" Click="LoadReviewInvoice_Click"/>
+                                <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Prüfrechnung löschen" Click="DeleteReviewInvoices_Click"/>
+                                <Button Width="150" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung ansehen" Click="OpenStoredPdf_Click"/>
+                            </WrapPanel>
+                        </Grid>
+                        <DataGrid x:Name="InvoicesGrid"
+                                  Grid.Row="1"
+                                  Margin="0,16,0,0"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  SelectionMode="Extended"
+                                  MinHeight="220">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Rechnungsnummer" Binding="{Binding DisplayNumber}" Width="180"/>
+                                <DataGridTextColumn Header="Lieferant" Binding="{Binding SupplierName}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Border>
             </Grid>
 
@@ -214,47 +237,6 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Importierte Rechnungen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
-                    <WrapPanel Grid.Column="1" Margin="0,18,18,0">
-                        <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Prüfrechnung laden" Click="LoadReviewInvoice_Click"/>
-                        <Button Width="160" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung stornieren" Click="CancelInvoice_Click"/>
-                        <Button Width="190" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF nachtraeglich hinterlegen" Click="UploadStoredPdf_Click"/>
-                        <Button Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung ansehen" Click="OpenStoredPdf_Click"/>
-                        <Button Width="180" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="PDFs in Ordner exportieren" Click="ExportStoredPdfs_Click"/>
-                    </WrapPanel>
-                    <DataGrid x:Name="InvoicesGrid"
-                              Grid.Row="1"
-                              Grid.ColumnSpan="2"
-                              Margin="0,16,0,0"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              SelectionMode="Extended"
-                              MinHeight="180">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Rechnung" Binding="{Binding DisplayNumber}" Width="160"/>
-                            <DataGridTextColumn Header="Art" Binding="{Binding InvoiceDirectionLabel}" Width="90"/>
-                            <DataGridTextColumn Header="Status" Binding="{Binding InvoiceStatusLabel}" Width="90"/>
-                            <DataGridTextColumn Header="Datum" Binding="{Binding InvoiceDate, StringFormat=dd.MM.yyyy}" Width="110"/>
-                            <DataGridTextColumn Header="Partei" Binding="{Binding SupplierName}" Width="180"/>
-                            <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategoryLabel}" Width="150"/>
-                            <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="120"/>
-                            <DataGridCheckBoxColumn Header="PDF" Binding="{Binding HasStoredPdf}" Width="70"/>
-                            <DataGridTextColumn Header="Datei" Binding="{Binding OriginalPdfFileName}" Width="220"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
                     <Grid Margin="18,18,18,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -293,7 +275,7 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="StatusBorder" Grid.Row="5" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>

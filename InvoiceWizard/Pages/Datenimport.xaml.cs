@@ -340,9 +340,6 @@ public partial class Datenimport : Page
             ? "Einnahmerechnungen werden fuer Zahlungseingang und Archiv getrennt von Material-Einkaeufen gespeichert."
             : "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.";
 
-        ImportModeInfoText.Text = noSupplierInvoice
-            ? "Fuer manuelle Erfassungen ohne Rechnungsbeleg reicht mindestens eine Position. Der Rechnungsbetrag bleibt optional, pro Position ist dann aber eine MwSt. erforderlich."
-            : "Rechnungsnummer, Rechnungsdatum, Rechnungsbetrag und PDF sind erforderlich. Pro Position sind Beschreibung, Menge, Einheit, Netto-Preis und Preisbasis Pflicht.";
         SaveInvoiceButton.Content = noSupplierInvoice ? "Positionen speichern" : "Rechnung speichern";
         InvoiceTotalAmountLabel.Text = noSupplierInvoice ? "Rechnungsbetrag optional" : "Rechnungsbetrag * Pflicht";
         InvoiceTotalAmountLabel.Style = (Style)FindResource(noSupplierInvoice ? "MutedLabelStyle" : "RequiredLabelStyle");
@@ -488,7 +485,10 @@ public partial class Datenimport : Page
     private async Task LoadStoredInvoicesAsync()
     {
         _storedInvoices.Clear();
-        foreach (var item in await App.Api.GetInvoicesAsync())
+        foreach (var item in (await App.Api.GetInvoicesAsync())
+                     .Where(x => x.CanLoadForReview)
+                     .OrderByDescending(x => x.InvoiceDate)
+                     .ThenByDescending(x => x.InvoiceId))
         {
             _storedInvoices.Add(item);
         }
@@ -524,7 +524,7 @@ public partial class Datenimport : Page
     {
         if (InvoicesGrid.SelectedItem is not InvoiceEntity invoice || !invoice.HasStoredPdf)
         {
-            SetStatus("Bitte zuerst eine Rechnung mit gespeicherter PDF auswaehlen.", StatusMessageType.Warning);
+            SetStatus("Bitte zuerst eine Prüfrechnung mit gespeicherter PDF auswählen.", StatusMessageType.Warning);
             return;
         }
 
@@ -817,6 +817,46 @@ public partial class Datenimport : Page
         catch (Exception ex)
         {
             SetStatus($"Rechnung konnte nicht storniert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void DeleteReviewInvoices_Click(object sender, RoutedEventArgs e)
+    {
+        var invoices = InvoicesGrid.SelectedItems.OfType<InvoiceEntity>().Where(x => x.CanLoadForReview).ToList();
+        if (invoices.Count == 0)
+        {
+            SetStatus("Bitte zuerst mindestens eine Prüfrechnung auswählen.", StatusMessageType.Warning);
+            return;
+        }
+
+        var confirmationText = invoices.Count == 1
+            ? $"Soll die Prüfrechnung {invoices[0].DisplayNumber} wirklich gelöscht werden?"
+            : $"Sollen {invoices.Count} Prüfrechnungen wirklich gelöscht werden?";
+        if (MessageBox.Show(confirmationText, "Prüfrechnung löschen", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var invoice in invoices)
+            {
+                await App.Api.DeleteInvoiceAsync(invoice.InvoiceId);
+            }
+
+            if (_loadedReviewInvoiceId.HasValue && invoices.Any(x => x.InvoiceId == _loadedReviewInvoiceId.Value))
+            {
+                ResetForm();
+            }
+
+            await LoadStoredInvoicesAsync();
+            SetStatus(invoices.Count == 1
+                ? "Prüfrechnung wurde gelöscht."
+                : $"{invoices.Count} Prüfrechnungen wurden gelöscht.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Prüfrechnungen konnten nicht gelöscht werden: {ex.Message}", StatusMessageType.Error);
         }
     }
 
