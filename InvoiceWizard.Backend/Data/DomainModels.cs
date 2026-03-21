@@ -78,6 +78,8 @@ public class Invoice
     public DateTime? CancelledAt { get; set; }
     public string CancellationReason { get; set; } = "";
     public decimal InvoiceTotalAmount { get; set; }
+    public decimal ShippingCostNet { get; set; }
+    public decimal ShippingCostGross { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
     public string StoredPdfPath { get; set; } = "";
@@ -104,6 +106,8 @@ public class InvoiceLine
     public decimal GrossListPrice { get; set; }
     public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; } = 1m;
+    public decimal ShippingNetShare { get; set; }
+    public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
     public bool IsPaid { get; set; }

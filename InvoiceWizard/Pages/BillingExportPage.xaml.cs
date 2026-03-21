@@ -416,6 +416,8 @@ public partial class BillingExportPage : Page
                     dialog.Result.Subject,
                     dialog.Result.ApplySmallBusinessRegulation,
                     PricingHelper.CalculateRevenueGrossTotal(invoiceLines.Sum(x => x.LineTotal), dialog.Result.ApplySmallBusinessRegulation),
+                    0m,
+                    0m,
                     saveDialog.FileName,
                     Path.GetFileName(saveDialog.FileName),
                     Convert.ToBase64String(pdfBytes),
@@ -610,6 +612,11 @@ public partial class BillingExportPage : Page
         if (allocation.InvoiceLine is null)
         {
             return 0m;
+        }
+
+        if (allocation.InvoiceLine.Quantity > 0m && allocation.InvoiceLine.LineTotal > 0m)
+        {
+            return PricingHelper.RoundUnitPrice(allocation.InvoiceLine.LineTotal / allocation.InvoiceLine.Quantity);
         }
 
         return PricingHelper.NormalizeUnitPrice(

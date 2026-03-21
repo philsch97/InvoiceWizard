@@ -115,6 +115,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             DraftSavedAt = string.Equals(requestedStatus, "Draft", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
             FinalizedAt = string.Equals(requestedStatus, "Finalized", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
             InvoiceTotalAmount = decimal.Round(request.InvoiceTotalAmount, 2),
+            ShippingCostNet = decimal.Round(request.ShippingCostNet, 2),
+            ShippingCostGross = decimal.Round(request.ShippingCostGross, 2),
             SourcePdfPath = request.SourcePdfPath.Trim(),
             OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim(),
             ContentHash = request.ContentHash.Trim(),
@@ -132,6 +134,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 GrossListPrice = line.GrossListPrice,
                 GrossUnitPrice = line.GrossUnitPrice,
                 PriceBasisQuantity = line.PriceBasisQuantity,
+                ShippingNetShare = line.ShippingNetShare,
+                ShippingGrossShare = line.ShippingGrossShare,
                 LineTotal = line.LineTotal,
                 GrossLineTotal = line.GrossLineTotal
             }).ToList()
@@ -174,6 +178,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 Subject = x.Subject,
                 ApplySmallBusinessRegulation = x.ApplySmallBusinessRegulation,
                 InvoiceTotalAmount = x.InvoiceTotalAmount,
+                ShippingCostNet = x.ShippingCostNet,
+                ShippingCostGross = x.ShippingCostGross,
                 OriginalPdfFileName = x.OriginalPdfFileName,
                 HasStoredPdf = x.StoredPdfContent.Length > 0 || !string.IsNullOrWhiteSpace(x.StoredPdfPath),
                 DraftSavedAt = x.DraftSavedAt,
@@ -252,6 +258,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         invoice.Subject = request.Subject.Trim();
         invoice.ApplySmallBusinessRegulation = request.ApplySmallBusinessRegulation;
         invoice.InvoiceTotalAmount = decimal.Round(request.InvoiceTotalAmount, 2);
+        invoice.ShippingCostNet = decimal.Round(request.ShippingCostNet, 2);
+        invoice.ShippingCostGross = decimal.Round(request.ShippingCostGross, 2);
         invoice.SourcePdfPath = request.SourcePdfPath.Trim();
         invoice.OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim();
         invoice.ContentHash = request.ContentHash.Trim();
@@ -273,6 +281,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             GrossListPrice = line.GrossListPrice,
             GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
+            ShippingNetShare = line.ShippingNetShare,
+            ShippingGrossShare = line.ShippingGrossShare,
             LineTotal = line.LineTotal,
             GrossLineTotal = line.GrossLineTotal
         }).ToList();
@@ -511,6 +521,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             Subject = invoice.Subject,
             ApplySmallBusinessRegulation = invoice.ApplySmallBusinessRegulation,
             InvoiceTotalAmount = invoice.InvoiceTotalAmount,
+            ShippingCostNet = invoice.ShippingCostNet,
+            ShippingCostGross = invoice.ShippingCostGross,
             OriginalPdfFileName = invoice.OriginalPdfFileName,
             HasStoredPdf = invoice.StoredPdfContent.Length > 0 || !string.IsNullOrWhiteSpace(invoice.StoredPdfPath),
             DraftSavedAt = invoice.DraftSavedAt,
@@ -530,6 +542,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 GrossListPrice = x.GrossListPrice,
                 GrossUnitPrice = x.GrossUnitPrice,
                 PriceBasisQuantity = x.PriceBasisQuantity,
+                ShippingNetShare = x.ShippingNetShare,
+                ShippingGrossShare = x.ShippingGrossShare,
                 LineTotal = x.LineTotal,
                 GrossLineTotal = x.GrossLineTotal
             }).ToList()
@@ -1114,6 +1128,11 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
     private static decimal GetPurchaseUnitPrice(InvoiceLine line)
     {
+        if (line.Quantity > 0m && line.LineTotal > 0m)
+        {
+            return decimal.Round(line.LineTotal / line.Quantity, 4);
+        }
+
         var divisor = line.PriceBasisQuantity <= 0m ? 1m : line.PriceBasisQuantity;
         return (line.NetUnitPrice + line.MetalSurcharge) / divisor;
     }

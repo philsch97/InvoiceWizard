@@ -139,6 +139,7 @@ public partial class Datenimport : Page
         var invoiceDirection = InvoiceDirectionCombo.SelectedValue as string ?? "Expense";
         var invoiceNumber = (InvoiceNumberText.Text ?? "").Trim();
         var supplierName = (SupplierNameText.Text ?? "").Trim();
+        var hasShippingCost = TryParseDecimal(ShippingCostText.Text, out var shippingCostGross) && shippingCostGross > 0m;
 
         if (hasSupplierInvoice && string.IsNullOrWhiteSpace(invoiceNumber))
         {
@@ -183,6 +184,17 @@ public partial class Datenimport : Page
             invoiceTotalAmount = 0m;
         }
 
+        if (!string.IsNullOrWhiteSpace(ShippingCostText.Text) && !hasShippingCost && !string.Equals((ShippingCostText.Text ?? "").Trim(), "0", StringComparison.Ordinal))
+        {
+            SetStatus("Bitte gueltige Versandkosten eingeben oder das Feld leer lassen.", StatusMessageType.Error);
+            return;
+        }
+
+        if (!hasShippingCost)
+        {
+            shippingCostGross = 0m;
+        }
+
         if (!hasSupplierInvoice && _manualLines.Count == 0)
         {
             SetStatus("Bei Erfassung ohne Rechnungsbeleg bitte mindestens eine manuelle Position anlegen.", StatusMessageType.Error);
@@ -191,9 +203,9 @@ public partial class Datenimport : Page
 
         var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var paymentDueDate = PaymentDueDatePicker.SelectedDate?.Date;
-        var preparedLines = PrepareLinesForPersistence(_manualLines, invoiceTotalAmount);
+        var preparedLines = PrepareLinesForPersistence(_manualLines, invoiceTotalAmount, shippingCostGross, out var shippingCostNet);
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
-            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, paymentDueDate, supplierName, invoiceTotalAmount, hasSupplierInvoice, preparedLines)
+            ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, paymentDueDate, supplierName, invoiceTotalAmount, shippingCostGross, hasSupplierInvoice, preparedLines)
             : _currentContentHash;
 
         try
@@ -216,6 +228,8 @@ public partial class Datenimport : Page
                     string.Empty,
                     false,
                     invoiceTotalAmount,
+                    shippingCostNet,
+                    shippingCostGross,
                     _currentSourcePdfPath,
                     _currentOriginalPdfFileName,
                     _currentPdfBytes is null ? null : Convert.ToBase64String(_currentPdfBytes),
@@ -239,6 +253,8 @@ public partial class Datenimport : Page
                     string.Empty,
                     false,
                     invoiceTotalAmount,
+                    shippingCostNet,
+                    shippingCostGross,
                     _currentSourcePdfPath,
                     _currentOriginalPdfFileName,
                     _currentPdfBytes is null ? null : Convert.ToBase64String(_currentPdfBytes),
@@ -312,6 +328,9 @@ public partial class Datenimport : Page
         InvoiceTotalAmountLabel.Style = (Style)FindResource(noSupplierInvoice ? "MutedLabelStyle" : "RequiredLabelStyle");
         PaymentDueDateLabel.Text = noSupplierInvoice ? "Zahlbar bis / Fällig am optional" : "Zahlbar bis / Fällig am * Pflicht";
         PaymentDueDateLabel.Style = (Style)FindResource(noSupplierInvoice ? "MutedLabelStyle" : "RequiredLabelStyle");
+        ShippingInfoText.Text = noSupplierInvoice
+            ? "Versand wird aus dem eingegebenen Betrag auf Netto und Brutto der Positionen verteilt."
+            : "Versand wird anteilig in Netto und Brutto auf alle Positionen verteilt.";
         if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
         {
             SourceInfoText.Text = noSupplierInvoice ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
@@ -336,6 +355,9 @@ public partial class Datenimport : Page
         InvoiceTotalAmountText.Text = importedInvoice.InvoiceTotalAmount > 0m
             ? importedInvoice.InvoiceTotalAmount.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
             : string.Empty;
+        ShippingCostText.Text = importedInvoice.ShippingCostGross > 0m
+            ? importedInvoice.ShippingCostGross.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
+            : "0";
 
         _manualLines.Clear();
         foreach (var line in importedInvoice.Lines)
@@ -363,6 +385,7 @@ public partial class Datenimport : Page
         _currentOriginalPdfFileName = "";
         AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
         InvoiceTotalAmountText.Clear();
+        ShippingCostText.Text = "0";
         UpdateInvoiceModeUi();
     }
 
@@ -535,6 +558,8 @@ public partial class Datenimport : Page
                 dialog.Result.Subject,
                 dialog.Result.ApplySmallBusinessRegulation,
                 PricingHelper.CalculateRevenueGrossTotal(lines.Sum(x => x.LineTotal), dialog.Result.ApplySmallBusinessRegulation),
+                0m,
+                0m,
                 saveDialog.FileName,
                 Path.GetFileName(saveDialog.FileName),
                 Convert.ToBase64String(pdfBytes),
@@ -658,6 +683,8 @@ public partial class Datenimport : Page
                 dialog.Result.Subject,
                 dialog.Result.ApplySmallBusinessRegulation,
                 PricingHelper.CalculateRevenueGrossTotal(lines.Sum(x => x.LineTotal), dialog.Result.ApplySmallBusinessRegulation),
+                0m,
+                0m,
                 saveDialog.FileName,
                 Path.GetFileName(saveDialog.FileName),
                 Convert.ToBase64String(pdfBytes),
@@ -806,34 +833,181 @@ public partial class Datenimport : Page
 
     private void ImportRoot_PreviewDragOver(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+            || e.Data.GetDataPresent("FileGroupDescriptorW")
+            || e.Data.GetDataPresent("FileGroupDescriptor"))
         {
+            DropOverlay.Visibility = Visibility.Visible;
             e.Effects = DragDropEffects.Copy;
             e.Handled = true;
             return;
         }
 
+        DropOverlay.Visibility = Visibility.Collapsed;
         e.Effects = DragDropEffects.None;
         e.Handled = true;
     }
 
+    private void ImportRoot_DragLeave(object sender, DragEventArgs e)
+    {
+        var position = e.GetPosition(ImportRoot);
+        if (position.X < 0 || position.Y < 0 || position.X > ImportRoot.ActualWidth || position.Y > ImportRoot.ActualHeight)
+        {
+            DropOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
     private async void ImportRoot_Drop(object sender, DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+        DropOverlay.Visibility = Visibility.Collapsed;
+        var tempFiles = new List<string>();
+        try
         {
-            return;
+            var files = await ExtractDroppedPdfFilesAsync(e.Data, tempFiles);
+            if (files.Count == 0)
+            {
+                SetStatus("Bitte nur PDF-Dateien oder PDF-Anhänge auf den Rechnungsimport ziehen.", StatusMessageType.Warning);
+                return;
+            }
+
+            await ImportFilesForReviewAsync(files, forceClassic: false);
+        }
+        finally
+        {
+            foreach (var tempFile in tempFiles)
+            {
+                try
+                {
+                    if (File.Exists(tempFile))
+                    {
+                        File.Delete(tempFile);
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    private static async Task<List<string>> ExtractDroppedPdfFilesAsync(IDataObject dataObject, List<string> tempFiles)
+    {
+        if (dataObject.GetDataPresent(DataFormats.FileDrop))
+        {
+            return ((string[])dataObject.GetData(DataFormats.FileDrop))
+                .Where(path => string.Equals(Path.GetExtension(path), ".pdf", StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
-        var files = ((string[])e.Data.GetData(DataFormats.FileDrop))
-            .Where(path => string.Equals(Path.GetExtension(path), ".pdf", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        if (files.Length == 0)
+        var descriptorFormat = dataObject.GetDataPresent("FileGroupDescriptorW") ? "FileGroupDescriptorW" : "FileGroupDescriptor";
+        if (!dataObject.GetDataPresent(descriptorFormat) || !dataObject.GetDataPresent("FileContents"))
         {
-            SetStatus("Bitte nur PDF-Dateien auf den Rechnungsimport ziehen.", StatusMessageType.Warning);
-            return;
+            return new List<string>();
         }
 
-        await ImportFilesForReviewAsync(files, forceClassic: false);
+        using var descriptorStream = dataObject.GetData(descriptorFormat) as MemoryStream;
+        if (descriptorStream is null)
+        {
+            return new List<string>();
+        }
+
+        var fileNames = ReadDescriptorFileNames(descriptorStream, descriptorFormat == "FileGroupDescriptorW");
+        if (fileNames.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        var fileContents = dataObject.GetData("FileContents");
+        var extractedFiles = new List<string>();
+        for (var i = 0; i < fileNames.Count; i++)
+        {
+            var fileName = fileNames[i];
+            if (!string.Equals(Path.GetExtension(fileName), ".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var sourceStream = GetVirtualFileStream(fileContents, i);
+            if (sourceStream is null)
+            {
+                continue;
+            }
+
+            await using (sourceStream.ConfigureAwait(false))
+            {
+                var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{SanitizeFileName(fileName)}");
+                await using var targetStream = File.Create(tempFile);
+                await sourceStream.CopyToAsync(targetStream);
+                tempFiles.Add(tempFile);
+                extractedFiles.Add(tempFile);
+            }
+        }
+
+        return extractedFiles;
+    }
+
+    private static Stream? GetVirtualFileStream(object fileContents, int index)
+    {
+        if (fileContents is MemoryStream memoryStream)
+        {
+            return new MemoryStream(memoryStream.ToArray());
+        }
+
+        if (fileContents is Stream directStream)
+        {
+            return directStream;
+        }
+
+        if (fileContents is object[] objectArray && index < objectArray.Length)
+        {
+            return objectArray[index] switch
+            {
+                MemoryStream ms => new MemoryStream(ms.ToArray()),
+                Stream stream => stream,
+                _ => null
+            };
+        }
+
+        return null;
+    }
+
+    private static List<string> ReadDescriptorFileNames(Stream descriptorStream, bool unicode)
+    {
+        var fileNames = new List<string>();
+        using var reader = new BinaryReader(descriptorStream, unicode ? Encoding.Unicode : Encoding.Default, leaveOpen: true);
+        descriptorStream.Position = 0;
+        var itemCount = reader.ReadInt32();
+        var nameBufferLength = unicode ? 520 : 260;
+        var skipLength = unicode ? 592 : 332;
+
+        for (var i = 0; i < itemCount; i++)
+        {
+            reader.ReadBytes(4); // dwFlags
+            reader.ReadBytes(16); // clsid
+            reader.ReadBytes(8); // sizel
+            reader.ReadBytes(8); // pointl
+            reader.ReadBytes(4); // dwFileAttributes
+            reader.ReadBytes(16); // FILETIME x2
+            reader.ReadBytes(8); // nFileSizeHigh/Low
+            var rawName = reader.ReadBytes(nameBufferLength);
+            var fileName = unicode
+                ? Encoding.Unicode.GetString(rawName).TrimEnd('\0')
+                : Encoding.Default.GetString(rawName).TrimEnd('\0');
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                fileNames.Add(fileName);
+            }
+
+            var consumed = 4 + 16 + 8 + 8 + 4 + 16 + 8 + nameBufferLength;
+            var remaining = skipLength - consumed;
+            if (remaining > 0)
+            {
+                reader.ReadBytes(remaining);
+            }
+        }
+
+        return fileNames;
     }
 
     private void RenumberLines()
@@ -855,7 +1029,7 @@ public partial class Datenimport : Page
 
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
 
-    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, DateTime? paymentDueDate, string supplierName, decimal invoiceTotalAmount, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
+    private static string BuildManualHash(string invoiceDirection, string invoiceNumber, DateTime invoiceDate, DateTime? paymentDueDate, string supplierName, decimal invoiceTotalAmount, decimal shippingCostGross, bool hasSupplierInvoice, IEnumerable<ManualInvoiceLineInput> lines)
     {
         var payload = string.Join("|", new[]
         {
@@ -865,6 +1039,7 @@ public partial class Datenimport : Page
             paymentDueDate?.ToString("yyyyMMdd") ?? string.Empty,
             supplierName,
             invoiceTotalAmount.ToString(CultureInfo.InvariantCulture),
+            shippingCostGross.ToString(CultureInfo.InvariantCulture),
             hasSupplierInvoice ? "WITH-INVOICE" : "WITHOUT-INVOICE",
             string.Join(";", lines.Select(l => $"{l.ArticleNumber}:{l.Description}:{l.Quantity}:{l.NetUnitPrice}:{l.MetalSurcharge}:{l.VatPercent}:{l.PriceBasisQuantity}"))
         });
@@ -897,6 +1072,8 @@ public partial class Datenimport : Page
                     string.Empty,
                     false,
                     importedInvoice.InvoiceTotalAmount,
+                    importedInvoice.ShippingCostNet,
+                    importedInvoice.ShippingCostGross,
                     importedInvoice.FilePath,
                     importedInvoice.OriginalPdfFileName,
                     Convert.ToBase64String(importedInvoice.PdfBytes),
@@ -929,14 +1106,17 @@ public partial class Datenimport : Page
         SetStatus($"{importedCount} Rechnung(en) importiert, {failedImports.Count} fehlgeschlagen: {errorSummary}", importedCount > 0 ? StatusMessageType.Warning : StatusMessageType.Error);
     }
 
-    private static List<ManualInvoiceLineInput> PrepareLinesForPersistence(IEnumerable<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount)
+    private static List<ManualInvoiceLineInput> PrepareLinesForPersistence(IEnumerable<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount, decimal shippingCostGross, out decimal shippingCostNet)
     {
         var preparedLines = lines.Select(CloneLine).ToList();
         foreach (var line in preparedLines)
         {
+            line.ShippingNetShare = 0m;
+            line.ShippingGrossShare = 0m;
             InitializeManualLineAmounts(line);
         }
 
+        shippingCostNet = DistributeShippingAcrossLines(preparedLines, shippingCostGross, invoiceTotalAmount);
         ApplyGrossAmountsFromInvoiceTotal(preparedLines, invoiceTotalAmount);
         return preparedLines;
     }
@@ -955,6 +1135,8 @@ public partial class Datenimport : Page
             AccountingCategory = "MaterialAndGoods",
             InvoiceNumber = string.Empty,
             InvoiceTotalAmount = 0m,
+            ShippingCostGross = 0m,
+            ShippingCostNet = 0m,
             PaymentDueDate = null
         };
 
@@ -1027,6 +1209,10 @@ public partial class Datenimport : Page
         InvoiceTotalAmountText.Text = effectiveInvoiceTotal > 0m
             ? effectiveInvoiceTotal.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
             : string.Empty;
+        var effectiveShippingGross = parsedInvoice?.ShippingCostGross > 0m ? parsedInvoice.ShippingCostGross : detail.ShippingCostGross;
+        ShippingCostText.Text = effectiveShippingGross > 0m
+            ? effectiveShippingGross.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
+            : "0";
 
         _manualLines.Clear();
         var linesToLoad = parsedInvoice is not null && parsedInvoice.Lines.Count > 0
@@ -1100,6 +1286,8 @@ public partial class Datenimport : Page
             GrossListPrice = line.GrossListPrice,
             GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
+            ShippingNetShare = line.ShippingNetShare,
+            ShippingGrossShare = line.ShippingGrossShare,
             GrossLineTotal = line.GrossLineTotal
         };
     }
@@ -1164,6 +1352,59 @@ public partial class Datenimport : Page
             assignedGrossTotal += grossLineTotal;
         }
     }
+
+    private static decimal DistributeShippingAcrossLines(List<ManualInvoiceLineInput> lines, decimal shippingCostGross, decimal invoiceTotalAmount)
+    {
+        if (lines.Count == 0 || shippingCostGross <= 0m)
+        {
+            return 0m;
+        }
+
+        var baseNetTotal = PricingHelper.RoundCurrency(lines.Sum(x => CalculateBaseLineTotal(x)));
+        var baseGrossTotal = PricingHelper.RoundCurrency(lines.Sum(x => x.GrossLineTotal));
+        var grossFactor = 1m;
+        if (baseNetTotal > 0m && baseGrossTotal > 0m)
+        {
+            grossFactor = baseGrossTotal / baseNetTotal;
+        }
+        else if (baseNetTotal > 0m && invoiceTotalAmount > shippingCostGross)
+        {
+            grossFactor = (invoiceTotalAmount - shippingCostGross) / baseNetTotal;
+        }
+
+        if (grossFactor < 1m || grossFactor > 2m)
+        {
+            grossFactor = 1m;
+        }
+
+        var shippingNet = PricingHelper.RoundCurrency(shippingCostGross / grossFactor);
+        var assignedNet = 0m;
+        var assignedGross = 0m;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var lineNetBase = CalculateBaseLineTotal(line);
+            var lineGrossBase = line.GrossLineTotal;
+            var netShare = i == lines.Count - 1
+                ? PricingHelper.RoundCurrency(shippingNet - assignedNet)
+                : PricingHelper.RoundCurrency(shippingNet * (baseNetTotal <= 0m ? (1m / lines.Count) : (lineNetBase / baseNetTotal)));
+            var grossShare = i == lines.Count - 1
+                ? PricingHelper.RoundCurrency(shippingCostGross - assignedGross)
+                : PricingHelper.RoundCurrency(shippingCostGross * (baseGrossTotal <= 0m ? (1m / lines.Count) : (lineGrossBase / baseGrossTotal)));
+
+            line.ShippingNetShare = netShare;
+            line.ShippingGrossShare = grossShare;
+            line.GrossLineTotal = PricingHelper.RoundCurrency(lineGrossBase + grossShare);
+            line.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(line.GrossLineTotal, line.Quantity);
+            assignedNet += netShare;
+            assignedGross += grossShare;
+        }
+
+        return shippingNet;
+    }
+
+    private static decimal CalculateBaseLineTotal(ManualInvoiceLineInput line)
+        => line.Quantity * ((line.NetUnitPrice + line.MetalSurcharge) / (line.PriceBasisQuantity <= 0m ? 1m : line.PriceBasisQuantity));
 
     private static string DetectAccountingCategory(string rawText)
     {
@@ -1570,6 +1811,8 @@ public partial class Datenimport : Page
         public string SupplierName { get; set; } = string.Empty;
         public string AccountingCategory { get; set; } = "MaterialAndGoods";
         public decimal InvoiceTotalAmount { get; set; }
+        public decimal ShippingCostNet { get; set; }
+        public decimal ShippingCostGross { get; set; }
         public List<ManualInvoiceLineInput> Lines { get; set; } = new();
     }
 }

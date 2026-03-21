@@ -27,8 +27,10 @@ public class InvoiceLineRow
     public decimal PriceBasisQuantity => Line.PriceBasisQuantity;
     public decimal LineTotal => Line.LineTotal;
     public decimal GrossLineTotal => Line.GrossLineTotal;
-    public decimal EffectiveNetUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
-    public decimal EffectivePurchaseUnitPrice => PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity);
+    public decimal EffectiveNetUnitPrice => Quantity <= 0m
+        ? PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity)
+        : PricingHelper.RoundUnitPrice((Line.LineTotal > 0m ? Line.LineTotal : (Quantity * PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity))) / Quantity);
+    public decimal EffectivePurchaseUnitPrice => EffectiveNetUnitPrice;
     public decimal AllocatedQuantity => Line.Allocations?.Sum(a => a.AllocatedQuantity) ?? 0m;
     public decimal RemainingQuantity => Quantity - AllocatedQuantity;
     public bool IsProjectAllocatable => Line.IsProjectAllocatable;

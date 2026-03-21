@@ -16,8 +16,12 @@ public class ManualInvoiceLineInput
     public decimal GrossListPrice { get; set; }
     public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; } = 1m;
-    public decimal EffectiveNetUnitPrice => PricingHelper.NormalizeUnitPrice(NetUnitPrice, MetalSurcharge, PriceBasisQuantity);
-    public decimal LineTotal => Quantity * ((NetUnitPrice + MetalSurcharge) / (PriceBasisQuantity <= 0m ? 1m : PriceBasisQuantity));
+    public decimal ShippingNetShare { get; set; }
+    public decimal ShippingGrossShare { get; set; }
+    public decimal EffectiveNetUnitPrice => Quantity <= 0m
+        ? PricingHelper.NormalizeUnitPrice(NetUnitPrice, MetalSurcharge, PriceBasisQuantity)
+        : PricingHelper.RoundUnitPrice((Quantity * PricingHelper.NormalizeUnitPrice(NetUnitPrice, MetalSurcharge, PriceBasisQuantity) + ShippingNetShare) / Quantity);
+    public decimal LineTotal => Quantity * ((NetUnitPrice + MetalSurcharge) / (PriceBasisQuantity <= 0m ? 1m : PriceBasisQuantity)) + ShippingNetShare;
     public decimal GrossLineTotal { get; set; }
 }
 

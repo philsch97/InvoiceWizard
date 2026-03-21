@@ -53,7 +53,7 @@ public partial class DataHandling : Page
             return;
         }
 
-        var defaultUnitPrice = PricingHelper.NormalizeUnitPrice(selectedRow.Line.NetUnitPrice, selectedRow.Line.MetalSurcharge, selectedRow.Line.PriceBasisQuantity);
+        var defaultUnitPrice = selectedRow.EffectivePurchaseUnitPrice;
         var hasCustomPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice);
 
         if (LooksLikeSwappedQuantityAndPrice(qty, enteredPrice, hasCustomPrice, selectedRow.RemainingQuantity, defaultUnitPrice))
@@ -126,7 +126,7 @@ public partial class DataHandling : Page
         {
             var customerUnitPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice)
                 ? enteredPrice
-                : PricingHelper.NormalizeUnitPrice(row.Line.NetUnitPrice, row.Line.MetalSurcharge, row.Line.PriceBasisQuantity);
+                : row.EffectivePurchaseUnitPrice;
             await App.Api.CreateAllocationAsync(row.Line.InvoiceLineId, customer.CustomerId, projectSelection.ProjectId.Value, row.RemainingQuantity, customerUnitPrice, IsSmallMaterialCheckBox.IsChecked == true);
             created++;
         }

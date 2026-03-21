@@ -78,6 +78,8 @@ public class SaveInvoiceRequest
     public string Subject { get; set; } = "";
     public bool ApplySmallBusinessRegulation { get; set; }
     public decimal InvoiceTotalAmount { get; set; }
+    public decimal ShippingCostNet { get; set; }
+    public decimal ShippingCostGross { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
     public string? PdfContentBase64 { get; set; }
@@ -102,6 +104,8 @@ public class InvoiceListItemDto
     public string Subject { get; set; } = "";
     public bool ApplySmallBusinessRegulation { get; set; }
     public decimal InvoiceTotalAmount { get; set; }
+    public decimal ShippingCostNet { get; set; }
+    public decimal ShippingCostGross { get; set; }
     public string OriginalPdfFileName { get; set; } = "";
     public bool HasStoredPdf { get; set; }
     public DateTime? DraftSavedAt { get; set; }
@@ -150,6 +154,8 @@ public class SaveInvoiceLineRequest
     public decimal GrossListPrice { get; set; }
     public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
+    public decimal ShippingNetShare { get; set; }
+    public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
 }

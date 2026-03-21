@@ -16,6 +16,8 @@ public class InvoiceLineEntity
     public decimal GrossListPrice { get; set; }
     public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; } = 1;
+    public decimal ShippingNetShare { get; set; }
+    public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
     public bool IsPaid { get; set; }

@@ -7,7 +7,7 @@
       d:DesignHeight="700" d:DesignWidth="1200"
       Title="Datenimport">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <Grid Margin="18" AllowDrop="True" PreviewDragOver="ImportRoot_PreviewDragOver" Drop="ImportRoot_Drop">
+            <Grid x:Name="ImportRoot" Margin="18" AllowDrop="True" PreviewDragOver="ImportRoot_PreviewDragOver" DragLeave="ImportRoot_DragLeave" Drop="ImportRoot_Drop">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -62,6 +62,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
@@ -106,8 +107,21 @@
                             </Border>
                         </StackPanel>
 
+                        <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,16,12,0">
+                            <TextBlock Text="Versandkosten" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBox x:Name="ShippingCostText" Text="0"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="ShippingInfoText"
+                                   Grid.Row="4"
+                                   Grid.Column="1"
+                                   Margin="0,36,0,0"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   TextWrapping="Wrap"
+                                   Text="Versand wird anteilig in Netto und Brutto auf alle Positionen verteilt."/>
+
                         <CheckBox x:Name="NoSupplierInvoiceCheckBox"
-                                  Grid.Row="4"
+                                  Grid.Row="5"
                                   Grid.ColumnSpan="2"
                                   Margin="0,16,0,0"
                                   Content="Ohne Rechnungsbeleg erfassen"
@@ -115,7 +129,7 @@
                                   Unchecked="NoSupplierInvoiceCheckBox_Changed"/>
 
                         <TextBlock x:Name="InvoiceDirectionHintText"
-                                   Grid.Row="5"
+                                   Grid.Row="6"
                                    Grid.ColumnSpan="2"
                                    Margin="0,12,0,0"
                                    Foreground="{StaticResource MutedTextBrush}"
@@ -191,6 +205,26 @@
 
             <Border x:Name="StatusBorder" Grid.Row="3" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+            </Border>
+
+            <Border x:Name="DropOverlay"
+                    Grid.RowSpan="5"
+                    Background="#B2000000"
+                    CornerRadius="18"
+                    Visibility="Collapsed"
+                    Panel.ZIndex="20">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <TextBlock Text="Datei loslassen, um sie zu importieren"
+                               Foreground="White"
+                               FontSize="28"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="PDFs werden automatisch geprüft und als Prüfrechnung angelegt."
+                               Foreground="#E5FFFFFF"
+                               Margin="0,12,0,0"
+                               FontSize="16"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
             </Border>
         </Grid>
     </ScrollViewer>

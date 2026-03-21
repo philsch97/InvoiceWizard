@@ -23,6 +23,8 @@ public class InvoiceEntity
     public DateTime? CancelledAt { get; set; }
     public string CancellationReason { get; set; } = "";
     public decimal InvoiceTotalAmount { get; set; }
+    public decimal ShippingCostNet { get; set; }
+    public decimal ShippingCostGross { get; set; }
     public string SourcePdfPath { get; set; } = "";
     public string OriginalPdfFileName { get; set; } = "";
     public bool HasStoredPdf { get; set; }
