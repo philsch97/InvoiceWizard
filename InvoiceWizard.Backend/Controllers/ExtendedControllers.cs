@@ -249,6 +249,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         }
 
         invoice.InvoiceStatus = requestedStatus;
+        invoice.InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? invoice.InvoiceNumber : request.InvoiceNumber.Trim();
         invoice.CustomerId = request.CustomerId;
         invoice.InvoiceDate = request.InvoiceDate.Date;
         invoice.DeliveryDate = request.DeliveryDate?.Date;

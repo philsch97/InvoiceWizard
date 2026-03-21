@@ -840,13 +840,19 @@ public partial class Datenimport : Page
             || e.Data.GetDataPresent("FileGroupDescriptorW")
             || e.Data.GetDataPresent("FileGroupDescriptor"))
         {
-            DropOverlay.Visibility = Visibility.Visible;
+            if (DropOverlay.Visibility != Visibility.Visible)
+            {
+                DropOverlay.Visibility = Visibility.Visible;
+            }
             e.Effects = DragDropEffects.Copy;
             e.Handled = true;
             return;
         }
 
-        DropOverlay.Visibility = Visibility.Collapsed;
+        if (DropOverlay.Visibility != Visibility.Collapsed)
+        {
+            DropOverlay.Visibility = Visibility.Collapsed;
+        }
         e.Effects = DragDropEffects.None;
         e.Handled = true;
     }

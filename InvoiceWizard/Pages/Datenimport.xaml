@@ -217,6 +217,7 @@
                     Background="#B2000000"
                     CornerRadius="18"
                     Visibility="Collapsed"
+                    IsHitTestVisible="False"
                     Panel.ZIndex="20">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                     <TextBlock Text="Datei loslassen, um sie zu importieren"
