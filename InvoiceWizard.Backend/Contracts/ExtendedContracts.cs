@@ -43,7 +43,13 @@ public class AllocationItemDto
     public string Unit { get; set; } = "";
     public decimal NetUnitPrice { get; set; }
     public decimal MetalSurcharge { get; set; }
+    public decimal GrossListPrice { get; set; }
+    public decimal GrossUnitPrice { get; set; }
     public decimal PriceBasisQuantity { get; set; }
+    public decimal ShippingNetShare { get; set; }
+    public decimal ShippingGrossShare { get; set; }
+    public decimal LineTotal { get; set; }
+    public decimal GrossLineTotal { get; set; }
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public int? ProjectId { get; set; }

@@ -15,7 +15,7 @@ public partial class GenerateInvoiceDialog : Window
         SubjectText.Text = string.IsNullOrWhiteSpace(initialOptions?.Subject)
             ? "Unsere Lieferungen/Leistungen stellen wir Ihnen wie folgt in Rechnung."
             : initialOptions!.Subject;
-        var applySmallBusinessRegulation = initialOptions?.ApplySmallBusinessRegulation ?? true;
+        var applySmallBusinessRegulation = initialOptions?.ApplySmallBusinessRegulation ?? false;
         WithoutVatRadio.IsChecked = applySmallBusinessRegulation;
         WithVatRadio.IsChecked = !applySmallBusinessRegulation;
         ConfirmButton.Content = isDraftMode ? "Entwurf speichern" : "Rechnung erzeugen";
