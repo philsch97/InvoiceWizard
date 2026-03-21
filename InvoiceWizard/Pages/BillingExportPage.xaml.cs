@@ -14,6 +14,10 @@ namespace InvoiceWizard;
 
 public partial class BillingExportPage : Page
 {
+    private decimal _lastMarkupPercent;
+    private string _lastSmallMaterialMode = "Als Sammelposition";
+    private decimal _lastSmallMaterialFlatFee;
+
     public BillingExportPage()
     {
         InitializeComponent();
@@ -118,19 +122,14 @@ public partial class BillingExportPage : Page
             return;
         }
 
-        if (!TryParseDecimal(ExportMarkupText.Text, out var markupPercent) || markupPercent < 0m)
+        if (!TryGetBillingOptions(out var billingOptions))
         {
-            SetStatus("Bitte einen gueltigen Export-Zuschlag eingeben.", StatusMessageType.Error);
             return;
         }
 
-        if (!TryParseDecimal(SmallMaterialFlatFeeText.Text, out var smallMaterialFlatFee) || smallMaterialFlatFee < 0m)
-        {
-            SetStatus("Bitte eine gueltige Kleinmaterial-Pauschale eingeben.", StatusMessageType.Error);
-            return;
-        }
-
-        var smallMaterialMode = GetSelectedSmallMaterialMode();
+        var markupPercent = billingOptions.MarkupPercent;
+        var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
+        var smallMaterialMode = billingOptions.SmallMaterialMode;
         var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
         var selectedProjectName = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.Name;
 
@@ -259,17 +258,13 @@ public partial class BillingExportPage : Page
             return;
         }
 
-        if (!TryParseDecimal(ExportMarkupText.Text, out var markupPercent) || markupPercent < 0m)
+        if (!TryGetBillingOptions(out var billingOptions))
         {
-            SetStatus("Bitte einen gueltigen Export-Zuschlag eingeben.", StatusMessageType.Error);
             return;
         }
-
-        if (!TryParseDecimal(SmallMaterialFlatFeeText.Text, out var smallMaterialFlatFee) || smallMaterialFlatFee < 0m)
-        {
-            SetStatus("Bitte eine gueltige Kleinmaterial-Pauschale eingeben.", StatusMessageType.Error);
-            return;
-        }
+        var markupPercent = billingOptions.MarkupPercent;
+        var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
+        var smallMaterialMode = billingOptions.SmallMaterialMode;
 
         try
         {
@@ -344,7 +339,7 @@ public partial class BillingExportPage : Page
             List<GeneratedInvoiceLine> invoiceLines;
             try
             {
-                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, selectedProjectName, dialog.Result.ApplySmallBusinessRegulation);
+                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, smallMaterialMode, selectedProjectName, dialog.Result.ApplySmallBusinessRegulation);
             }
             catch (Exception ex)
             {
@@ -630,6 +625,7 @@ public partial class BillingExportPage : Page
         IReadOnlyList<WorkTimeEntryEntity> workEntries,
         decimal markupPercent,
         decimal smallMaterialFlatFee,
+        string smallMaterialMode,
         string? selectedProjectName,
         bool applySmallBusinessRegulation)
     {
@@ -651,7 +647,7 @@ public partial class BillingExportPage : Page
             }
             else
             {
-                switch (GetSelectedSmallMaterialMode())
+                switch (smallMaterialMode)
                 {
                     case "Einzeln berechnen":
                         foreach (var allocation in smallMaterialAllocations)
@@ -874,9 +870,25 @@ public partial class BillingExportPage : Page
         }
     }
 
-    private string GetSelectedSmallMaterialMode()
+    private bool TryGetBillingOptions(out BillingOptionsResult result)
     {
-        return (SmallMaterialModeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Als Sammelposition";
+        var dialog = new BillingOptionsDialog(_lastMarkupPercent, _lastSmallMaterialMode, _lastSmallMaterialFlatFee)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+        {
+            result = new BillingOptionsResult();
+            SetStatus("Abrechnungsvorgang abgebrochen.", StatusMessageType.Info);
+            return false;
+        }
+
+        result = dialog.Result;
+        _lastMarkupPercent = result.MarkupPercent;
+        _lastSmallMaterialMode = result.SmallMaterialMode;
+        _lastSmallMaterialFlatFee = result.SmallMaterialFlatFee;
+        return true;
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
@@ -952,7 +964,7 @@ public partial class BillingExportPage : Page
         }
 
         var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
-        ExportMarkupText.Text = customer.DefaultMarkupPercent.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
+        _lastMarkupPercent = customer.DefaultMarkupPercent;
         var showLinked = ShowLinkedItemsCheckBox.IsChecked == true;
 
         var allocations = await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId);
