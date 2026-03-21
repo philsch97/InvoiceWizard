@@ -604,6 +604,11 @@ public partial class BillingExportPage : Page
 
     private decimal GetPurchaseUnitPrice(LineAllocationEntity allocation)
     {
+        if (allocation.CustomerUnitPrice > 0m)
+        {
+            return PricingHelper.RoundUnitPrice(allocation.CustomerUnitPrice);
+        }
+
         if (allocation.InvoiceLine is null)
         {
             return 0m;

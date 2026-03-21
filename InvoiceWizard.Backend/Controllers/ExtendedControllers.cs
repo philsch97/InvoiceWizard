@@ -1156,7 +1156,10 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
     private static decimal GetAllocatedExpenseGross(LineAllocation allocation)
     {
-        var netAmount = allocation.AllocatedQuantity * GetPurchaseUnitPrice(allocation.InvoiceLine);
+        var purchaseUnitPrice = allocation.CustomerUnitPrice > 0m
+            ? allocation.CustomerUnitPrice
+            : GetPurchaseUnitPrice(allocation.InvoiceLine);
+        var netAmount = allocation.AllocatedQuantity * purchaseUnitPrice;
         return netAmount * GetExpenseGrossFactor(allocation.InvoiceLine.Invoice);
     }
 
