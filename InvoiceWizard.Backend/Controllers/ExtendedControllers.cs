@@ -65,9 +65,20 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
     public async Task<IActionResult> SaveInvoice([FromBody] SaveInvoiceRequest request)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        if (request.InvoiceTotalAmount <= 0m)
+        var normalizedDirection = NormalizeInvoiceDirection(request.InvoiceDirection);
+        var requestedStatus = NormalizeInvoiceStatus(request.InvoiceStatus);
+        var requiresSupplierFields = string.Equals(normalizedDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            && request.HasSupplierInvoice
+            && !string.Equals(requestedStatus, "Review", StringComparison.OrdinalIgnoreCase);
+
+        if (requiresSupplierFields && request.InvoiceTotalAmount <= 0m)
         {
             return ValidationProblem("Bitte einen Rechnungsbetrag groesser als 0 angeben.");
+        }
+
+        if (requiresSupplierFields && !request.PaymentDueDate.HasValue)
+        {
+            return ValidationProblem("Bitte ein Zahlungsdatum / Faelligkeitsdatum angeben.");
         }
 
         var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.ContentHash == request.ContentHash);
@@ -90,8 +101,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         {
             TenantId = tenantId,
             CustomerId = request.CustomerId,
-            InvoiceDirection = NormalizeInvoiceDirection(request.InvoiceDirection),
-            InvoiceStatus = NormalizeInvoiceStatus(request.InvoiceStatus),
+            InvoiceDirection = normalizedDirection,
+            InvoiceStatus = requestedStatus,
             HasSupplierInvoice = request.HasSupplierInvoice,
             InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? fallbackNumber : request.InvoiceNumber.Trim(),
             InvoiceDate = request.InvoiceDate,
@@ -101,8 +112,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             AccountingCategory = NormalizeAccountingCategory(request.AccountingCategory),
             Subject = request.Subject.Trim(),
             ApplySmallBusinessRegulation = request.ApplySmallBusinessRegulation,
-            DraftSavedAt = string.Equals(NormalizeInvoiceStatus(request.InvoiceStatus), "Draft", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
-            FinalizedAt = string.Equals(NormalizeInvoiceStatus(request.InvoiceStatus), "Finalized", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
+            DraftSavedAt = string.Equals(requestedStatus, "Draft", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
+            FinalizedAt = string.Equals(requestedStatus, "Finalized", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : null,
             InvoiceTotalAmount = decimal.Round(request.InvoiceTotalAmount, 2),
             SourcePdfPath = request.SourcePdfPath.Trim(),
             OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim(),
@@ -200,9 +211,12 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return NotFound();
         }
 
-        if (!string.Equals(invoice.InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase))
+        var currentStatus = NormalizeInvoiceStatus(invoice.InvoiceStatus);
+        var requestedStatus = NormalizeInvoiceStatus(request.InvoiceStatus);
+        if (!string.Equals(currentStatus, "Draft", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(currentStatus, "Review", StringComparison.OrdinalIgnoreCase))
         {
-            return ValidationProblem("Nur Entwuerfe koennen nachtraeglich bearbeitet werden.");
+            return ValidationProblem("Nur Entwuerfe oder Rechnungen im Status 'Pruefen' koennen nachtraeglich bearbeitet werden.");
         }
 
         if (request.CustomerId.HasValue)
@@ -214,11 +228,21 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             }
         }
 
-        if (request.InvoiceTotalAmount <= 0m)
+        var requiresSupplierFields = string.Equals(NormalizeInvoiceDirection(request.InvoiceDirection), "Expense", StringComparison.OrdinalIgnoreCase)
+            && request.HasSupplierInvoice
+            && !string.Equals(requestedStatus, "Review", StringComparison.OrdinalIgnoreCase);
+
+        if (requiresSupplierFields && request.InvoiceTotalAmount <= 0m)
         {
             return ValidationProblem("Bitte einen Rechnungsbetrag groesser als 0 angeben.");
         }
 
+        if (requiresSupplierFields && !request.PaymentDueDate.HasValue)
+        {
+            return ValidationProblem("Bitte ein Zahlungsdatum / Faelligkeitsdatum angeben.");
+        }
+
+        invoice.InvoiceStatus = requestedStatus;
         invoice.CustomerId = request.CustomerId;
         invoice.InvoiceDate = request.InvoiceDate.Date;
         invoice.DeliveryDate = request.DeliveryDate?.Date;
@@ -231,7 +255,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         invoice.SourcePdfPath = request.SourcePdfPath.Trim();
         invoice.OriginalPdfFileName = string.IsNullOrWhiteSpace(request.OriginalPdfFileName) ? "" : request.OriginalPdfFileName.Trim();
         invoice.ContentHash = request.ContentHash.Trim();
-        invoice.DraftSavedAt = DateTime.UtcNow;
+        invoice.DraftSavedAt = string.Equals(requestedStatus, "Draft", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : invoice.DraftSavedAt;
+        invoice.FinalizedAt = string.Equals(requestedStatus, "Finalized", StringComparison.OrdinalIgnoreCase) ? DateTime.UtcNow : invoice.FinalizedAt;
 
         db.InvoiceLines.RemoveRange(invoice.Lines);
         invoice.Lines = request.Lines.Select(line => new InvoiceLine
@@ -430,6 +455,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         var normalized = (value ?? string.Empty).Trim();
         return normalized switch
         {
+            "Review" => "Review",
             "Draft" => "Draft",
             "Cancelled" => "Cancelled",
             _ => "Finalized"
@@ -935,7 +961,7 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         if (!customerId.HasValue && !projectId.HasValue)
         {
             var expenseInvoices = await db.Invoices
-                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense" && x.HasSupplierInvoice)
+                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense")
                 .Include(x => x.Lines)
                 .ToListAsync();
             expenses = expenseInvoices.Sum(GetExpenseInvoiceGrossTotal);
@@ -981,7 +1007,7 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         if (!customerId.HasValue && !projectId.HasValue)
         {
             var expenseInvoicesForMonths = await db.Invoices
-                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense" && x.HasSupplierInvoice)
+                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense")
                 .Include(x => x.Lines)
                 .AsNoTracking()
                 .ToListAsync();
@@ -1082,6 +1108,12 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
             return invoice.InvoiceTotalAmount;
         }
 
+        var grossLinesTotal = invoice.Lines.Sum(x => x.GrossLineTotal);
+        if (grossLinesTotal > 0m)
+        {
+            return grossLinesTotal;
+        }
+
         var netTotal = GetInvoiceNetTotal(invoice);
         return AddVat(netTotal);
     }
@@ -1098,6 +1130,12 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         if (invoice.InvoiceTotalAmount > 0m && netTotal > 0m)
         {
             return invoice.InvoiceTotalAmount / netTotal;
+        }
+
+        var grossLinesTotal = invoice.Lines.Sum(x => x.GrossLineTotal);
+        if (grossLinesTotal > 0m && netTotal > 0m)
+        {
+            return grossLinesTotal / netTotal;
         }
 
         return 1m + GermanVatRate;

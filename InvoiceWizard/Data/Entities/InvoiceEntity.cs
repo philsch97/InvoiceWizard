@@ -32,16 +32,19 @@ public class InvoiceEntity
     public string InvoiceDirectionLabel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) ? "Einnahme" : "Ausgabe";
     public string PartyLabel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) ? "Kunde / Auftraggeber" : "Lieferant";
     public bool IsDraft => string.Equals(InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase);
+    public bool IsReview => string.Equals(InvoiceStatus, "Review", StringComparison.OrdinalIgnoreCase);
     public bool IsFinalized => string.Equals(InvoiceStatus, "Finalized", StringComparison.OrdinalIgnoreCase);
     public bool IsCancelled => string.Equals(InvoiceStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
     public string InvoiceStatusLabel => InvoiceStatus switch
     {
+        "Review" => "Prüfen",
         "Draft" => "Entwurf",
         "Cancelled" => "Storniert",
         _ => "Final"
     };
     public bool CanEditDraft => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && IsDraft;
     public bool CanFinalizeDraft => CanEditDraft;
+    public bool CanLoadForReview => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase) && IsReview;
     public bool CanCancel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && !IsCancelled;
     public string AccountingCategoryLabel => AccountingCategory switch
     {

@@ -7,7 +7,7 @@
       d:DesignHeight="700" d:DesignWidth="1200"
       Title="Datenimport">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid Margin="18">
+        <Grid Margin="18" AllowDrop="True" PreviewDragOver="ImportRoot_PreviewDragOver" Drop="ImportRoot_Drop">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -27,12 +27,13 @@
                     <StackPanel>
                         <TextBlock Text="Rechnungsimport" Style="{StaticResource PageTitleStyle}"/>
                         <TextBlock Text="Importiere ZUGFeRD-Dateien, erfasse klassische Rechnungen manuell oder lege Materialpositionen ohne Lieferantenrechnung an." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Mehrere PDFs koennen direkt per Drag-and-Drop auf diese Seite gelegt oder gemeinsam im Dateidialog ausgewaehlt werden. Mehrfachimporte landen zuerst im Status Prüfen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <WrapPanel Grid.Row="1" Margin="0,18,0,0">
-                        <Button Width="180" Height="40" Margin="0,0,10,0" Content="ZUGFeRD-PDF laden" Click="ChoosePdf_Click"/>
-                        <Button Width="180" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF-Rechnung laden" Click="ChooseClassicPdf_Click"/>
-                        <Button Width="190" Height="40" Content="Rechnung speichern" Click="SaveInvoice_Click"/>
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Content="ZUGFeRD-PDF(s) laden" Click="ChoosePdf_Click"/>
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF-Rechnung(en) laden" Click="ChooseClassicPdf_Click"/>
+                        <Button x:Name="SaveInvoiceButton" Width="190" Height="40" Content="Rechnung speichern" Click="SaveInvoice_Click"/>
                     </WrapPanel>
                 </Grid>
             </Border>
@@ -84,12 +85,12 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,16,0,0">
-                            <TextBlock Text="Rechnungsbetrag * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
+                            <TextBlock x:Name="InvoiceTotalAmountLabel" Text="Rechnungsbetrag * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
                             <TextBox x:Name="InvoiceTotalAmountText"/>
                         </StackPanel>
 
                         <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,16,12,0">
-                            <TextBlock Text="Zahlbar bis / Fällig am" Style="{StaticResource MutedLabelStyle}"/>
+                            <TextBlock x:Name="PaymentDueDateLabel" Text="Zahlbar bis / Fällig am optional" Style="{StaticResource MutedLabelStyle}"/>
                             <DatePicker x:Name="PaymentDueDatePicker"/>
                         </StackPanel>
 
@@ -207,7 +208,7 @@
                 </Expander>
             </Border>
 
-            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16" Visibility="Collapsed">
+            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -217,10 +218,9 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Rechnungsarchiv" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                    <TextBlock Text="Importierte Rechnungen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
                     <WrapPanel Grid.Column="1" Margin="0,18,18,0">
-                        <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Entwurf bearbeiten" Click="EditDraftInvoice_Click"/>
-                        <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Entwurf finalisieren" Click="FinalizeDraftInvoice_Click"/>
+                        <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Prüfrechnung laden" Click="LoadReviewInvoice_Click"/>
                         <Button Width="160" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung stornieren" Click="CancelInvoice_Click"/>
                         <Button Width="190" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF nachtraeglich hinterlegen" Click="UploadStoredPdf_Click"/>
                         <Button Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung ansehen" Click="OpenStoredPdf_Click"/>
