@@ -22,16 +22,22 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.1*"/>
+                        <ColumnDefinition Width="0.9*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <StackPanel>
-                        <TextBlock Text="Rechnungsimport" Style="{StaticResource PageTitleStyle}"/>
-                        <TextBlock Text="Importiere ZUGFeRD-Dateien, erfasse klassische Rechnungen manuell oder lege Materialpositionen ohne Lieferantenrechnung an." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                        <TextBlock Text="Mehrere PDFs koennen direkt per Drag-and-Drop auf diese Seite gelegt oder gemeinsam im Dateidialog ausgewaehlt werden. Mehrfachimporte landen zuerst im Status Prüfen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
-                    </StackPanel>
+                    <TextBlock Grid.Column="0" Text="Rechnungsimport" Style="{StaticResource PageTitleStyle}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1"
+                               Text="PDFs werden automatisch auf ZUGFeRD geprüft und immer zuerst als Prüfrechnung importiert. Mehrere Dateien können direkt per Drag-and-Drop auf diese Seite gelegt oder gemeinsam im Dateidialog ausgewählt werden."
+                               Foreground="{StaticResource MutedTextBrush}"
+                               Margin="18,2,0,0"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
 
-                    <WrapPanel Grid.Row="1" Margin="0,18,0,0">
-                        <Button Width="190" Height="40" Margin="0,0,10,0" Content="ZUGFeRD-PDF(s) laden" Click="ChoosePdf_Click"/>
-                        <Button Width="190" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF-Rechnung(en) laden" Click="ChooseClassicPdf_Click"/>
+                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,18,0,0">
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Content="PDF(s) laden" Click="ChoosePdf_Click"/>
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Positionen bearbeiten" Click="EditManualLines_Click"/>
                         <Button x:Name="SaveInvoiceButton" Width="190" Height="40" Content="Rechnung speichern" Click="SaveInvoice_Click"/>
                     </WrapPanel>
                 </Grid>
@@ -151,111 +157,19 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
-                <Expander IsExpanded="False">
-                    <Expander.Header>
-                        <StackPanel>
-                            <TextBlock Text="Manuelle Positionseintragung" Style="{StaticResource SectionTitleStyle}"/>
-                            <TextBlock Text="Nur ausklappen, wenn du Positionen manuell erfassen oder ergaenzen moechtest." Foreground="{StaticResource MutedTextBrush}" Margin="0,6,0,0"/>
-                        </StackPanel>
-                    </Expander.Header>
-
-                    <Grid Margin="0,16,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,14,14">
-                                <TextBlock Text="Artikelnummer optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="ArticleNumberText"/>
-                            </StackPanel>
-                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,14,14">
-                                <TextBlock Text="EAN optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="EanText"/>
-                            </StackPanel>
-                            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,14">
-                                <TextBlock Text="Einheit * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                                <TextBox x:Name="UnitText" Text="ST"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,14,14">
-                                <TextBlock Text="Beschreibung * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                                <TextBox x:Name="DescriptionText"/>
-                            </StackPanel>
-                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,14">
-                                <TextBlock Text="Menge * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                                <TextBox x:Name="QuantityText" Text="1"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,14">
-                                <TextBlock Text="Netto-Preis * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                                <TextBox x:Name="NetPriceText" Text="0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,14,14">
-                                <TextBlock Text="Metallzuschlag optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="MetalSurchargeText" Text="0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Row="2" Grid.Column="2">
-                                <TextBlock Text="Preisbasis * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                                <TextBox x:Name="PriceBasisText" Text="1"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,14,0">
-                                <TextBlock Text="Brutto-Listenpreis optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="GrossPriceText" Text="0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,14,0">
-                                <TextBlock x:Name="VatPercentLabel" Text="MwSt. in % optional" Style="{StaticResource MutedLabelStyle}"/>
-                                <TextBox x:Name="VatPercentText" Text="19"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <WrapPanel Grid.Row="1" Margin="0,18,0,0">
-                            <Button Width="170" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Position hinzufuegen" Click="AddManualLine_Click"/>
-                        </WrapPanel>
-                    </Grid>
-                </Expander>
-            </Border>
-
-            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
+            <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Grid Margin="18,18,18,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Positionen der aktuellen Erfassung" Style="{StaticResource SectionTitleStyle}"/>
-                        <Button Grid.Column="1"
-                                Width="190"
-                                Height="36"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Content="Markierte Positionen löschen"
-                                Click="RemoveSelectedLine_Click"/>
-                    </Grid>
+                    <TextBlock Text="Positionen der aktuellen Erfassung" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
                     <DataGrid x:Name="ManualLinesGrid"
                               Grid.Row="1"
                               Margin="0,16,0,0"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              CellEditEnding="ManualLinesGrid_CellEditEnding"
+                              IsReadOnly="True"
                               SelectionMode="Extended">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
@@ -275,7 +189,7 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+            <Border x:Name="StatusBorder" Grid.Row="3" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
                 <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
             </Border>
         </Grid>

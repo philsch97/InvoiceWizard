@@ -74,68 +74,35 @@ public partial class Datenimport : Page
             return;
         }
 
-        if (dlg.FileNames.Length > 1)
-        {
-            _ = ImportFilesForReviewAsync(dlg.FileNames, forceClassic: false);
-            return;
-        }
-
-        try
-        {
-            var importedInvoice = ParseImportedInvoice(dlg.FileName, forceClassic: false);
-            LoadImportedInvoiceIntoEditor(importedInvoice);
-            SetStatus($"{importedInvoice.Lines.Count} Position(en) geladen.", StatusMessageType.Success);
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Import der PDF fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
-        }
+        _ = ImportFilesForReviewAsync(dlg.FileNames, forceClassic: false);
     }
 
-    private void ChooseClassicPdf_Click(object sender, RoutedEventArgs e)
+    private void EditManualLines_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog { Filter = "PDF Dateien (*.pdf)|*.pdf", Multiselect = true };
-        if (dlg.ShowDialog() != true)
+        var dialog = new ManualInvoiceLinesDialog(_manualLines, NoSupplierInvoiceCheckBox.IsChecked == true)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        if (dialog.ShowDialog() != true)
         {
             return;
         }
 
-        if (dlg.FileNames.Length > 1)
+        _manualLines.Clear();
+        foreach (var line in dialog.ResultLines)
         {
-            _ = ImportFilesForReviewAsync(dlg.FileNames, forceClassic: true);
-            return;
+            _manualLines.Add(CloneLine(line));
         }
-
-        try
-        {
-            var importedInvoice = ParseImportedInvoice(dlg.FileName, forceClassic: true);
-            LoadImportedInvoiceIntoEditor(importedInvoice);
-            SetStatus("PDF geladen. Erkannte Daten wurden eingetragen und koennen jetzt noch bearbeitet werden. Positionen bitte bei Bedarf manuell ergaenzen.", StatusMessageType.Success);
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"PDF-Import fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
-        }
-    }
-
-    private void AddManualLine_Click(object sender, RoutedEventArgs e)
-    {
-        if (!TryReadLine(out var line, out var error))
-        {
-            SetStatus(error, StatusMessageType.Error);
-            return;
-        }
-
-        line.Position = _manualLines.Count + 1;
-        _manualLines.Add(line);
-        ClearLineInputs();
         if (_currentPdfBytes is null)
         {
             _currentSourcePdfPath = "";
             _currentContentHash = "";
             SourceInfoText.Text = NoSupplierInvoiceCheckBox.IsChecked == true ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
         }
-        SetStatus("Position erfolgreich hinzugefuegt.", StatusMessageType.Success);
+
+        RenumberLines();
+        ManualLinesGrid.Items.Refresh();
+        SetStatus($"{_manualLines.Count} Position(en) im Dialog aktualisiert.", StatusMessageType.Success);
     }
 
     private void RemoveSelectedLine_Click(object sender, RoutedEventArgs e)
@@ -345,121 +312,39 @@ public partial class Datenimport : Page
         InvoiceTotalAmountLabel.Style = (Style)FindResource(noSupplierInvoice ? "MutedLabelStyle" : "RequiredLabelStyle");
         PaymentDueDateLabel.Text = noSupplierInvoice ? "Zahlbar bis / Fällig am optional" : "Zahlbar bis / Fällig am * Pflicht";
         PaymentDueDateLabel.Style = (Style)FindResource(noSupplierInvoice ? "MutedLabelStyle" : "RequiredLabelStyle");
-        VatPercentLabel.Text = noSupplierInvoice ? "MwSt. in % * Pflicht" : "MwSt. in % optional";
-        VatPercentLabel.Style = (Style)FindResource(noSupplierInvoice ? "RequiredLabelStyle" : "MutedLabelStyle");
-
         if (string.IsNullOrWhiteSpace(_currentSourcePdfPath))
         {
             SourceInfoText.Text = noSupplierInvoice ? "Manuelle Erfassung ohne Rechnung" : "Manuelle Erfassung";
         }
     }
 
-    private bool TryReadLine(out ManualInvoiceLineInput line, out string error)
+    private void LoadImportedInvoiceIntoEditor(ImportedExpenseInvoice importedInvoice)
     {
-        line = new ManualInvoiceLineInput();
-        error = "";
-        var description = (DescriptionText.Text ?? "").Trim();
-        var unit = (UnitText.Text ?? "").Trim();
+        _loadedReviewInvoiceId = null;
+        _currentPdfBytes = importedInvoice.PdfBytes;
+        _currentOriginalPdfFileName = importedInvoice.OriginalPdfFileName;
+        _currentContentHash = importedInvoice.ContentHash;
+        _currentSourcePdfPath = importedInvoice.FilePath;
+        SourceInfoText.Text = importedInvoice.FilePath;
+        NoSupplierInvoiceCheckBox.IsChecked = false;
+        InvoiceDirectionCombo.SelectedValue = "Expense";
+        InvoiceNumberText.Text = importedInvoice.InvoiceNumber;
+        InvoiceDatePicker.SelectedDate = importedInvoice.InvoiceDate;
+        PaymentDueDatePicker.SelectedDate = importedInvoice.PaymentDueDate;
+        SupplierNameText.Text = importedInvoice.SupplierName;
+        AccountingCategoryCombo.SelectedValue = importedInvoice.AccountingCategory;
+        InvoiceTotalAmountText.Text = importedInvoice.InvoiceTotalAmount > 0m
+            ? importedInvoice.InvoiceTotalAmount.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
+            : string.Empty;
 
-        if (string.IsNullOrWhiteSpace(description))
+        _manualLines.Clear();
+        foreach (var line in importedInvoice.Lines)
         {
-            error = "Bitte die Beschreibung als Pflichtfeld ausfuellen.";
-            return false;
+            _manualLines.Add(CloneLine(line));
         }
 
-        if (string.IsNullOrWhiteSpace(unit))
-        {
-            error = "Bitte die Einheit als Pflichtfeld ausfuellen.";
-            return false;
-        }
-
-        if (!TryParseDecimal(QuantityText.Text, out var quantity) || quantity <= 0m)
-        {
-            error = "Bitte eine gueltige Menge eingeben.";
-            return false;
-        }
-
-        if (!TryParseDecimal(NetPriceText.Text, out var netPrice) || netPrice < 0m)
-        {
-            error = "Bitte einen gueltigen Netto-Preis eingeben.";
-            return false;
-        }
-
-        var metalSurcharge = 0m;
-        if (!string.IsNullOrWhiteSpace(MetalSurchargeText.Text) && !TryParseDecimal(MetalSurchargeText.Text, out metalSurcharge))
-        {
-            error = "Bitte einen gueltigen Metallzuschlag eingeben oder das Feld leer lassen.";
-            return false;
-        }
-
-        if (metalSurcharge < 0m)
-        {
-            error = "Der Metallzuschlag darf nicht negativ sein.";
-            return false;
-        }
-
-        var grossPrice = 0m;
-        if (!string.IsNullOrWhiteSpace(GrossPriceText.Text) && !TryParseDecimal(GrossPriceText.Text, out grossPrice))
-        {
-            error = "Bitte einen gueltigen Brutto-Listenpreis eingeben oder das Feld leer lassen.";
-            return false;
-        }
-
-        var vatPercent = 0m;
-        if (!string.IsNullOrWhiteSpace(VatPercentText.Text) && !TryParseDecimal(VatPercentText.Text, out vatPercent))
-        {
-            error = "Bitte einen gueltigen MwSt.-Satz eingeben oder das Feld leer lassen.";
-            return false;
-        }
-
-        if (vatPercent < 0m)
-        {
-            error = "Der MwSt.-Satz darf nicht negativ sein.";
-            return false;
-        }
-
-        if (NoSupplierInvoiceCheckBox.IsChecked == true && vatPercent <= 0m)
-        {
-            error = "Bei Erfassung ohne Rechnungsbeleg bitte pro Position einen MwSt.-Satz groesser als 0 angeben.";
-            return false;
-        }
-
-        if (!TryParseDecimal(PriceBasisText.Text, out var priceBasis) || priceBasis <= 0m)
-        {
-            error = "Bitte eine gueltige Preisbasis eingeben.";
-            return false;
-        }
-
-        line = new ManualInvoiceLineInput
-        {
-            ArticleNumber = (ArticleNumberText.Text ?? "").Trim(),
-            Ean = (EanText.Text ?? "").Trim(),
-            Description = description,
-            Quantity = quantity,
-            Unit = unit,
-            NetUnitPrice = netPrice,
-            MetalSurcharge = metalSurcharge,
-            VatPercent = vatPercent,
-            GrossListPrice = grossPrice,
-            PriceBasisQuantity = priceBasis
-        };
-        InitializeManualLineAmounts(line);
-
-        return true;
-    }
-
-    private void ClearLineInputs()
-    {
-        ArticleNumberText.Clear();
-        EanText.Clear();
-        DescriptionText.Clear();
-        QuantityText.Text = "1";
-        UnitText.Text = "ST";
-        NetPriceText.Text = "0";
-        MetalSurchargeText.Text = "0";
-        GrossPriceText.Text = "0";
-        VatPercentText.Text = "19";
-        PriceBasisText.Text = "1";
+        UpdateInvoiceModeUi();
+        ManualLinesGrid.Items.Refresh();
     }
 
     private void ResetForm()
@@ -478,7 +363,6 @@ public partial class Datenimport : Page
         _currentOriginalPdfFileName = "";
         AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
         InvoiceTotalAmountText.Clear();
-        ClearLineInputs();
         UpdateInvoiceModeUi();
     }
 
@@ -1118,37 +1002,14 @@ public partial class Datenimport : Page
         return importedInvoice;
     }
 
-    private void LoadImportedInvoiceIntoEditor(ImportedExpenseInvoice importedInvoice)
-    {
-        _loadedReviewInvoiceId = null;
-        _currentPdfBytes = importedInvoice.PdfBytes;
-        _currentOriginalPdfFileName = importedInvoice.OriginalPdfFileName;
-        _currentContentHash = importedInvoice.ContentHash;
-        _currentSourcePdfPath = importedInvoice.FilePath;
-        SourceInfoText.Text = importedInvoice.FilePath;
-        NoSupplierInvoiceCheckBox.IsChecked = false;
-        InvoiceDirectionCombo.SelectedValue = "Expense";
-        InvoiceNumberText.Text = importedInvoice.InvoiceNumber;
-        InvoiceDatePicker.SelectedDate = importedInvoice.InvoiceDate;
-        PaymentDueDatePicker.SelectedDate = importedInvoice.PaymentDueDate;
-        SupplierNameText.Text = importedInvoice.SupplierName;
-        AccountingCategoryCombo.SelectedValue = importedInvoice.AccountingCategory;
-        InvoiceTotalAmountText.Text = importedInvoice.InvoiceTotalAmount > 0m
-            ? importedInvoice.InvoiceTotalAmount.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
-            : string.Empty;
-
-        _manualLines.Clear();
-        foreach (var line in importedInvoice.Lines)
-        {
-            _manualLines.Add(CloneLine(line));
-        }
-
-        UpdateInvoiceModeUi();
-        ManualLinesGrid.Items.Refresh();
-    }
-
     private void LoadReviewInvoiceIntoEditor(InvoiceEntity detail, byte[]? pdfBytes)
     {
+        ImportedExpenseInvoice? parsedInvoice = null;
+        if (pdfBytes is not null)
+        {
+            parsedInvoice = TryParseImportedInvoice(detail.OriginalPdfFileName, pdfBytes);
+        }
+
         _loadedReviewInvoiceId = detail.InvoiceId;
         _currentPdfBytes = pdfBytes;
         _currentOriginalPdfFileName = detail.OriginalPdfFileName;
@@ -1157,19 +1018,20 @@ public partial class Datenimport : Page
         SourceInfoText.Text = string.IsNullOrWhiteSpace(detail.SourcePdfPath) ? detail.OriginalPdfFileName : detail.SourcePdfPath;
         NoSupplierInvoiceCheckBox.IsChecked = !detail.HasSupplierInvoice;
         InvoiceDirectionCombo.SelectedValue = detail.InvoiceDirection;
-        InvoiceNumberText.Text = detail.InvoiceNumber;
-        InvoiceDatePicker.SelectedDate = detail.InvoiceDate;
-        PaymentDueDatePicker.SelectedDate = detail.PaymentDueDate;
-        SupplierNameText.Text = detail.SupplierName;
-        AccountingCategoryCombo.SelectedValue = detail.AccountingCategory;
-        InvoiceTotalAmountText.Text = detail.InvoiceTotalAmount > 0m
-            ? detail.InvoiceTotalAmount.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
+        InvoiceNumberText.Text = string.IsNullOrWhiteSpace(parsedInvoice?.InvoiceNumber) ? detail.InvoiceNumber : parsedInvoice.InvoiceNumber;
+        InvoiceDatePicker.SelectedDate = parsedInvoice?.InvoiceDate ?? detail.InvoiceDate;
+        PaymentDueDatePicker.SelectedDate = parsedInvoice?.PaymentDueDate ?? detail.PaymentDueDate;
+        SupplierNameText.Text = string.IsNullOrWhiteSpace(parsedInvoice?.SupplierName) ? detail.SupplierName : parsedInvoice.SupplierName;
+        AccountingCategoryCombo.SelectedValue = parsedInvoice?.AccountingCategory ?? detail.AccountingCategory;
+        var effectiveInvoiceTotal = parsedInvoice?.InvoiceTotalAmount > 0m ? parsedInvoice.InvoiceTotalAmount : detail.InvoiceTotalAmount;
+        InvoiceTotalAmountText.Text = effectiveInvoiceTotal > 0m
+            ? effectiveInvoiceTotal.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
             : string.Empty;
 
         _manualLines.Clear();
-        foreach (var line in detail.Lines.OrderBy(x => x.Position))
-        {
-            _manualLines.Add(new ManualInvoiceLineInput
+        var linesToLoad = parsedInvoice is not null && parsedInvoice.Lines.Count > 0
+            ? parsedInvoice.Lines
+            : detail.Lines.OrderBy(x => x.Position).Select(line => new ManualInvoiceLineInput
             {
                 Position = line.Position,
                 ArticleNumber = line.ArticleNumber,
@@ -1184,11 +1046,42 @@ public partial class Datenimport : Page
                 GrossUnitPrice = line.GrossUnitPrice,
                 PriceBasisQuantity = line.PriceBasisQuantity,
                 GrossLineTotal = line.GrossLineTotal
-            });
+            }).ToList();
+
+        foreach (var line in linesToLoad)
+        {
+            _manualLines.Add(CloneLine(line));
         }
 
         UpdateInvoiceModeUi();
         ManualLinesGrid.Items.Refresh();
+    }
+
+    private ImportedExpenseInvoice? TryParseImportedInvoice(string originalPdfFileName, byte[] pdfBytes)
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{SanitizeFileName(string.IsNullOrWhiteSpace(originalPdfFileName) ? "rechnung.pdf" : originalPdfFileName)}");
+        try
+        {
+            File.WriteAllBytes(tempFile, pdfBytes);
+            return ParseImportedInvoice(tempFile, forceClassic: false);
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     private static ManualInvoiceLineInput CloneLine(ManualInvoiceLineInput line)
