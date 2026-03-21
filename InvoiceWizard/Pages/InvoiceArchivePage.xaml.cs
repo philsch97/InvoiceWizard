@@ -334,6 +334,44 @@ public partial class InvoiceArchivePage : Page
         }
     }
 
+    private async void DeleteInvoices_Click(object sender, RoutedEventArgs e)
+    {
+        var invoices = InvoicesGrid.SelectedItems.OfType<InvoiceEntity>().Where(x => x.CanDelete).ToList();
+        if (invoices.Count == 0)
+        {
+            SetStatus("Bitte zuerst einen Entwurf oder eine Ausgaberechnung im Archiv auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        var containsExpenseInvoices = invoices.Any(x => string.Equals(x.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase));
+        var containsDrafts = invoices.Any(x => x.IsDraft && string.Equals(x.InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase));
+        var confirmationText = invoices.Count == 1
+            ? BuildDeleteConfirmationText(invoices[0])
+            : BuildDeleteConfirmationTextForMultiple(invoices.Count, containsExpenseInvoices, containsDrafts);
+
+        if (MessageBox.Show(confirmationText, "Rechnung loeschen", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var invoice in invoices)
+            {
+                await App.Api.DeleteInvoiceAsync(invoice.InvoiceId);
+            }
+
+            await LoadStoredInvoicesAsync();
+            SetStatus(invoices.Count == 1
+                ? "Rechnung wurde geloescht."
+                : $"{invoices.Count} Rechnung(en) wurden geloescht.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Rechnung konnte nicht geloescht werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private async void UploadStoredPdf_Click(object sender, RoutedEventArgs e)
     {
         if (InvoicesGrid.SelectedItem is not InvoiceEntity invoice)
@@ -430,5 +468,30 @@ public partial class InvoiceArchivePage : Page
             line.GrossLineTotal = PricingHelper.CalculateRevenueGrossTotal(line.LineTotal, applySmallBusinessRegulation);
             line.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(line.GrossLineTotal, line.Quantity);
         }
+    }
+
+    private static string BuildDeleteConfirmationText(InvoiceEntity invoice)
+    {
+        if (string.Equals(invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Soll die Ausgaberechnung {invoice.DisplayNumber} wirklich geloescht werden?\n\nDabei werden die importierten Positionen dieser Rechnung ebenfalls geloescht. Eventuelle Projektzuweisungen zu diesen Positionen werden mit entfernt.";
+        }
+
+        return $"Soll der Entwurf {invoice.DisplayNumber} wirklich geloescht werden?\n\nDie Entwurfspositionen dieser Rechnung werden dabei ebenfalls geloescht.";
+    }
+
+    private static string BuildDeleteConfirmationTextForMultiple(int count, bool containsExpenseInvoices, bool containsDrafts)
+    {
+        if (containsExpenseInvoices && containsDrafts)
+        {
+            return $"Sollen {count} markierte Rechnungen wirklich geloescht werden?\n\nAusgaberechnungen werden mit ihren importierten Positionen und eventuellen Projektzuweisungen geloescht. Bei Entwuerfen werden die Entwurfspositionen geloescht.";
+        }
+
+        if (containsExpenseInvoices)
+        {
+            return $"Sollen {count} markierte Ausgaberechnungen wirklich geloescht werden?\n\nDie importierten Positionen dieser Rechnungen werden ebenfalls geloescht. Eventuelle Projektzuweisungen zu diesen Positionen werden mit entfernt.";
+        }
+
+        return $"Sollen {count} markierte Entwuerfe wirklich geloescht werden?\n\nDie Entwurfspositionen dieser Rechnungen werden dabei ebenfalls geloescht.";
     }
 }

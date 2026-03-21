@@ -36,6 +36,7 @@
                     <WrapPanel Grid.Column="1" Margin="0,18,18,0">
                         <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Entwurf bearbeiten" Click="EditDraftInvoice_Click"/>
                         <Button Width="170" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Entwurf finalisieren" Click="FinalizeDraftInvoice_Click"/>
+                        <Button Width="160" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung loeschen" Click="DeleteInvoices_Click"/>
                         <Button Width="160" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung stornieren" Click="CancelInvoice_Click"/>
                         <Button Width="190" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="PDF nachtraeglich hinterlegen" Click="UploadStoredPdf_Click"/>
                         <Button Width="150" Height="36" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Rechnung ansehen" Click="OpenStoredPdf_Click"/>

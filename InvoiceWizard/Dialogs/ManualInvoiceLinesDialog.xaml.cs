@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using InvoiceWizard.Data.ViewModels;
 using InvoiceWizard.Services;
 
@@ -21,10 +23,9 @@ public partial class ManualInvoiceLinesDialog : Window
         LinesGrid.CellEditEnding += LinesGrid_CellEditEnding;
         VatPercentLabel.Text = requireVatPerLine ? "MwSt. in % * Pflicht" : "MwSt. in % optional";
         VatPercentLabel.Style = (Style)FindResource(requireVatPerLine ? "RequiredLabelStyle" : "MutedLabelStyle");
-        if (requireVatPerLine)
-        {
-            InfoText.Text = "Ohne Rechnungsbeleg muss jede Position einen MwSt.-Satz größer als 0 haben. Änderungen werden erst nach dem Speichern in den Rechnungsimport übernommen.";
-        }
+        InfoText.Text = requireVatPerLine
+            ? "Ohne Rechnungsbeleg muss jede Position einen MwSt.-Satz groesser als 0 haben. Aenderungen werden erst nach dem Speichern in den Rechnungsimport uebernommen."
+            : "Pro Position muss entweder ein Netto-Preis oder ein Brutto-Preis angegeben sein. Wenn nur der Brutto-Preis eingetragen wird, wird der Netto-Preis ueber die MwSt. berechnet.";
 
         RefreshLines();
     }
@@ -47,6 +48,8 @@ public partial class ManualInvoiceLinesDialog : Window
 
     private void RemoveSelectedLines_Click(object sender, RoutedEventArgs e)
     {
+        FinishGridEdit();
+
         var selected = LinesGrid.SelectedItems.OfType<ManualInvoiceLineInput>().ToList();
         if (selected.Count == 0)
         {
@@ -64,6 +67,8 @@ public partial class ManualInvoiceLinesDialog : Window
 
     private void Confirm_Click(object sender, RoutedEventArgs e)
     {
+        FinishGridEdit();
+
         var normalized = new List<ManualInvoiceLineInput>();
         for (var i = 0; i < _lines.Count; i++)
         {
@@ -102,7 +107,18 @@ public partial class ManualInvoiceLinesDialog : Window
             InitializeManualLineAmounts(_lines[i]);
         }
 
-        LinesGrid.Items.Refresh();
+        var view = CollectionViewSource.GetDefaultView(LinesGrid.ItemsSource);
+        var editableView = view as IEditableCollectionView;
+        if (view is not null && (editableView is null || (!editableView.IsAddingNew && !editableView.IsEditingItem)))
+        {
+            view.Refresh();
+        }
+    }
+
+    private void FinishGridEdit()
+    {
+        LinesGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+        LinesGrid.CommitEdit(DataGridEditingUnit.Row, true);
     }
 
     private bool TryReadLine(out ManualInvoiceLineInput line, out string error)
@@ -114,58 +130,81 @@ public partial class ManualInvoiceLinesDialog : Window
         var unit = (UnitText.Text ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(description))
         {
-            error = "Bitte die Beschreibung als Pflichtfeld ausfüllen.";
+            error = "Bitte die Beschreibung als Pflichtfeld ausfuellen.";
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(unit))
         {
-            error = "Bitte die Einheit als Pflichtfeld ausfüllen.";
+            error = "Bitte die Einheit als Pflichtfeld ausfuellen.";
             return false;
         }
 
-        if (!decimal.TryParse(QuantityText.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("de-DE"), out var quantity)
-            && !decimal.TryParse(QuantityText.Text, NumberStyles.Number, CultureInfo.InvariantCulture, out quantity) || quantity <= 0m)
+        if ((!decimal.TryParse(QuantityText.Text, NumberStyles.Number, CultureInfo.GetCultureInfo("de-DE"), out var quantity)
+            && !decimal.TryParse(QuantityText.Text, NumberStyles.Number, CultureInfo.InvariantCulture, out quantity)) || quantity <= 0m)
         {
-            error = "Bitte eine gültige Menge eingeben.";
+            error = "Bitte eine gueltige Menge eingeben.";
             return false;
         }
 
-        if (!TryParseDecimal(NetPriceText.Text, out var netPrice) || netPrice < 0m)
+        if (!TryParseOptionalDecimal(NetPriceText.Text, out var netPrice))
         {
-            error = "Bitte einen gültigen Netto-Preis eingeben.";
+            error = "Bitte einen gueltigen Netto-Preis eingeben oder das Feld leer lassen.";
+            return false;
+        }
+
+        if (netPrice < 0m)
+        {
+            error = "Der Netto-Preis darf nicht negativ sein.";
             return false;
         }
 
         if (!TryParseDecimal(MetalSurchargeText.Text, out var metalSurcharge) || metalSurcharge < 0m)
         {
-            error = "Bitte einen gültigen Materialzuschlag eingeben.";
+            error = "Bitte einen gueltigen Materialzuschlag eingeben.";
             return false;
         }
 
         if (!TryParseDecimal(PriceBasisText.Text, out var priceBasis) || priceBasis <= 0m)
         {
-            error = "Bitte eine gültige Preisbasis eingeben.";
+            error = "Bitte eine gueltige Preisbasis eingeben.";
             return false;
         }
 
-        var grossPrice = 0m;
-        if (!string.IsNullOrWhiteSpace(GrossPriceText.Text) && !TryParseDecimal(GrossPriceText.Text, out grossPrice))
+        if (!TryParseOptionalDecimal(GrossPriceText.Text, out var grossPrice))
         {
-            error = "Bitte einen gültigen Brutto-Listenpreis eingeben oder das Feld leer lassen.";
+            error = "Bitte einen gueltigen Brutto-Preis eingeben oder das Feld leer lassen.";
+            return false;
+        }
+
+        if (grossPrice < 0m)
+        {
+            error = "Der Brutto-Preis darf nicht negativ sein.";
             return false;
         }
 
         var vatPercent = 0m;
         if (!string.IsNullOrWhiteSpace(VatPercentText.Text) && !TryParseDecimal(VatPercentText.Text, out vatPercent))
         {
-            error = "Bitte einen gültigen MwSt.-Satz eingeben oder das Feld leer lassen.";
+            error = "Bitte einen gueltigen MwSt.-Satz eingeben oder das Feld leer lassen.";
             return false;
         }
 
         if (_requireVatPerLine && vatPercent <= 0m)
         {
-            error = "Ohne Rechnungsbeleg bitte pro Position einen MwSt.-Satz größer als 0 angeben.";
+            error = "Ohne Rechnungsbeleg bitte pro Position einen MwSt.-Satz groesser als 0 angeben.";
+            return false;
+        }
+
+        if (netPrice <= 0m && grossPrice <= 0m)
+        {
+            error = "Bitte pro Position entweder einen Netto-Preis oder einen Brutto-Preis eingeben.";
+            return false;
+        }
+
+        if (netPrice <= 0m && grossPrice > 0m && vatPercent <= 0m)
+        {
+            error = "Wenn nur ein Brutto-Preis eingetragen wird, bitte auch einen MwSt.-Satz groesser als 0 angeben.";
             return false;
         }
 
@@ -193,9 +232,9 @@ public partial class ManualInvoiceLinesDialog : Window
         DescriptionText.Clear();
         QuantityText.Text = "1";
         UnitText.Text = "ST";
-        NetPriceText.Text = "0";
+        NetPriceText.Clear();
         MetalSurchargeText.Text = "0";
-        GrossPriceText.Text = "0";
+        GrossPriceText.Clear();
         VatPercentText.Text = "19";
         PriceBasisText.Text = "1";
     }
@@ -214,12 +253,17 @@ public partial class ManualInvoiceLinesDialog : Window
 
         if (line.Quantity <= 0m)
         {
-            return $"Position {position}: Die Menge muss größer als 0 sein.";
+            return $"Position {position}: Die Menge muss groesser als 0 sein.";
         }
 
         if (line.NetUnitPrice < 0m)
         {
             return $"Position {position}: Der Netto-Preis darf nicht negativ sein.";
+        }
+
+        if (line.GrossListPrice < 0m)
+        {
+            return $"Position {position}: Der Brutto-Preis darf nicht negativ sein.";
         }
 
         if (line.MetalSurcharge < 0m)
@@ -229,12 +273,22 @@ public partial class ManualInvoiceLinesDialog : Window
 
         if (line.PriceBasisQuantity <= 0m)
         {
-            return $"Position {position}: Die Preisbasis muss größer als 0 sein.";
+            return $"Position {position}: Die Preisbasis muss groesser als 0 sein.";
+        }
+
+        if (line.NetUnitPrice <= 0m && line.GrossListPrice <= 0m)
+        {
+            return $"Position {position}: Bitte entweder einen Netto-Preis oder einen Brutto-Preis eingeben.";
         }
 
         if (requireVatPerLine && line.VatPercent <= 0m)
         {
-            return $"Position {position}: Bitte einen MwSt.-Satz größer als 0 eingeben.";
+            return $"Position {position}: Bitte einen MwSt.-Satz groesser als 0 eingeben.";
+        }
+
+        if (line.NetUnitPrice <= 0m && line.GrossListPrice > 0m && line.VatPercent <= 0m)
+        {
+            return $"Position {position}: Fuer einen reinen Brutto-Preis wird ein MwSt.-Satz benoetigt.";
         }
 
         return null;
@@ -242,6 +296,15 @@ public partial class ManualInvoiceLinesDialog : Window
 
     private static void InitializeManualLineAmounts(ManualInvoiceLineInput line)
     {
+        var normalizedSurcharge = PricingHelper.NormalizeUnitPrice(line.MetalSurcharge, line.PriceBasisQuantity);
+        if (line.NetUnitPrice <= 0m && line.GrossListPrice > 0m && line.VatPercent > 0m)
+        {
+            var normalizedGrossPrice = PricingHelper.NormalizeUnitPrice(line.GrossListPrice, line.PriceBasisQuantity);
+            var normalizedNetTotal = normalizedGrossPrice / (1m + (line.VatPercent / 100m));
+            var normalizedNetBase = Math.Max(0m, normalizedNetTotal - normalizedSurcharge);
+            line.NetUnitPrice = PricingHelper.RoundCurrency(normalizedNetBase * (line.PriceBasisQuantity <= 0m ? 1m : line.PriceBasisQuantity));
+        }
+
         var normalizedNetUnitPrice = PricingHelper.NormalizeUnitPrice(line.NetUnitPrice, line.MetalSurcharge, line.PriceBasisQuantity);
         var normalizedGrossListPrice = line.GrossListPrice > 0m
             ? PricingHelper.NormalizeUnitPrice(line.GrossListPrice, line.PriceBasisQuantity)
@@ -282,5 +345,16 @@ public partial class ManualInvoiceLinesDialog : Window
     {
         return decimal.TryParse(input, NumberStyles.Number, CultureInfo.GetCultureInfo("de-DE"), out value)
                || decimal.TryParse(input, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryParseOptionalDecimal(string? input, out decimal value)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            value = 0m;
+            return true;
+        }
+
+        return TryParseDecimal(input, out value);
     }
 }

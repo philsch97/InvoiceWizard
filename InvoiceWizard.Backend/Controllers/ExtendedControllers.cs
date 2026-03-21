@@ -398,9 +398,13 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return NotFound();
         }
 
-        if (!string.Equals(NormalizeInvoiceStatus(invoice.InvoiceStatus), "Review", StringComparison.OrdinalIgnoreCase))
+        var normalizedStatus = NormalizeInvoiceStatus(invoice.InvoiceStatus);
+        var isExpenseInvoice = string.Equals(invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase);
+        var isRevenueDraft = string.Equals(invoice.InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(normalizedStatus, "Draft", StringComparison.OrdinalIgnoreCase);
+        if (!isExpenseInvoice && !isRevenueDraft)
         {
-            return ValidationProblem("Nur Rechnungen im Status 'Pruefen' koennen hier geloescht werden.");
+            return ValidationProblem("Geloescht werden koennen nur Ausgaberechnungen oder Einnahme-Entwuerfe.");
         }
 
         var hasAssignments = await db.BankTransactionAssignments.AnyAsync(
@@ -408,7 +412,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             HttpContext.RequestAborted);
         if (hasAssignments)
         {
-            return ValidationProblem("Diese Pruefrechnung ist bereits verknuepft und kann nicht geloescht werden.");
+            return ValidationProblem("Diese Rechnung ist bereits mit Bankbuchungen verknuepft und kann nicht geloescht werden.");
         }
 
         db.InvoiceLines.RemoveRange(invoice.Lines);

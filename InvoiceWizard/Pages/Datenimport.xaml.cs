@@ -139,7 +139,7 @@ public partial class Datenimport : Page
         var invoiceDirection = InvoiceDirectionCombo.SelectedValue as string ?? "Expense";
         var invoiceNumber = (InvoiceNumberText.Text ?? "").Trim();
         var supplierName = (SupplierNameText.Text ?? "").Trim();
-        var hasShippingCost = TryParseDecimal(ShippingCostText.Text, out var shippingCostGross) && shippingCostGross > 0m;
+        var hasShippingCost = TryParseDecimal(ShippingCostText.Text, out var shippingCostInput) && shippingCostInput > 0m;
 
         if (hasSupplierInvoice && string.IsNullOrWhiteSpace(invoiceNumber))
         {
@@ -192,7 +192,7 @@ public partial class Datenimport : Page
 
         if (!hasShippingCost)
         {
-            shippingCostGross = 0m;
+            shippingCostInput = 0m;
         }
 
         if (!hasSupplierInvoice && _manualLines.Count == 0)
@@ -203,7 +203,8 @@ public partial class Datenimport : Page
 
         var effectiveInvoiceNumber = hasSupplierInvoice ? invoiceNumber : BuildManualDocumentNumber();
         var paymentDueDate = PaymentDueDatePicker.SelectedDate?.Date;
-        var preparedLines = PrepareLinesForPersistence(_manualLines, invoiceTotalAmount, shippingCostGross, out var shippingCostNet);
+        var shippingIsNet = ShippingAmountModeCombo.SelectedIndex == 1;
+        var preparedLines = PrepareLinesForPersistence(_manualLines, invoiceTotalAmount, shippingCostInput, shippingIsNet, out var shippingCostNet, out var shippingCostGross);
         var hash = string.IsNullOrWhiteSpace(_currentContentHash)
             ? BuildManualHash(invoiceDirection, effectiveInvoiceNumber, invoiceDate, paymentDueDate, supplierName, invoiceTotalAmount, shippingCostGross, hasSupplierInvoice, preparedLines)
             : _currentContentHash;
@@ -358,6 +359,7 @@ public partial class Datenimport : Page
         ShippingCostText.Text = importedInvoice.ShippingCostGross > 0m
             ? importedInvoice.ShippingCostGross.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
             : "0";
+        ShippingAmountModeCombo.SelectedIndex = 0;
 
         _manualLines.Clear();
         foreach (var line in importedInvoice.Lines)
@@ -386,6 +388,7 @@ public partial class Datenimport : Page
         AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
         InvoiceTotalAmountText.Clear();
         ShippingCostText.Text = "0";
+        ShippingAmountModeCombo.SelectedIndex = 0;
         UpdateInvoiceModeUi();
     }
 
@@ -1106,7 +1109,7 @@ public partial class Datenimport : Page
         SetStatus($"{importedCount} Rechnung(en) importiert, {failedImports.Count} fehlgeschlagen: {errorSummary}", importedCount > 0 ? StatusMessageType.Warning : StatusMessageType.Error);
     }
 
-    private static List<ManualInvoiceLineInput> PrepareLinesForPersistence(IEnumerable<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount, decimal shippingCostGross, out decimal shippingCostNet)
+    private static List<ManualInvoiceLineInput> PrepareLinesForPersistence(IEnumerable<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount, decimal shippingCostInput, bool shippingIsNet, out decimal shippingCostNet, out decimal shippingCostGross)
     {
         var preparedLines = lines.Select(CloneLine).ToList();
         foreach (var line in preparedLines)
@@ -1116,7 +1119,8 @@ public partial class Datenimport : Page
             InitializeManualLineAmounts(line);
         }
 
-        shippingCostNet = DistributeShippingAcrossLines(preparedLines, shippingCostGross, invoiceTotalAmount);
+        (shippingCostNet, shippingCostGross) = DetermineShippingAmounts(preparedLines, shippingCostInput, invoiceTotalAmount, shippingIsNet);
+        shippingCostNet = DistributeShippingAcrossLines(preparedLines, shippingCostNet, shippingCostGross);
         ApplyGrossAmountsFromInvoiceTotal(preparedLines, invoiceTotalAmount);
         return preparedLines;
     }
@@ -1213,6 +1217,7 @@ public partial class Datenimport : Page
         ShippingCostText.Text = effectiveShippingGross > 0m
             ? effectiveShippingGross.ToString("0.00", CultureInfo.GetCultureInfo("de-DE"))
             : "0";
+        ShippingAmountModeCombo.SelectedIndex = detail.ShippingCostNet > 0m && Math.Abs(detail.ShippingCostGross - detail.ShippingCostNet) < 0.01m ? 1 : 0;
 
         _manualLines.Clear();
         var linesToLoad = parsedInvoice is not null && parsedInvoice.Lines.Count > 0
@@ -1353,7 +1358,22 @@ public partial class Datenimport : Page
         }
     }
 
-    private static decimal DistributeShippingAcrossLines(List<ManualInvoiceLineInput> lines, decimal shippingCostGross, decimal invoiceTotalAmount)
+    private static (decimal ShippingNet, decimal ShippingGross) DetermineShippingAmounts(List<ManualInvoiceLineInput> lines, decimal shippingCostInput, decimal invoiceTotalAmount, bool shippingIsNet)
+    {
+        if (lines.Count == 0 || shippingCostInput <= 0m)
+        {
+            return (0m, 0m);
+        }
+
+        var baseNetTotal = PricingHelper.RoundCurrency(lines.Sum(CalculateBaseLineTotal));
+        var baseGrossTotal = PricingHelper.RoundCurrency(lines.Sum(x => x.GrossLineTotal));
+        var grossFactor = DetermineGrossFactor(lines, invoiceTotalAmount, baseNetTotal, baseGrossTotal);
+        return shippingIsNet
+            ? (PricingHelper.RoundCurrency(shippingCostInput), PricingHelper.RoundCurrency(shippingCostInput * grossFactor))
+            : (PricingHelper.RoundCurrency(shippingCostInput / grossFactor), PricingHelper.RoundCurrency(shippingCostInput));
+    }
+
+    private static decimal DistributeShippingAcrossLines(List<ManualInvoiceLineInput> lines, decimal shippingCostNet, decimal shippingCostGross)
     {
         if (lines.Count == 0 || shippingCostGross <= 0m)
         {
@@ -1362,22 +1382,6 @@ public partial class Datenimport : Page
 
         var baseNetTotal = PricingHelper.RoundCurrency(lines.Sum(x => CalculateBaseLineTotal(x)));
         var baseGrossTotal = PricingHelper.RoundCurrency(lines.Sum(x => x.GrossLineTotal));
-        var grossFactor = 1m;
-        if (baseNetTotal > 0m && baseGrossTotal > 0m)
-        {
-            grossFactor = baseGrossTotal / baseNetTotal;
-        }
-        else if (baseNetTotal > 0m && invoiceTotalAmount > shippingCostGross)
-        {
-            grossFactor = (invoiceTotalAmount - shippingCostGross) / baseNetTotal;
-        }
-
-        if (grossFactor < 1m || grossFactor > 2m)
-        {
-            grossFactor = 1m;
-        }
-
-        var shippingNet = PricingHelper.RoundCurrency(shippingCostGross / grossFactor);
         var assignedNet = 0m;
         var assignedGross = 0m;
         for (var i = 0; i < lines.Count; i++)
@@ -1386,8 +1390,8 @@ public partial class Datenimport : Page
             var lineNetBase = CalculateBaseLineTotal(line);
             var lineGrossBase = line.GrossLineTotal;
             var netShare = i == lines.Count - 1
-                ? PricingHelper.RoundCurrency(shippingNet - assignedNet)
-                : PricingHelper.RoundCurrency(shippingNet * (baseNetTotal <= 0m ? (1m / lines.Count) : (lineNetBase / baseNetTotal)));
+                ? PricingHelper.RoundCurrency(shippingCostNet - assignedNet)
+                : PricingHelper.RoundCurrency(shippingCostNet * (baseNetTotal <= 0m ? (1m / lines.Count) : (lineNetBase / baseNetTotal)));
             var grossShare = i == lines.Count - 1
                 ? PricingHelper.RoundCurrency(shippingCostGross - assignedGross)
                 : PricingHelper.RoundCurrency(shippingCostGross * (baseGrossTotal <= 0m ? (1m / lines.Count) : (lineGrossBase / baseGrossTotal)));
@@ -1400,7 +1404,43 @@ public partial class Datenimport : Page
             assignedGross += grossShare;
         }
 
-        return shippingNet;
+        return shippingCostNet;
+    }
+
+    private static decimal DetermineGrossFactor(List<ManualInvoiceLineInput> lines, decimal invoiceTotalAmount, decimal baseNetTotal, decimal baseGrossTotal)
+    {
+        if (baseNetTotal > 0m && baseGrossTotal > 0m)
+        {
+            var factor = baseGrossTotal / baseNetTotal;
+            if (factor >= 1m && factor <= 2m)
+            {
+                return factor;
+            }
+        }
+
+        if (baseNetTotal > 0m && invoiceTotalAmount > 0m)
+        {
+            var factor = invoiceTotalAmount / baseNetTotal;
+            if (factor >= 1m && factor <= 2m)
+            {
+                return factor;
+            }
+        }
+
+        var vatFactors = lines
+            .Where(x => x.VatPercent > 0m)
+            .Select(x => 1m + (x.VatPercent / 100m))
+            .ToList();
+        if (vatFactors.Count > 0)
+        {
+            return vatFactors
+                .GroupBy(x => Math.Round(x, 4))
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.First())
+                .First();
+        }
+
+        return 1m;
     }
 
     private static decimal CalculateBaseLineTotal(ManualInvoiceLineInput line)

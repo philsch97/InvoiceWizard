@@ -48,6 +48,8 @@ public class InvoiceEntity
     public bool CanFinalizeDraft => CanEditDraft;
     public bool CanLoadForReview => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase) && IsReview;
     public bool CanCancel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && !IsCancelled;
+    public bool CanDelete => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+        || (string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && IsDraft);
     public string AccountingCategoryLabel => AccountingCategory switch
     {
         "Tools" => "Werkzeug",

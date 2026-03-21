@@ -60,8 +60,8 @@
             </StackPanel>
 
             <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,14">
-                <TextBlock Text="Netto-Preis * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
-                <TextBox x:Name="NetPriceText" Text="0"/>
+                <TextBlock Text="Netto-Preis optional" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="NetPriceText"/>
             </StackPanel>
             <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,14,14">
                 <TextBlock Text="Materialzuschlag optional" Style="{StaticResource MutedLabelStyle}"/>
@@ -73,8 +73,8 @@
             </StackPanel>
 
             <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,14,14">
-                <TextBlock Text="Brutto-Listenpreis optional" Style="{StaticResource MutedLabelStyle}"/>
-                <TextBox x:Name="GrossPriceText" Text="0"/>
+                <TextBlock Text="Brutto-Preis optional" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="GrossPriceText"/>
             </StackPanel>
             <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,14,14">
                 <TextBlock x:Name="VatPercentLabel" Text="MwSt. in % optional" Style="{StaticResource MutedLabelStyle}"/>

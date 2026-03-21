@@ -112,13 +112,18 @@
                             <TextBox x:Name="ShippingCostText" Text="0"/>
                         </StackPanel>
 
-                        <TextBlock x:Name="ShippingInfoText"
-                                   Grid.Row="4"
-                                   Grid.Column="1"
-                                   Margin="0,36,0,0"
-                                   Foreground="{StaticResource MutedTextBrush}"
-                                   TextWrapping="Wrap"
-                                   Text="Versand wird anteilig in Netto und Brutto auf alle Positionen verteilt."/>
+                        <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,16,0,0">
+                            <TextBlock Text="Versand behandelt als" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="ShippingAmountModeCombo" SelectedIndex="0">
+                                <ComboBoxItem Content="Brutto"/>
+                                <ComboBoxItem Content="Netto"/>
+                            </ComboBox>
+                            <TextBlock x:Name="ShippingInfoText"
+                                       Margin="0,10,0,0"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="Versand wird anteilig auf alle Positionen verteilt."/>
+                        </StackPanel>
 
                         <CheckBox x:Name="NoSupplierInvoiceCheckBox"
                                   Grid.Row="5"
