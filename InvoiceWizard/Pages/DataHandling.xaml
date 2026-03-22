@@ -17,7 +17,7 @@
         <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Text="Positionen zuweisen" Style="{StaticResource PageTitleStyle}"/>
-                <TextBlock Text="Verteile importierte Rechnungspositionen auf Kunden und Projekte. Kleinmaterial kann separat gekennzeichnet und spaeter gesammelt exportiert werden." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
+                <TextBlock Text="Verteile importierte Rechnungspositionen auf Kunden und Projekte. Alternativ kannst du Positionen als allgemeines Kleinmaterial oder als Bestand/Lager markieren, ohne sie sofort einem Kunden zuzuordnen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
             </StackPanel>
         </Border>
 
@@ -42,6 +42,10 @@
                 <CheckBox x:Name="IsSmallMaterialCheckBox" Margin="0,30,18,0" Content="Als Kleinmaterial zuweisen"/>
                 <Button Width="160" Height="40" Margin="0,24,10,0" Content="Position zuweisen" Click="AllocateQuantity_Click"/>
                 <Button Width="200" Height="40" Margin="0,24,10,0" Content="Markierte komplett zuweisen" Click="AllocateCompleteSelection_Click"/>
+                <Button Width="220" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Als allg. Kleinmaterial markieren" Click="MarkGeneralSmallMaterial_Click"/>
+                <Button Width="190" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="KM-Markierung entfernen" Click="UnmarkGeneralSmallMaterial_Click"/>
+                <Button Width="180" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Als Bestand markieren" Click="MarkInventoryStock_Click"/>
+                <Button Width="190" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Bestand entfernen" Click="UnmarkInventoryStock_Click"/>
                 <Button Width="175" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte loeschen" Click="DeleteLine_Click"/>
                 <Button Width="110" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
                 <CheckBox x:Name="ShowCompletedCheckBox" Margin="0,32,0,0" Content="Vollstaendig zugewiesene anzeigen" Checked="ShowCompletedChanged" Unchecked="ShowCompletedChanged"/>
@@ -67,6 +71,8 @@
                         <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="80"/>
                         <DataGridTextColumn Header="Noch offen" Binding="{Binding RemainingQuantity}" Width="90"/>
                         <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
+                        <DataGridCheckBoxColumn Header="Allg. KM" Binding="{Binding IsGeneralSmallMaterial}" Width="85"/>
+                        <DataGridCheckBoxColumn Header="Bestand" Binding="{Binding IsInventoryStock}" Width="85"/>
                         <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="160"/>
                         <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
                         <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>

@@ -631,10 +631,82 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             PriceBasisQuantity = line.PriceBasisQuantity,
             LineTotal = line.LineTotal,
             GrossLineTotal = line.GrossLineTotal,
+            IsGeneralSmallMaterial = line.IsGeneralSmallMaterial,
+            IsInventoryStock = line.IsInventoryStock,
             IsPaid = line.IsPaid,
             PaidAt = line.PaidAt,
             Allocations = line.Allocations.Select(MapAllocation).ToList()
         };
+    }
+
+    [HttpPut("{invoiceLineId:int}/general-small-material")]
+    public async Task<ActionResult<InvoiceLineItemDto>> UpdateGeneralSmallMaterial(int invoiceLineId, [FromBody] UpdateGeneralSmallMaterialRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var line = await db.InvoiceLines
+            .Include(x => x.Invoice)
+            .Include(x => x.Allocations).ThenInclude(x => x.Customer)
+            .Include(x => x.Allocations).ThenInclude(x => x.Project)
+            .FirstOrDefaultAsync(x => x.InvoiceLineId == invoiceLineId && x.TenantId == tenantId, HttpContext.RequestAborted);
+
+        if (line is null)
+        {
+            return NotFound();
+        }
+
+        if (!string.Equals(line.Invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Materialpositionen aus Ausgaberechnungen koennen als allgemeines Kleinmaterial markiert werden.");
+        }
+
+        if (request.IsGeneralSmallMaterial && line.Allocations.Count > 0)
+        {
+            return ValidationProblem("Bereits zugewiesene Positionen koennen nicht als allgemeines Kleinmaterial markiert werden.");
+        }
+
+        line.IsGeneralSmallMaterial = request.IsGeneralSmallMaterial;
+        if (request.IsGeneralSmallMaterial)
+        {
+            line.IsInventoryStock = false;
+        }
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(MapLine(line));
+    }
+
+    [HttpPut("{invoiceLineId:int}/inventory-stock")]
+    public async Task<ActionResult<InvoiceLineItemDto>> UpdateInventoryStock(int invoiceLineId, [FromBody] UpdateInventoryStockRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var line = await db.InvoiceLines
+            .Include(x => x.Invoice)
+            .Include(x => x.Allocations).ThenInclude(x => x.Customer)
+            .Include(x => x.Allocations).ThenInclude(x => x.Project)
+            .FirstOrDefaultAsync(x => x.InvoiceLineId == invoiceLineId && x.TenantId == tenantId, HttpContext.RequestAborted);
+
+        if (line is null)
+        {
+            return NotFound();
+        }
+
+        if (!string.Equals(line.Invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Nur Materialpositionen aus Ausgaberechnungen koennen als Bestand/Lager markiert werden.");
+        }
+
+        if (request.IsInventoryStock && line.Allocations.Count > 0)
+        {
+            return ValidationProblem("Bereits zugewiesene Positionen koennen nicht als Bestand/Lager markiert werden.");
+        }
+
+        line.IsInventoryStock = request.IsInventoryStock;
+        if (request.IsInventoryStock)
+        {
+            line.IsGeneralSmallMaterial = false;
+        }
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(MapLine(line));
     }
 
     private static AllocationItemDto MapAllocation(LineAllocation allocation)

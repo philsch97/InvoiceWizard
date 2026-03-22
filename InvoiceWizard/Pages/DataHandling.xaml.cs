@@ -52,6 +52,16 @@ public partial class DataHandling : Page
             SetStatus("Nur Rechnungen der Kategorie 'Material und Waren' koennen Projekten zugewiesen werden.", StatusMessageType.Warning);
             return;
         }
+        if (selectedRow.IsGeneralSmallMaterial)
+        {
+            SetStatus("Allgemeines Kleinmaterial ist aktuell nicht fuer Projektzuweisungen vorgesehen. Bitte entferne zuerst die KM-Markierung, wenn du es einem Projekt zuordnen moechtest.", StatusMessageType.Warning);
+            return;
+        }
+        if (selectedRow.IsInventoryStock)
+        {
+            SetStatus("Als Bestand/Lager markiertes Material ist aktuell nicht fuer Projektzuweisungen vorgesehen. Bitte entferne zuerst die Bestandsmarkierung.", StatusMessageType.Warning);
+            return;
+        }
 
         var defaultUnitPrice = selectedRow.EffectivePurchaseUnitPrice;
         var hasCustomPrice = TryParseDecimal(CustomerPriceText.Text, out var enteredPrice);
@@ -120,6 +130,18 @@ public partial class DataHandling : Page
             SetStatus("Es koennen nur Rechnungen der Kategorie 'Material und Waren' komplett zugewiesen werden.", StatusMessageType.Warning);
             return;
         }
+        var generalSmallMaterialRows = selectedRows.Where(r => r.IsGeneralSmallMaterial).ToList();
+        if (generalSmallMaterialRows.Count > 0)
+        {
+            SetStatus("Allgemeines Kleinmaterial ist aktuell nicht fuer Projektzuweisungen vorgesehen. Bitte entferne zuerst die KM-Markierung.", StatusMessageType.Warning);
+            return;
+        }
+        var inventoryRows = selectedRows.Where(r => r.IsInventoryStock).ToList();
+        if (inventoryRows.Count > 0)
+        {
+            SetStatus("Als Bestand/Lager markiertes Material ist aktuell nicht fuer Projektzuweisungen vorgesehen. Bitte entferne zuerst die Bestandsmarkierung.", StatusMessageType.Warning);
+            return;
+        }
 
         var created = 0;
         foreach (var row in selectedRows.Where(r => r.RemainingQuantity > 0m))
@@ -158,6 +180,93 @@ public partial class DataHandling : Page
 
         await LoadLinesAsync();
         SetStatus($"{selectedRows.Count} Position(en) wurden geloescht.", StatusMessageType.Success);
+    }
+
+    private async void MarkGeneralSmallMaterial_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedRows = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().ToList();
+        if (selectedRows.Count == 0)
+        {
+            SetStatus("Bitte mindestens eine Position markieren.", StatusMessageType.Warning);
+            return;
+        }
+
+        var invalidRows = selectedRows.Where(r => !r.IsProjectAllocatable).ToList();
+        if (invalidRows.Count > 0)
+        {
+            SetStatus("Nur Materialpositionen aus Ausgaberechnungen koennen als allgemeines Kleinmaterial markiert werden.", StatusMessageType.Warning);
+            return;
+        }
+
+        foreach (var row in selectedRows)
+        {
+            await App.Api.SetInvoiceLineGeneralSmallMaterialAsync(row.Line.InvoiceLineId, true);
+        }
+
+        await LoadLinesAsync();
+        SetStatus($"{selectedRows.Count} Position(en) wurden als allgemeines Kleinmaterial markiert.", StatusMessageType.Success);
+    }
+
+    private async void UnmarkGeneralSmallMaterial_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedRows = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().Where(r => r.IsGeneralSmallMaterial).ToList();
+        if (selectedRows.Count == 0)
+        {
+            SetStatus("Bitte mindestens eine als allgemeines Kleinmaterial markierte Position auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        foreach (var row in selectedRows)
+        {
+            await App.Api.SetInvoiceLineGeneralSmallMaterialAsync(row.Line.InvoiceLineId, false);
+        }
+
+        await LoadLinesAsync();
+        SetStatus($"{selectedRows.Count} KM-Markierung(en) wurden entfernt.", StatusMessageType.Success);
+    }
+
+    private async void MarkInventoryStock_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedRows = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().ToList();
+        if (selectedRows.Count == 0)
+        {
+            SetStatus("Bitte mindestens eine Position markieren.", StatusMessageType.Warning);
+            return;
+        }
+
+        var invalidRows = selectedRows.Where(r => !(string.Equals(r.Line.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(r.Line.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))).ToList();
+        if (invalidRows.Count > 0)
+        {
+            SetStatus("Nur Materialpositionen aus Ausgaberechnungen koennen als Bestand/Lager markiert werden.", StatusMessageType.Warning);
+            return;
+        }
+
+        foreach (var row in selectedRows)
+        {
+            await App.Api.SetInvoiceLineInventoryStockAsync(row.Line.InvoiceLineId, true);
+        }
+
+        await LoadLinesAsync();
+        SetStatus($"{selectedRows.Count} Position(en) wurden als Bestand/Lager markiert.", StatusMessageType.Success);
+    }
+
+    private async void UnmarkInventoryStock_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedRows = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().Where(r => r.IsInventoryStock).ToList();
+        if (selectedRows.Count == 0)
+        {
+            SetStatus("Bitte mindestens eine als Bestand/Lager markierte Position auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        foreach (var row in selectedRows)
+        {
+            await App.Api.SetInvoiceLineInventoryStockAsync(row.Line.InvoiceLineId, false);
+        }
+
+        await LoadLinesAsync();
+        SetStatus($"{selectedRows.Count} Bestandsmarkierung(en) wurden entfernt.", StatusMessageType.Success);
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)

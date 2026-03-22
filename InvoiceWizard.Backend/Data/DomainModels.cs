@@ -110,6 +110,8 @@ public class InvoiceLine
     public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
+    public bool IsGeneralSmallMaterial { get; set; }
+    public bool IsInventoryStock { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;

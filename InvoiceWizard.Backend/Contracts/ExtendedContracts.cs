@@ -24,9 +24,21 @@ public class InvoiceLineItemDto
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
+    public bool IsGeneralSmallMaterial { get; set; }
+    public bool IsInventoryStock { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
     public List<AllocationItemDto> Allocations { get; set; } = new();
+}
+
+public class UpdateGeneralSmallMaterialRequest
+{
+    public bool IsGeneralSmallMaterial { get; set; }
+}
+
+public class UpdateInventoryStockRequest
+{
+    public bool IsInventoryStock { get; set; }
 }
 
 public class AllocationItemDto

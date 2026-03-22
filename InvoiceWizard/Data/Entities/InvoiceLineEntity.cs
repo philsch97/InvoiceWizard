@@ -20,6 +20,8 @@ public class InvoiceLineEntity
     public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
+    public bool IsGeneralSmallMaterial { get; set; }
+    public bool IsInventoryStock { get; set; }
     public bool IsPaid { get; set; }
     public DateTime? PaidAt { get; set; }
     public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
@@ -30,6 +32,8 @@ public class InvoiceLineEntity
     public string AccountingCategory => Invoice?.AccountingCategory ?? "MaterialAndGoods";
     public string AccountingCategoryLabel => Invoice?.AccountingCategoryLabel ?? "Material und Waren";
     public bool IsProjectAllocatable => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
-        && string.Equals(AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase);
+        && string.Equals(AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase)
+        && !IsGeneralSmallMaterial
+        && !IsInventoryStock;
     public List<LineAllocationEntity> Allocations { get; set; } = new();
 }

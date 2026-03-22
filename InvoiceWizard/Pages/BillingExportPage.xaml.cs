@@ -564,8 +564,26 @@ public partial class BillingExportPage : Page
 
     private void ApplySmallMaterialFlatFee(List<ExcelExportService.ExportRow> rows, IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName)
     {
+        if (flatFee <= 0m)
+        {
+            return;
+        }
+
         if (allocations.Count == 0)
         {
+            rows.Add(new ExcelExportService.ExportRow
+            {
+                SupplierInvoiceNumber = "Kleinmaterial",
+                ArticleNumber = "KM-PAUSCH",
+                Ean = string.Empty,
+                Description = $"[{ResolveSmallMaterialLabel(selectedProjectName, allocations)}] Kleinmaterial-Pauschale",
+                Quantity = 1m,
+                Unit = "Pauschale",
+                PurchaseUnitPrice = 0m,
+                MarkupPercent = 0m,
+                SalesUnitPrice = flatFee,
+                Total = flatFee
+            });
             return;
         }
 
@@ -580,12 +598,7 @@ public partial class BillingExportPage : Page
             allocation.LastExportedAt = DateTime.Now;
         }
 
-        var label = selectedProjectName;
-        if (string.IsNullOrWhiteSpace(label))
-        {
-            var projectNames = allocations.Select(a => a.Project?.Name ?? "Ohne Projekt").Distinct().ToList();
-            label = projectNames.Count == 1 ? projectNames[0] : "Mehrere Projekte";
-        }
+        var label = ResolveSmallMaterialLabel(selectedProjectName, allocations);
 
         rows.Add(new ExcelExportService.ExportRow
         {
@@ -796,24 +809,22 @@ public partial class BillingExportPage : Page
 
     private GeneratedInvoiceLine BuildSmallMaterialFlatFeeLine(IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, int position)
     {
-        var totalPurchase = allocations.Sum(a => GetPurchaseUnitPrice(a) * a.AllocatedQuantity);
-        var equalShare = flatFee / allocations.Count;
-        foreach (var allocation in allocations)
+        if (allocations.Count > 0)
         {
-            var purchaseShare = GetPurchaseUnitPrice(allocation) * allocation.AllocatedQuantity;
-            var lineTotal = totalPurchase > 0m ? flatFee * (purchaseShare / totalPurchase) : equalShare;
-            allocation.ExportedMarkupPercent = 0m;
-            allocation.ExportedLineTotal = lineTotal;
-            allocation.ExportedUnitPrice = allocation.AllocatedQuantity > 0m ? lineTotal / allocation.AllocatedQuantity : 0m;
-            allocation.LastExportedAt = DateTime.Now;
+            var totalPurchase = allocations.Sum(a => GetPurchaseUnitPrice(a) * a.AllocatedQuantity);
+            var equalShare = flatFee / allocations.Count;
+            foreach (var allocation in allocations)
+            {
+                var purchaseShare = GetPurchaseUnitPrice(allocation) * allocation.AllocatedQuantity;
+                var lineTotal = totalPurchase > 0m ? flatFee * (purchaseShare / totalPurchase) : equalShare;
+                allocation.ExportedMarkupPercent = 0m;
+                allocation.ExportedLineTotal = lineTotal;
+                allocation.ExportedUnitPrice = allocation.AllocatedQuantity > 0m ? lineTotal / allocation.AllocatedQuantity : 0m;
+                allocation.LastExportedAt = DateTime.Now;
+            }
         }
 
-        var label = selectedProjectName;
-        if (string.IsNullOrWhiteSpace(label))
-        {
-            var projectNames = allocations.Select(a => a.Project?.Name ?? "Ohne Projekt").Distinct().ToList();
-            label = projectNames.Count == 1 ? projectNames[0] : "Mehrere Projekte";
-        }
+        var label = ResolveSmallMaterialLabel(selectedProjectName, allocations);
 
         return new GeneratedInvoiceLine
         {
@@ -824,6 +835,22 @@ public partial class BillingExportPage : Page
             UnitPrice = flatFee,
             LineTotal = flatFee
         };
+    }
+
+    private static string ResolveSmallMaterialLabel(string? selectedProjectName, IReadOnlyList<LineAllocationEntity> allocations)
+    {
+        if (!string.IsNullOrWhiteSpace(selectedProjectName))
+        {
+            return selectedProjectName;
+        }
+
+        if (allocations.Count == 0)
+        {
+            return "Allgemein";
+        }
+
+        var projectNames = allocations.Select(a => a.Project?.Name ?? "Ohne Projekt").Distinct().ToList();
+        return projectNames.Count == 1 ? projectNames[0] : "Mehrere Projekte";
     }
 
     private static DateTime GetAllocationInvoiceDate(LineAllocationEntity allocation)

@@ -27,6 +27,8 @@ public class InvoiceLineRow
     public decimal PriceBasisQuantity => Line.PriceBasisQuantity;
     public decimal LineTotal => Line.LineTotal;
     public decimal GrossLineTotal => Line.GrossLineTotal;
+    public bool IsGeneralSmallMaterial => Line.IsGeneralSmallMaterial;
+    public bool IsInventoryStock => Line.IsInventoryStock;
     public decimal EffectiveNetUnitPrice => Quantity <= 0m
         ? PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity)
         : PricingHelper.RoundUnitPrice((Line.LineTotal > 0m ? Line.LineTotal : (Quantity * PricingHelper.NormalizeUnitPrice(Line.NetUnitPrice, Line.MetalSurcharge, Line.PriceBasisQuantity))) / Quantity);
