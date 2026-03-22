@@ -116,6 +116,21 @@ public partial class ProjectContactsPage : Page
         SetStatus($"Projekt {projectSelection.Name} wurde geloescht.", StatusMessageType.Success);
     }
 
+    private async void SetProjectActive_Click(object sender, RoutedEventArgs e)
+    {
+        await UpdateProjectStatusAsync("Active", "als aktiv gesetzt");
+    }
+
+    private async void SetProjectPaused_Click(object sender, RoutedEventArgs e)
+    {
+        await UpdateProjectStatusAsync("Paused", "pausiert");
+    }
+
+    private async void SetProjectEnded_Click(object sender, RoutedEventArgs e)
+    {
+        await UpdateProjectStatusAsync("Ended", "beendet");
+    }
+
     private async Task LoadCustomersAsync()
     {
         var customers = await App.Api.GetCustomersAsync();
@@ -172,6 +187,34 @@ public partial class ProjectContactsPage : Page
         var project = await App.Api.GetProjectDetailsAsync(projectSelection.ProjectId.Value);
         FillProjectSummary(project);
         SetStatus($"Projekt {project.Name} geladen.", StatusMessageType.Info);
+    }
+
+    private async Task UpdateProjectStatusAsync(string newStatus, string successSuffix)
+    {
+        if (CustomerCombo.SelectedItem is not CustomerEntity customer)
+        {
+            SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (ProjectCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId is null)
+        {
+            SetStatus("Bitte zuerst ein Projekt auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        try
+        {
+            var project = await App.Api.GetProjectDetailsAsync(projectSelection.ProjectId.Value);
+            project.ProjectStatus = newStatus;
+            var savedProject = await App.Api.SaveProjectAsync(project);
+            await LoadProjectsAsync(customer, savedProject.ProjectId);
+            SetStatus($"Projekt {savedProject.Name} wurde {successSuffix}.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Projektstatus konnte nicht geaendert werden: {ex.Message}", StatusMessageType.Error);
+        }
     }
 
     private void FillProjectSummary(ProjectEntity project)

@@ -18,7 +18,7 @@
             <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                 <StackPanel>
                     <TextBlock Text="Projektdaten" Style="{StaticResource PageTitleStyle}"/>
-                    <TextBlock Text="Lege Projekte hier an, bearbeite sie ueber den Projektdialog und pruefe Anschlussnutzer, Grundstueckseigentuemer und den aktuellen Projektstatus kompakt an einer Stelle." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="Lege Projekte hier an, bearbeite sie ueber den Projektdialog und pruefe Nutzer, Grundstueckseigentuemer und den aktuellen Projektstatus kompakt an einer Stelle." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
@@ -85,6 +85,12 @@
                             </Border>
                         </UniformGrid>
 
+                        <WrapPanel Margin="0,0,0,18">
+                            <Button Width="120" Height="38" Margin="0,0,10,10" Content="Als aktiv" Click="SetProjectActive_Click"/>
+                            <Button Width="120" Height="38" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Pausieren" Click="SetProjectPaused_Click"/>
+                            <Button Width="120" Height="38" Margin="0,0,10,10" Style="{StaticResource SecondaryButtonStyle}" Content="Beenden" Click="SetProjectEnded_Click"/>
+                        </WrapPanel>
+
                         <TextBlock x:Name="ProjectEndHintText" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
@@ -92,7 +98,7 @@
                 <StackPanel Grid.Column="1" Margin="8,0,0,0">
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="Anschlussnutzer" Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock Text="Nutzer" Style="{StaticResource SectionTitleStyle}"/>
                             <TextBlock x:Name="ConnectionUserSummaryText" Margin="0,16,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
