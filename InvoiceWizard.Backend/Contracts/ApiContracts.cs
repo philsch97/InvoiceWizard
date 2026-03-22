@@ -136,6 +136,7 @@ public class ProjectListItemDto
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public string Name { get; set; } = "";
+    public string ProjectStatus { get; set; } = "Active";
     public int OpenWorkItems { get; set; }
     public decimal LoggedHours { get; set; }
 }
@@ -145,6 +146,66 @@ public class SaveProjectRequest
     [Required]
     [MaxLength(200)]
     public string Name { get; set; } = "";
+
+    [MaxLength(20)]
+    public string ProjectStatus { get; set; } = "Active";
+
+    public bool ConnectionUserSameAsCustomer { get; set; }
+
+    [MaxLength(100)]
+    public string ConnectionUserFirstName { get; set; } = "";
+
+    [MaxLength(100)]
+    public string ConnectionUserLastName { get; set; } = "";
+
+    [MaxLength(200)]
+    public string ConnectionUserStreet { get; set; } = "";
+
+    [MaxLength(50)]
+    public string ConnectionUserHouseNumber { get; set; } = "";
+
+    [MaxLength(20)]
+    public string ConnectionUserPostalCode { get; set; } = "";
+
+    [MaxLength(120)]
+    public string ConnectionUserCity { get; set; } = "";
+
+    [MaxLength(100)]
+    public string ConnectionUserParcelNumber { get; set; } = "";
+
+    [MaxLength(200)]
+    [EmailAddress]
+    public string? ConnectionUserEmailAddress { get; set; }
+
+    [MaxLength(50)]
+    public string ConnectionUserPhoneNumber { get; set; } = "";
+
+    public bool PropertyOwnerSameAsCustomer { get; set; }
+
+    [MaxLength(100)]
+    public string PropertyOwnerFirstName { get; set; } = "";
+
+    [MaxLength(100)]
+    public string PropertyOwnerLastName { get; set; } = "";
+
+    [MaxLength(200)]
+    public string PropertyOwnerStreet { get; set; } = "";
+
+    [MaxLength(50)]
+    public string PropertyOwnerHouseNumber { get; set; } = "";
+
+    [MaxLength(20)]
+    public string PropertyOwnerPostalCode { get; set; } = "";
+
+    [MaxLength(120)]
+    public string PropertyOwnerCity { get; set; } = "";
+
+    [MaxLength(200)]
+    [EmailAddress]
+    public string? PropertyOwnerEmailAddress { get; set; }
+
+    [MaxLength(50)]
+    public string PropertyOwnerPhoneNumber { get; set; } = "";
 }
 
 public class ProjectDetailsDto
@@ -153,6 +214,8 @@ public class ProjectDetailsDto
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public string Name { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public string ProjectStatus { get; set; } = "Active";
     public bool ConnectionUserSameAsCustomer { get; set; }
     public string ConnectionUserFirstName { get; set; } = "";
     public string ConnectionUserLastName { get; set; } = "";
@@ -172,6 +235,11 @@ public class ProjectDetailsDto
     public string PropertyOwnerCity { get; set; } = "";
     public string? PropertyOwnerEmailAddress { get; set; }
     public string PropertyOwnerPhoneNumber { get; set; } = "";
+    public int OpenTodoItemCount { get; set; }
+    public int OpenPositionCount { get; set; }
+    public int OpenDraftInvoiceCount { get; set; }
+    public bool CanBeEnded { get; set; }
+    public string CannotEndReason { get; set; } = "";
 }
 
 public class SaveProjectDetailsRequest

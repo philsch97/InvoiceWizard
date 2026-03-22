@@ -44,67 +44,14 @@ public partial class CustomerHandling : Page
 
         var saved = await App.Api.SaveCustomerAsync(customer, selectedCustomer.CustomerId);
         SetStatus("Kundendaten aktualisiert.", StatusMessageType.Success);
-        await LoadCustomersAsync(saved.Name, (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId);
+        await LoadCustomersAsync(saved.Name);
     }
 
     private void ClearCustomerForm_Click(object sender, RoutedEventArgs e)
     {
         FillCustomerForm(null);
         CustomerCombo.SelectedItem = null;
-        ProjectFilterCombo.ItemsSource = null;
-        ProjectFilterCombo.SelectedItem = null;
-        NewProjectNameText.Clear();
         SetStatus("Kundenformular geleert.", StatusMessageType.Info);
-    }
-
-    private async void AddProject_Click(object sender, RoutedEventArgs e)
-    {
-        if (CustomerCombo.SelectedItem is not CustomerEntity customer)
-        {
-            SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
-            return;
-        }
-
-        var projectName = (NewProjectNameText.Text ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(projectName))
-        {
-            SetStatus("Bitte einen Projektnamen eingeben.", StatusMessageType.Error);
-            return;
-        }
-
-        var existingProjects = await App.Api.GetProjectSelectionsAsync(customer.CustomerId);
-        if (existingProjects.Any(p => p.Name == projectName))
-        {
-            SetStatus("Dieses Projekt existiert fuer den Kunden bereits.", StatusMessageType.Warning);
-            return;
-        }
-
-        await App.Api.SaveProjectAsync(customer.CustomerId, projectName);
-        NewProjectNameText.Clear();
-        await LoadProjectsAsync(customer, projectName);
-        SetStatus($"Projekt {projectName} wurde fuer {customer.Name} gespeichert.", StatusMessageType.Success);
-    }
-
-    private async void DeleteProject_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProjectFilterCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId == null)
-        {
-            SetStatus("Bitte ein konkretes Projekt zum Loeschen auswaehlen.", StatusMessageType.Warning);
-            return;
-        }
-
-        if (MessageBox.Show($"Soll das Projekt {projectSelection.Name} wirklich geloescht werden? Zugehoerige Material- und Arbeitszeitpositionen dieses Projekts werden dabei ebenfalls entfernt.", "Projekt loeschen", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        await App.Api.DeleteProjectAsync(projectSelection.ProjectId.Value);
-        if (CustomerCombo.SelectedItem is CustomerEntity customer)
-        {
-            await LoadProjectsAsync(customer);
-        }
-
-        SetStatus($"Projekt {projectSelection.Name} wurde geloescht.", StatusMessageType.Success);
     }
 
     private async void DeleteCustomer_Click(object sender, RoutedEventArgs e)
@@ -125,15 +72,14 @@ public partial class CustomerHandling : Page
         SetStatus($"Kunde {customer.Name} wurde geloescht.", StatusMessageType.Success);
     }
 
-    private async void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var customer = CustomerCombo.SelectedItem as CustomerEntity;
         App.SetSelectedCustomer(customer?.CustomerId);
         FillCustomerForm(customer);
-        await LoadProjectsAsync(customer);
     }
 
-    private async Task LoadCustomersAsync(string? selectCustomerName = null, int? selectedProjectId = null)
+    private async Task LoadCustomersAsync(string? selectCustomerName = null)
     {
         var selectedCustomerId = CustomerCombo.SelectedItem is CustomerEntity selectedCustomer ? selectedCustomer.CustomerId : (int?)null;
         var customers = await App.Api.GetCustomersAsync();
@@ -142,8 +88,6 @@ public partial class CustomerHandling : Page
         if (customers.Count == 0)
         {
             CustomerCombo.SelectedItem = null;
-            ProjectFilterCombo.ItemsSource = null;
-            ProjectFilterCombo.SelectedItem = null;
             FillCustomerForm(null);
             SetStatus("Noch keine Kunden vorhanden.", StatusMessageType.Info);
             return;
@@ -164,30 +108,8 @@ public partial class CustomerHandling : Page
 
         if (customerToSelect is not null)
         {
-            await LoadProjectsAsync(customerToSelect, selectedProjectId: selectedProjectId);
             SetStatus($"Kunde {customerToSelect.Name} geladen.", StatusMessageType.Info);
         }
-    }
-
-    private async Task LoadProjectsAsync(CustomerEntity? customer, string? selectProjectName = null, int? selectedProjectId = null)
-    {
-        if (customer == null)
-        {
-            ProjectFilterCombo.ItemsSource = null;
-            ProjectFilterCombo.SelectedItem = null;
-            return;
-        }
-
-        var projects = await App.Api.GetProjectSelectionsAsync(customer.CustomerId, includeAll: false);
-        ProjectFilterCombo.ItemsSource = projects;
-        ProjectSelectionItem? projectToSelect = null;
-        if (!string.IsNullOrWhiteSpace(selectProjectName))
-        {
-            projectToSelect = projects.FirstOrDefault(p => p.Name == selectProjectName);
-        }
-
-        projectToSelect ??= selectedProjectId.HasValue ? projects.FirstOrDefault(p => p.ProjectId == selectedProjectId.Value) : null;
-        ProjectFilterCombo.SelectedItem = projectToSelect ?? projects.FirstOrDefault();
     }
 
     private CustomerEntity? ReadCustomerFromForm()

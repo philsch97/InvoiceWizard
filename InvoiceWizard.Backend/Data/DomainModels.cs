@@ -30,6 +30,7 @@ public class Project
     public int CustomerId { get; set; }
     public Customer Customer { get; set; } = null!;
     public string Name { get; set; } = "";
+    public string ProjectStatus { get; set; } = "Active";
     public bool ConnectionUserSameAsCustomer { get; set; }
     public string ConnectionUserFirstName { get; set; } = "";
     public string ConnectionUserLastName { get; set; } = "";

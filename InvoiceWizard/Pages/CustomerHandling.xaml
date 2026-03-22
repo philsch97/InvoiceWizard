@@ -30,21 +30,17 @@
                 <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,8,0">
                     <StackPanel>
                         <TextBlock Text="Kundenstamm" Style="{StaticResource SectionTitleStyle}"/>
-                        <TextBlock Text="Kunden koennen hier angelegt, nachtraeglich bearbeitet und geloescht werden." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
+                        <TextBlock Text="Kunden koennen hier angelegt, nachtraeglich bearbeitet und geloescht werden. Projekte legst und pflegst du jetzt auf der Seite Projektdaten." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,16" TextWrapping="Wrap"/>
 
                         <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
-                        <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged" Margin="0,0,0,14"/>
+                        <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged" Margin="0,0,0,18"/>
 
-                        <TextBlock Text="Projekt" Style="{StaticResource MutedLabelStyle}"/>
-                        <ComboBox x:Name="ProjectFilterCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId" Margin="0,0,0,18"/>
-
-                        <TextBlock Text="Neues Projekt" Style="{StaticResource MutedLabelStyle}"/>
-                        <TextBox x:Name="NewProjectNameText" Margin="0,0,0,14"/>
-
-                        <WrapPanel Margin="0,0,0,10">
-                            <Button Width="160" Height="40" Margin="0,0,10,10" Content="Projekt speichern" Click="AddProject_Click"/>
-                            <Button Width="150" Height="40" Margin="0,0,0,10" Style="{StaticResource SecondaryButtonStyle}" Content="Projekt loeschen" Click="DeleteProject_Click"/>
-                        </WrapPanel>
+                        <Border Background="#202730" CornerRadius="14" Padding="14">
+                            <StackPanel>
+                                <TextBlock Text="Projektpflege" FontSize="16" FontWeight="SemiBold"/>
+                                <TextBlock Text="Auf der Seite Projektdaten kannst du Projekte jetzt neu anlegen, bearbeiten, pausieren oder beenden." Margin="0,8,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 

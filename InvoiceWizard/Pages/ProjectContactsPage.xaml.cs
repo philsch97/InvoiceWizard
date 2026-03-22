@@ -1,8 +1,9 @@
-using InvoiceWizard.Data.Entities;
-using InvoiceWizard.Data.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using InvoiceWizard.Data.Entities;
+using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Dialogs;
 
 namespace InvoiceWizard;
 
@@ -18,7 +19,6 @@ public partial class ProjectContactsPage : Page
     {
         App.SetSelectedCustomer((CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId);
         await LoadProjectsAsync(CustomerCombo.SelectedItem as CustomerEntity);
-        ApplySameAsCustomerForms();
     }
 
     private async void ProjectCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -31,94 +31,132 @@ public partial class ProjectContactsPage : Page
         await LoadProjectDetailsAsync();
     }
 
-    private async void SaveProjectDetails_Click(object sender, RoutedEventArgs e)
+    private async void CreateProject_Click(object sender, RoutedEventArgs e)
     {
-        if (ProjectCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId is null)
-        {
-            SetStatus("Bitte zuerst ein Projekt auswaehlen.", StatusMessageType.Warning);
-            return;
-        }
-
         if (CustomerCombo.SelectedItem is not CustomerEntity customer)
         {
             SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
             return;
         }
 
-        var project = new ProjectEntity
+        var dialog = new ProjectSetupDialog(customer)
         {
-            ProjectId = projectSelection.ProjectId.Value,
-            CustomerId = customer.CustomerId,
-            Customer = customer,
-            Name = projectSelection.Name,
-            ConnectionUserSameAsCustomer = ConnectionUserSameAsCustomerCheck.IsChecked == true,
-            ConnectionUserFirstName = (ConnectionUserFirstNameText.Text ?? string.Empty).Trim(),
-            ConnectionUserLastName = (ConnectionUserLastNameText.Text ?? string.Empty).Trim(),
-            ConnectionUserStreet = (ConnectionUserStreetText.Text ?? string.Empty).Trim(),
-            ConnectionUserHouseNumber = (ConnectionUserHouseNumberText.Text ?? string.Empty).Trim(),
-            ConnectionUserPostalCode = (ConnectionUserPostalCodeText.Text ?? string.Empty).Trim(),
-            ConnectionUserCity = (ConnectionUserCityText.Text ?? string.Empty).Trim(),
-            ConnectionUserParcelNumber = (ConnectionUserParcelNumberText.Text ?? string.Empty).Trim(),
-            ConnectionUserEmailAddress = (ConnectionUserEmailText.Text ?? string.Empty).Trim(),
-            ConnectionUserPhoneNumber = (ConnectionUserPhoneText.Text ?? string.Empty).Trim(),
-            PropertyOwnerSameAsCustomer = PropertyOwnerSameAsCustomerCheck.IsChecked == true,
-            PropertyOwnerFirstName = (PropertyOwnerFirstNameText.Text ?? string.Empty).Trim(),
-            PropertyOwnerLastName = (PropertyOwnerLastNameText.Text ?? string.Empty).Trim(),
-            PropertyOwnerStreet = (PropertyOwnerStreetText.Text ?? string.Empty).Trim(),
-            PropertyOwnerHouseNumber = (PropertyOwnerHouseNumberText.Text ?? string.Empty).Trim(),
-            PropertyOwnerPostalCode = (PropertyOwnerPostalCodeText.Text ?? string.Empty).Trim(),
-            PropertyOwnerCity = (PropertyOwnerCityText.Text ?? string.Empty).Trim(),
-            PropertyOwnerEmailAddress = (PropertyOwnerEmailText.Text ?? string.Empty).Trim(),
-            PropertyOwnerPhoneNumber = (PropertyOwnerPhoneText.Text ?? string.Empty).Trim()
+            Owner = Window.GetWindow(this)
         };
 
-        var saved = await App.Api.UpdateProjectDetailsAsync(project);
-        FillProjectForm(saved);
-        SetStatus($"Projektdaten fuer {saved.Name} gespeichert.", StatusMessageType.Success);
+        if (dialog.ShowDialog() != true || dialog.ResultProject is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var savedProject = await App.Api.SaveProjectAsync(dialog.ResultProject);
+            await LoadProjectsAsync(customer, savedProject.ProjectId);
+            SetStatus($"Projekt {savedProject.Name} wurde angelegt.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Projekt konnte nicht gespeichert werden: {ex.Message}", StatusMessageType.Error);
+        }
     }
 
-    private void ConnectionUserSameAsCustomerCheck_Changed(object sender, RoutedEventArgs e)
+    private async void EditProject_Click(object sender, RoutedEventArgs e)
     {
-        ApplyConnectionUserState();
+        if (CustomerCombo.SelectedItem is not CustomerEntity customer)
+        {
+            SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (ProjectCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId is null)
+        {
+            SetStatus("Bitte zuerst ein Projekt auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        var currentProject = await App.Api.GetProjectDetailsAsync(projectSelection.ProjectId.Value);
+        var dialog = new ProjectSetupDialog(customer, currentProject)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true || dialog.ResultProject is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var savedProject = await App.Api.SaveProjectAsync(dialog.ResultProject);
+            await LoadProjectsAsync(customer, savedProject.ProjectId);
+            SetStatus($"Projekt {savedProject.Name} wurde aktualisiert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Projekt konnte nicht aktualisiert werden: {ex.Message}", StatusMessageType.Error);
+        }
     }
 
-    private void PropertyOwnerSameAsCustomerCheck_Changed(object sender, RoutedEventArgs e)
+    private async void DeleteProject_Click(object sender, RoutedEventArgs e)
     {
-        ApplyPropertyOwnerState();
+        if (ProjectCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId is null)
+        {
+            SetStatus("Bitte zuerst ein Projekt zum Loeschen auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        if (MessageBox.Show($"Soll das Projekt {projectSelection.Name} wirklich geloescht werden? Zugehoerige Material-, Arbeitszeit- und Notizeintraege dieses Projekts werden dabei ebenfalls entfernt.", "Projekt loeschen", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await App.Api.DeleteProjectAsync(projectSelection.ProjectId.Value);
+        await LoadProjectsAsync(CustomerCombo.SelectedItem as CustomerEntity);
+        SetStatus($"Projekt {projectSelection.Name} wurde geloescht.", StatusMessageType.Success);
     }
 
     private async Task LoadCustomersAsync()
     {
         var customers = await App.Api.GetCustomersAsync();
         CustomerCombo.ItemsSource = customers;
-        var selected = App.SelectedCustomerId.HasValue
-            ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value)
-            : customers.FirstOrDefault();
-        CustomerCombo.SelectedItem = selected ?? customers.FirstOrDefault();
-        App.SetSelectedCustomer((CustomerCombo.SelectedItem as CustomerEntity)?.CustomerId);
+
         if (customers.Count == 0)
         {
-            ClearProjectForm();
+            CustomerCombo.SelectedItem = null;
+            ProjectCombo.ItemsSource = null;
+            ClearProjectSummary();
             SetStatus("Noch keine Kunden vorhanden.", StatusMessageType.Info);
+            return;
         }
+
+        var customer = App.SelectedCustomerId.HasValue
+            ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value) ?? customers[0]
+            : customers[0];
+        CustomerCombo.SelectedItem = customer;
+        App.SetSelectedCustomer(customer.CustomerId);
+        await LoadProjectsAsync(customer);
     }
 
-    private async Task LoadProjectsAsync(CustomerEntity? customer)
+    private async Task LoadProjectsAsync(CustomerEntity? customer, int? selectedProjectId = null)
     {
         if (customer is null)
         {
             ProjectCombo.ItemsSource = null;
             ProjectCombo.SelectedItem = null;
-            ClearProjectForm();
+            ClearProjectSummary();
             return;
         }
 
-        var projects = await App.Api.GetProjectSelectionsAsync(customer.CustomerId);
+        var projects = await App.Api.GetProjectSelectionsAsync(customer.CustomerId, includeAll: false, includeInactive: true);
         ProjectCombo.ItemsSource = projects;
-        ProjectCombo.SelectedItem = projects.FirstOrDefault();
+        ProjectCombo.SelectedItem = selectedProjectId.HasValue
+            ? projects.FirstOrDefault(p => p.ProjectId == selectedProjectId.Value) ?? projects.FirstOrDefault()
+            : projects.FirstOrDefault();
+
         if (projects.Count == 0)
         {
-            ClearProjectForm();
+            ClearProjectSummary();
             SetStatus("Fuer diesen Kunden gibt es noch kein Projekt.", StatusMessageType.Info);
         }
     }
@@ -127,132 +165,96 @@ public partial class ProjectContactsPage : Page
     {
         if (ProjectCombo.SelectedItem is not ProjectSelectionItem projectSelection || projectSelection.ProjectId is null)
         {
-            ClearProjectForm();
+            ClearProjectSummary();
             return;
         }
 
         var project = await App.Api.GetProjectDetailsAsync(projectSelection.ProjectId.Value);
-        if (CustomerCombo.SelectedItem is CustomerEntity customer)
+        FillProjectSummary(project);
+        SetStatus($"Projekt {project.Name} geladen.", StatusMessageType.Info);
+    }
+
+    private void FillProjectSummary(ProjectEntity project)
+    {
+        ProjectSummaryTitleText.Text = project.Name;
+        ProjectSummaryMetaText.Text = $"Kunde: {project.Customer.Name} | Erstellt: {project.CreatedAt:dd.MM.yyyy}";
+        ProjectStatusText.Text = project.ProjectStatusLabel;
+        OpenPositionsText.Text = project.OpenPositionCount.ToString();
+        OpenDraftInvoicesText.Text = project.OpenDraftInvoiceCount.ToString();
+        ProjectEndHintText.Text = project.CanBeEnded
+            ? "Dieses Projekt kann bei Bedarf beendet werden."
+            : project.CannotEndReason;
+        ConnectionUserSummaryText.Text = BuildContactSummary(
+            project.ConnectionUserFirstName,
+            project.ConnectionUserLastName,
+            project.ConnectionUserStreet,
+            project.ConnectionUserHouseNumber,
+            project.ConnectionUserPostalCode,
+            project.ConnectionUserCity,
+            project.ConnectionUserEmailAddress,
+            project.ConnectionUserPhoneNumber,
+            project.ConnectionUserParcelNumber);
+        PropertyOwnerSummaryText.Text = BuildContactSummary(
+            project.PropertyOwnerFirstName,
+            project.PropertyOwnerLastName,
+            project.PropertyOwnerStreet,
+            project.PropertyOwnerHouseNumber,
+            project.PropertyOwnerPostalCode,
+            project.PropertyOwnerCity,
+            project.PropertyOwnerEmailAddress,
+            project.PropertyOwnerPhoneNumber,
+            null);
+    }
+
+    private static string BuildContactSummary(string firstName, string lastName, string street, string houseNumber, string postalCode, string city, string email, string phone, string? parcelNumber)
+    {
+        var lines = new List<string>();
+        var name = string.Join(" ", new[] { firstName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            project.Customer = customer;
+            lines.Add(name);
         }
 
-        FillProjectForm(project);
-        SetStatus($"Projektdaten fuer {project.Name} geladen.", StatusMessageType.Info);
-    }
-
-    private void FillProjectForm(ProjectEntity? project)
-    {
-        if (project is null)
+        var address = string.Join(" ", new[] { street, houseNumber }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        if (!string.IsNullOrWhiteSpace(address))
         {
-            ClearProjectForm();
-            return;
+            lines.Add(address);
         }
 
-        ConnectionUserSameAsCustomerCheck.IsChecked = project.ConnectionUserSameAsCustomer;
-        ConnectionUserFirstNameText.Text = project.ConnectionUserFirstName;
-        ConnectionUserLastNameText.Text = project.ConnectionUserLastName;
-        ConnectionUserStreetText.Text = project.ConnectionUserStreet;
-        ConnectionUserHouseNumberText.Text = project.ConnectionUserHouseNumber;
-        ConnectionUserPostalCodeText.Text = project.ConnectionUserPostalCode;
-        ConnectionUserCityText.Text = project.ConnectionUserCity;
-        ConnectionUserParcelNumberText.Text = project.ConnectionUserParcelNumber;
-        ConnectionUserEmailText.Text = project.ConnectionUserEmailAddress;
-        ConnectionUserPhoneText.Text = project.ConnectionUserPhoneNumber;
-
-        PropertyOwnerSameAsCustomerCheck.IsChecked = project.PropertyOwnerSameAsCustomer;
-        PropertyOwnerFirstNameText.Text = project.PropertyOwnerFirstName;
-        PropertyOwnerLastNameText.Text = project.PropertyOwnerLastName;
-        PropertyOwnerStreetText.Text = project.PropertyOwnerStreet;
-        PropertyOwnerHouseNumberText.Text = project.PropertyOwnerHouseNumber;
-        PropertyOwnerPostalCodeText.Text = project.PropertyOwnerPostalCode;
-        PropertyOwnerCityText.Text = project.PropertyOwnerCity;
-        PropertyOwnerEmailText.Text = project.PropertyOwnerEmailAddress;
-        PropertyOwnerPhoneText.Text = project.PropertyOwnerPhoneNumber;
-
-        ApplySameAsCustomerForms();
-    }
-
-    private void ApplySameAsCustomerForms()
-    {
-        ApplyConnectionUserState();
-        ApplyPropertyOwnerState();
-    }
-
-    private void ApplyConnectionUserState()
-    {
-        var useCustomer = ConnectionUserSameAsCustomerCheck.IsChecked == true;
-        SetConnectionUserInputsEnabled(!useCustomer);
-        if (useCustomer && CustomerCombo.SelectedItem is CustomerEntity customer)
+        var cityLine = string.Join(" ", new[] { postalCode, city }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        if (!string.IsNullOrWhiteSpace(cityLine))
         {
-            ConnectionUserFirstNameText.Text = customer.FirstName;
-            ConnectionUserLastNameText.Text = customer.LastName;
-            ConnectionUserStreetText.Text = customer.Street;
-            ConnectionUserHouseNumberText.Text = customer.HouseNumber;
-            ConnectionUserPostalCodeText.Text = customer.PostalCode;
-            ConnectionUserCityText.Text = customer.City;
-            ConnectionUserParcelNumberText.Text = string.Empty;
-            ConnectionUserEmailText.Text = customer.EmailAddress;
-            ConnectionUserPhoneText.Text = customer.PhoneNumber;
+            lines.Add(cityLine);
         }
-    }
 
-    private void ApplyPropertyOwnerState()
-    {
-        var useCustomer = PropertyOwnerSameAsCustomerCheck.IsChecked == true;
-        SetPropertyOwnerInputsEnabled(!useCustomer);
-        if (useCustomer && CustomerCombo.SelectedItem is CustomerEntity customer)
+        if (!string.IsNullOrWhiteSpace(parcelNumber))
         {
-            PropertyOwnerFirstNameText.Text = customer.FirstName;
-            PropertyOwnerLastNameText.Text = customer.LastName;
-            PropertyOwnerStreetText.Text = customer.Street;
-            PropertyOwnerHouseNumberText.Text = customer.HouseNumber;
-            PropertyOwnerPostalCodeText.Text = customer.PostalCode;
-            PropertyOwnerCityText.Text = customer.City;
-            PropertyOwnerEmailText.Text = customer.EmailAddress;
-            PropertyOwnerPhoneText.Text = customer.PhoneNumber;
+            lines.Add($"Flurnummer: {parcelNumber}");
         }
-    }
 
-    private void SetConnectionUserInputsEnabled(bool enabled)
-    {
-        foreach (var control in new Control[] { ConnectionUserFirstNameText, ConnectionUserLastNameText, ConnectionUserStreetText, ConnectionUserHouseNumberText, ConnectionUserPostalCodeText, ConnectionUserCityText, ConnectionUserParcelNumberText, ConnectionUserEmailText, ConnectionUserPhoneText })
+        if (!string.IsNullOrWhiteSpace(email))
         {
-            control.IsEnabled = enabled;
+            lines.Add($"E-Mail: {email}");
         }
-    }
 
-    private void SetPropertyOwnerInputsEnabled(bool enabled)
-    {
-        foreach (var control in new Control[] { PropertyOwnerFirstNameText, PropertyOwnerLastNameText, PropertyOwnerStreetText, PropertyOwnerHouseNumberText, PropertyOwnerPostalCodeText, PropertyOwnerCityText, PropertyOwnerEmailText, PropertyOwnerPhoneText })
+        if (!string.IsNullOrWhiteSpace(phone))
         {
-            control.IsEnabled = enabled;
+            lines.Add($"Telefon: {phone}");
         }
+
+        return lines.Count == 0 ? "Keine Daten hinterlegt." : string.Join(Environment.NewLine, lines);
     }
 
-    private void ClearProjectForm()
+    private void ClearProjectSummary()
     {
-        ConnectionUserSameAsCustomerCheck.IsChecked = false;
-        ConnectionUserFirstNameText.Clear();
-        ConnectionUserLastNameText.Clear();
-        ConnectionUserStreetText.Clear();
-        ConnectionUserHouseNumberText.Clear();
-        ConnectionUserPostalCodeText.Clear();
-        ConnectionUserCityText.Clear();
-        ConnectionUserParcelNumberText.Clear();
-        ConnectionUserEmailText.Clear();
-        ConnectionUserPhoneText.Clear();
-        PropertyOwnerSameAsCustomerCheck.IsChecked = false;
-        PropertyOwnerFirstNameText.Clear();
-        PropertyOwnerLastNameText.Clear();
-        PropertyOwnerStreetText.Clear();
-        PropertyOwnerHouseNumberText.Clear();
-        PropertyOwnerPostalCodeText.Clear();
-        PropertyOwnerCityText.Clear();
-        PropertyOwnerEmailText.Clear();
-        PropertyOwnerPhoneText.Clear();
-        SetConnectionUserInputsEnabled(true);
-        SetPropertyOwnerInputsEnabled(true);
+        ProjectSummaryTitleText.Text = "Kein Projekt ausgewaehlt";
+        ProjectSummaryMetaText.Text = "Waehle oben einen Kunden und ein Projekt aus oder lege direkt ein neues Projekt an.";
+        ProjectStatusText.Text = "-";
+        OpenPositionsText.Text = "0";
+        OpenDraftInvoicesText.Text = "0";
+        ProjectEndHintText.Text = string.Empty;
+        ConnectionUserSummaryText.Text = "Keine Daten hinterlegt.";
+        PropertyOwnerSummaryText.Text = "Keine Daten hinterlegt.";
     }
 
     private void SetStatus(string message, StatusMessageType type)

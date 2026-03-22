@@ -194,24 +194,57 @@ public partial class BackendApiClient
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<List<ProjectSelectionItem>> GetProjectSelectionsAsync(int customerId, bool includeAll = false)
+    public async Task<List<ProjectSelectionItem>> GetProjectSelectionsAsync(int customerId, bool includeAll = false, bool includeInactive = false)
     {
-        var items = await _httpClient.GetFromJsonAsync<List<ProjectDto>>($"api/projects?customerId={customerId}", _jsonOptions) ?? [];
+        var items = await _httpClient.GetFromJsonAsync<List<ProjectDto>>($"api/projects?customerId={customerId}&includeInactive={includeInactive.ToString().ToLowerInvariant()}", _jsonOptions) ?? [];
         var result = new List<ProjectSelectionItem>();
         if (includeAll)
         {
-            result.Add(new ProjectSelectionItem { ProjectId = null, Name = "Alle Projekte" });
+            result.Add(new ProjectSelectionItem { ProjectId = null, Name = "Alle Projekte", ProjectStatus = "Active" });
         }
 
-        result.AddRange(items.OrderBy(x => x.Name).Select(x => new ProjectSelectionItem { ProjectId = x.ProjectId, Name = x.Name }));
+        result.AddRange(items.OrderBy(x => x.Name).Select(x => new ProjectSelectionItem
+        {
+            ProjectId = x.ProjectId,
+            Name = x.Name,
+            ProjectStatus = x.ProjectStatus
+        }));
         return result;
     }
 
-    public async Task<ProjectDto> SaveProjectAsync(int customerId, string name)
+    public async Task<ProjectEntity> SaveProjectAsync(ProjectEntity project)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", new { name });
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ProjectDto>(_jsonOptions) ?? new ProjectDto();
+        var payload = new
+        {
+            name = project.Name,
+            projectStatus = project.ProjectStatus,
+            connectionUserSameAsCustomer = project.ConnectionUserSameAsCustomer,
+            connectionUserFirstName = project.ConnectionUserFirstName,
+            connectionUserLastName = project.ConnectionUserLastName,
+            connectionUserStreet = project.ConnectionUserStreet,
+            connectionUserHouseNumber = project.ConnectionUserHouseNumber,
+            connectionUserPostalCode = project.ConnectionUserPostalCode,
+            connectionUserCity = project.ConnectionUserCity,
+            connectionUserParcelNumber = project.ConnectionUserParcelNumber,
+            connectionUserEmailAddress = NormalizeOptionalEmail(project.ConnectionUserEmailAddress),
+            connectionUserPhoneNumber = project.ConnectionUserPhoneNumber,
+            propertyOwnerSameAsCustomer = project.PropertyOwnerSameAsCustomer,
+            propertyOwnerFirstName = project.PropertyOwnerFirstName,
+            propertyOwnerLastName = project.PropertyOwnerLastName,
+            propertyOwnerStreet = project.PropertyOwnerStreet,
+            propertyOwnerHouseNumber = project.PropertyOwnerHouseNumber,
+            propertyOwnerPostalCode = project.PropertyOwnerPostalCode,
+            propertyOwnerCity = project.PropertyOwnerCity,
+            propertyOwnerEmailAddress = NormalizeOptionalEmail(project.PropertyOwnerEmailAddress),
+            propertyOwnerPhoneNumber = project.PropertyOwnerPhoneNumber
+        };
+
+        HttpResponseMessage response = project.ProjectId > 0
+            ? await _httpClient.PutAsJsonAsync($"api/projects/{project.ProjectId}", payload)
+            : await _httpClient.PostAsJsonAsync($"api/customers/{project.CustomerId}/projects", payload);
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<ProjectDetailsDto>(_jsonOptions) ?? new ProjectDetailsDto();
+        return MapProjectDetails(item);
     }
 
     public async Task<ProjectEntity> GetProjectDetailsAsync(int projectId)
@@ -872,6 +905,8 @@ public partial class BackendApiClient
             CustomerId = item.CustomerId,
             Customer = new CustomerEntity { CustomerId = item.CustomerId, Name = item.CustomerName },
             Name = item.Name,
+            CreatedAt = item.CreatedAt,
+            ProjectStatus = item.ProjectStatus,
             ConnectionUserSameAsCustomer = item.ConnectionUserSameAsCustomer,
             ConnectionUserFirstName = item.ConnectionUserFirstName,
             ConnectionUserLastName = item.ConnectionUserLastName,
@@ -890,7 +925,12 @@ public partial class BackendApiClient
             PropertyOwnerPostalCode = item.PropertyOwnerPostalCode,
             PropertyOwnerCity = item.PropertyOwnerCity,
             PropertyOwnerEmailAddress = item.PropertyOwnerEmailAddress,
-            PropertyOwnerPhoneNumber = item.PropertyOwnerPhoneNumber
+            PropertyOwnerPhoneNumber = item.PropertyOwnerPhoneNumber,
+            OpenTodoItemCount = item.OpenTodoItemCount,
+            OpenPositionCount = item.OpenPositionCount,
+            OpenDraftInvoiceCount = item.OpenDraftInvoiceCount,
+            CanBeEnded = item.CanBeEnded,
+            CannotEndReason = item.CannotEndReason
         };
     }
 
@@ -1332,8 +1372,8 @@ public partial class BackendApiClient
         public int InvoiceId { get; set; }
     }
 
-    public class ProjectDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public int OpenWorkItems { get; set; } public decimal LoggedHours { get; set; } }
-    private class ProjectDetailsDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public bool ConnectionUserSameAsCustomer { get; set; } public string ConnectionUserFirstName { get; set; } = ""; public string ConnectionUserLastName { get; set; } = ""; public string ConnectionUserStreet { get; set; } = ""; public string ConnectionUserHouseNumber { get; set; } = ""; public string ConnectionUserPostalCode { get; set; } = ""; public string ConnectionUserCity { get; set; } = ""; public string ConnectionUserParcelNumber { get; set; } = ""; public string ConnectionUserEmailAddress { get; set; } = ""; public string ConnectionUserPhoneNumber { get; set; } = ""; public bool PropertyOwnerSameAsCustomer { get; set; } public string PropertyOwnerFirstName { get; set; } = ""; public string PropertyOwnerLastName { get; set; } = ""; public string PropertyOwnerStreet { get; set; } = ""; public string PropertyOwnerHouseNumber { get; set; } = ""; public string PropertyOwnerPostalCode { get; set; } = ""; public string PropertyOwnerCity { get; set; } = ""; public string PropertyOwnerEmailAddress { get; set; } = ""; public string PropertyOwnerPhoneNumber { get; set; } = ""; }
+    public class ProjectDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public string ProjectStatus { get; set; } = "Active"; public int OpenWorkItems { get; set; } public decimal LoggedHours { get; set; } }
+    private class ProjectDetailsDto { public int ProjectId { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public string Name { get; set; } = ""; public DateTime CreatedAt { get; set; } public string ProjectStatus { get; set; } = "Active"; public bool ConnectionUserSameAsCustomer { get; set; } public string ConnectionUserFirstName { get; set; } = ""; public string ConnectionUserLastName { get; set; } = ""; public string ConnectionUserStreet { get; set; } = ""; public string ConnectionUserHouseNumber { get; set; } = ""; public string ConnectionUserPostalCode { get; set; } = ""; public string ConnectionUserCity { get; set; } = ""; public string ConnectionUserParcelNumber { get; set; } = ""; public string ConnectionUserEmailAddress { get; set; } = ""; public string ConnectionUserPhoneNumber { get; set; } = ""; public bool PropertyOwnerSameAsCustomer { get; set; } public string PropertyOwnerFirstName { get; set; } = ""; public string PropertyOwnerLastName { get; set; } = ""; public string PropertyOwnerStreet { get; set; } = ""; public string PropertyOwnerHouseNumber { get; set; } = ""; public string PropertyOwnerPostalCode { get; set; } = ""; public string PropertyOwnerCity { get; set; } = ""; public string PropertyOwnerEmailAddress { get; set; } = ""; public string PropertyOwnerPhoneNumber { get; set; } = ""; public int OpenTodoItemCount { get; set; } public int OpenPositionCount { get; set; } public int OpenDraftInvoiceCount { get; set; } public bool CanBeEnded { get; set; } public string CannotEndReason { get; set; } = ""; }
     private class WorkTimeDto { public int WorkTimeEntryId { get; set; } public int? AppUserId { get; set; } public string? UserDisplayName { get; set; } public int CustomerId { get; set; } public string CustomerName { get; set; } = ""; public int? ProjectId { get; set; } public string? ProjectName { get; set; } public DateTime WorkDate { get; set; } public TimeSpan StartTime { get; set; } public TimeSpan EndTime { get; set; } public int BreakMinutes { get; set; } public decimal HoursWorked { get; set; } public decimal HourlyRate { get; set; } public decimal TravelKilometers { get; set; } public decimal TravelRatePerKilometer { get; set; } public int? RevenueInvoiceId { get; set; } public string Description { get; set; } = ""; public string Comment { get; set; } = ""; public string? CustomerInvoiceNumber { get; set; } public DateTime? CustomerInvoicedAt { get; set; } public bool IsPaid { get; set; } public DateTime? PaidAt { get; set; } public bool IsClockActive { get; set; } public DateTime? PauseStartedAtUtc { get; set; } public decimal LineTotal { get; set; } }
     private class BankAccountSummaryDto { public int TransactionCount { get; set; } public decimal? CurrentBalance { get; set; } public DateTime? LastBookingDate { get; set; } public string AccountIban { get; set; } = ""; public string AccountName { get; set; } = ""; }
     private class BankImportResultDto { public int ImportId { get; set; } public string FileName { get; set; } = ""; public string AccountName { get; set; } = ""; public string AccountIban { get; set; } = ""; public string Currency { get; set; } = "EUR"; public int ImportedTransactions { get; set; } public int SkippedTransactions { get; set; } public decimal? CurrentBalance { get; set; } public List<string>? Warnings { get; set; } }

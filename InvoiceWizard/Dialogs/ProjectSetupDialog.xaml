@@ -1,0 +1,207 @@
+<Window x:Class="InvoiceWizard.Dialogs.ProjectSetupDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Projekt anlegen"
+        Height="760"
+        Width="900"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#1F2630">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock x:Name="DialogTitleText" Text="Projekt anlegen" FontSize="28" FontWeight="SemiBold" Foreground="White"/>
+            <TextBlock x:Name="DialogSubtitleText" Text="Trage die Projektdaten Schritt fuer Schritt ein." Margin="0,8,0,0" Foreground="#AAB6C5" TextWrapping="Wrap"/>
+            <TextBlock x:Name="StepIndicatorText" Margin="0,16,0,0" FontSize="13" FontWeight="SemiBold" Foreground="#5AA2FF"/>
+        </StackPanel>
+
+        <Border Grid.Row="1" Margin="0,20,0,20" Background="#252D38" CornerRadius="18" Padding="24">
+            <Grid>
+                <Grid x:Name="StepOnePanel">
+                    <StackPanel>
+                        <TextBlock Text="Schritt 1: Projekt" FontSize="22" FontWeight="SemiBold" Foreground="White"/>
+                        <TextBlock Text="Lege den Projektnamen an. Er muss vorne mit einer dreistelligen Nummer beginnen, z. B. 001 Musterprojekt." Margin="0,10,0,20" Foreground="#AAB6C5" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="Kunde" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                        <TextBox x:Name="CustomerNameText" IsReadOnly="True" Margin="0,0,0,16"/>
+
+                        <TextBlock Text="Projektname" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                        <TextBox x:Name="ProjectNameText" Margin="0,0,0,16"/>
+
+                        <TextBlock Text="Projektstatus" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="ProjectStatusCombo" SelectedValuePath="Tag">
+                            <ComboBoxItem Content="Aktiv" Tag="Active"/>
+                            <ComboBoxItem Content="Pausiert" Tag="Paused"/>
+                            <ComboBoxItem Content="Beendet" Tag="Ended"/>
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="StepTwoPanel" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Schritt 2: Anschlussnutzer" FontSize="22" FontWeight="SemiBold" Foreground="White"/>
+                        <TextBlock Text="Hier kannst du die Daten des Anschlussnutzers eintragen oder vom Kunden uebernehmen." Margin="0,10,0,20" Foreground="#AAB6C5" TextWrapping="Wrap"/>
+
+                        <Button Content="Daten vom Kunden uebernehmen" Width="230" Height="38" Margin="0,0,0,18" Click="CopyConnectionUserFromCustomer_Click"/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Vorname" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserFirstNameText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Nachname" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserLastNameText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Straße" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserStreetText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Hausnummer" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserHouseNumberText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.4*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Postleitzahl" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserPostalCodeText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Ort" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserCityText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Flurnummer" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                        <TextBox x:Name="ConnectionUserParcelNumberText" Margin="0,0,0,12"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.4*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="E-Mail-Adresse" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserEmailText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Telefonnummer" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="ConnectionUserPhoneText"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="StepThreePanel" Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock Text="Schritt 3: Grundstückseigentümer" FontSize="22" FontWeight="SemiBold" Foreground="White"/>
+                        <TextBlock Text="Hier kannst du die Daten des Grundstückseigentümers manuell eintragen oder vom Kunden bzw. Anschlussnutzer übernehmen." Margin="0,10,0,20" Foreground="#AAB6C5" TextWrapping="Wrap"/>
+
+                        <WrapPanel Margin="0,0,0,18">
+                            <Button Content="Daten vom Kunden uebernehmen" Width="230" Height="38" Margin="0,0,10,10" Click="CopyPropertyOwnerFromCustomer_Click"/>
+                            <Button Content="Daten vom Anschlussnutzer uebernehmen" Width="280" Height="38" Margin="0,0,0,10" Click="CopyPropertyOwnerFromConnectionUser_Click"/>
+                        </WrapPanel>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Vorname" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerFirstNameText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Nachname" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerLastNameText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Straße" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerStreetText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Hausnummer" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerHouseNumberText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.4*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Postleitzahl" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerPostalCodeText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Ort" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerCityText"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.4*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="E-Mail-Adresse" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerEmailText"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="Telefonnummer" Foreground="#F2D27A" Margin="0,0,0,6"/>
+                                <TextBox x:Name="PropertyOwnerPhoneText"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock x:Name="ValidationMessageText" VerticalAlignment="Center" Foreground="#FF8A8A" TextWrapping="Wrap" Margin="0,0,16,0"/>
+            <Button x:Name="BackButton" Grid.Column="1" Width="120" Height="40" Margin="0,0,10,0" Content="Zurueck" Click="Back_Click"/>
+            <Button x:Name="NextButton" Grid.Column="2" Width="120" Height="40" Margin="0,0,10,0" Content="Weiter" Click="Next_Click"/>
+            <Button x:Name="SaveButton" Grid.Column="3" Width="140" Height="40" Margin="0,0,10,0" Content="Projekt speichern" Click="Save_Click"/>
+            <Button Grid.Column="4" Width="120" Height="40" Content="Abbrechen" Click="Cancel_Click"/>
+        </Grid>
+    </Grid>
+</Window>

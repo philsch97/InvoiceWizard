@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Abrechnungsoptionen"
         Width="520"
-        Height="360"
+        Height="380"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
     <Grid Margin="18">
@@ -15,7 +15,7 @@
 
         <StackPanel>
             <TextBlock Text="Abrechnungsoptionen" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
-            <TextBlock Text="Bitte Zuschlag und Kleinmaterial-Einstellungen fuer diesen Vorgang festlegen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+            <TextBlock x:Name="DialogHintText" Text="Bitte Zuschlag und Kleinmaterial-Einstellungen fuer diesen Vorgang festlegen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="0,18,0,18">
@@ -30,7 +30,7 @@
                 <TextBox x:Name="MarkupPercentText" Text="0"/>
             </StackPanel>
 
-            <StackPanel Grid.Row="1" Margin="0,0,0,14">
+            <StackPanel x:Name="SmallMaterialModePanel" Grid.Row="1" Margin="0,0,0,14">
                 <TextBlock Text="Kleinmaterial" Style="{StaticResource MutedLabelStyle}"/>
                 <ComboBox x:Name="SmallMaterialModeCombo" SelectedIndex="1">
                     <ComboBoxItem Content="Einzeln berechnen"/>
@@ -40,7 +40,7 @@
             </StackPanel>
 
             <StackPanel Grid.Row="2">
-                <TextBlock Text="Kleinmaterial-Pauschale" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBlock Text="Pauschales Kleinmaterial auf Rechnung netto in €" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="SmallMaterialFlatFeeText" Text="0"/>
             </StackPanel>
         </Grid>

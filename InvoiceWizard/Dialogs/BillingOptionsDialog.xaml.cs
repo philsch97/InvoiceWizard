@@ -6,11 +6,15 @@ namespace InvoiceWizard.Dialogs;
 
 public partial class BillingOptionsDialog : Window
 {
-    public BillingOptionsDialog(decimal initialMarkupPercent, string initialSmallMaterialMode, decimal initialSmallMaterialFlatFee)
+    public BillingOptionsDialog(decimal initialMarkupPercent, string initialSmallMaterialMode, decimal initialSmallMaterialFlatFee, bool showSmallMaterialMode)
     {
         InitializeComponent();
         MarkupPercentText.Text = initialMarkupPercent.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
         SmallMaterialFlatFeeText.Text = initialSmallMaterialFlatFee.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
+        SmallMaterialModePanel.Visibility = showSmallMaterialMode ? Visibility.Visible : Visibility.Collapsed;
+        DialogHintText.Text = showSmallMaterialMode
+            ? "Bitte Zuschlag und Kleinmaterial-Einstellungen fuer diesen Vorgang festlegen. Die Kleinmaterial-Pauschale wird netto erfasst."
+            : "Bitte Zuschlag und optional eine pauschale Kleinmaterial-Position fuer diesen Vorgang festlegen. Die Kleinmaterial-Pauschale wird netto erfasst.";
 
         foreach (var item in SmallMaterialModeCombo.Items.OfType<ComboBoxItem>())
         {
@@ -34,14 +38,16 @@ public partial class BillingOptionsDialog : Window
 
         if (!TryParseDecimal(SmallMaterialFlatFeeText.Text, out var flatFee) || flatFee < 0m)
         {
-            MessageBox.Show("Bitte eine gueltige Kleinmaterial-Pauschale groesser oder gleich 0 eingeben.", "Abrechnungsoptionen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Bitte eine gueltige Kleinmaterial-Pauschale netto groesser oder gleich 0 eingeben.", "Abrechnungsoptionen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         Result = new BillingOptionsResult
         {
             MarkupPercent = markupPercent,
-            SmallMaterialMode = (SmallMaterialModeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Als Sammelposition",
+            SmallMaterialMode = SmallMaterialModePanel.Visibility == Visibility.Visible
+                ? (SmallMaterialModeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Als Sammelposition"
+                : "Nicht berechnen",
             SmallMaterialFlatFee = flatFee
         };
 

@@ -67,12 +67,12 @@
                         <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
                         <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
                         <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
-                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="2*"/>
                         <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="80"/>
                         <DataGridTextColumn Header="Noch offen" Binding="{Binding RemainingQuantity}" Width="90"/>
                         <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
-                        <DataGridCheckBoxColumn Header="Allg. KM" Binding="{Binding IsGeneralSmallMaterial}" Width="85"/>
-                        <DataGridCheckBoxColumn Header="Bestand" Binding="{Binding IsInventoryStock}" Width="85"/>
+                        <DataGridCheckBoxColumn Header="Allg. KM" Binding="{Binding IsGeneralSmallMaterial, Mode=OneWay}" Width="85"/>
+                        <DataGridCheckBoxColumn Header="Bestand" Binding="{Binding IsInventoryStock, Mode=OneWay}" Width="85"/>
                         <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="160"/>
                         <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
                         <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>

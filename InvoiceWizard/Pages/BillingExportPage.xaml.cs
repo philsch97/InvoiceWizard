@@ -121,15 +121,6 @@ public partial class BillingExportPage : Page
             SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
             return;
         }
-
-        if (!TryGetBillingOptions(out var billingOptions))
-        {
-            return;
-        }
-
-        var markupPercent = billingOptions.MarkupPercent;
-        var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
-        var smallMaterialMode = billingOptions.SmallMaterialMode;
         var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
         var selectedProjectName = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.Name;
 
@@ -149,6 +140,16 @@ public partial class BillingExportPage : Page
             SetStatus("Fuer diese Auswahl gibt es keine offenen Positionen fuer den Export.", StatusMessageType.Warning);
             return;
         }
+
+        var hasAssignedSmallMaterial = allocations.Any(a => a.IsSmallMaterial);
+        if (!TryGetBillingOptions(hasAssignedSmallMaterial, out var billingOptions))
+        {
+            return;
+        }
+
+        var markupPercent = billingOptions.MarkupPercent;
+        var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
+        var smallMaterialMode = billingOptions.SmallMaterialMode;
 
         var projectSuffix = selectedProjectId.HasValue ? $"_{selectedProjectName}" : string.Empty;
         var saveDialog = new SaveFileDialog
@@ -258,14 +259,6 @@ public partial class BillingExportPage : Page
             return;
         }
 
-        if (!TryGetBillingOptions(out var billingOptions))
-        {
-            return;
-        }
-        var markupPercent = billingOptions.MarkupPercent;
-        var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
-        var smallMaterialMode = billingOptions.SmallMaterialMode;
-
         try
         {
             var companyProfile = await App.Api.GetCompanyProfileAsync();
@@ -307,6 +300,15 @@ public partial class BillingExportPage : Page
                     : "Fuer diese Auswahl gibt es keine offenen Positionen fuer eine Rechnung.", StatusMessageType.Warning);
                 return;
             }
+
+            var hasAssignedSmallMaterial = allocations.Any(a => a.IsSmallMaterial);
+            if (!TryGetBillingOptions(hasAssignedSmallMaterial, out var billingOptions))
+            {
+                return;
+            }
+            var markupPercent = billingOptions.MarkupPercent;
+            var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
+            var smallMaterialMode = billingOptions.SmallMaterialMode;
 
             var reservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId);
             customer.CustomerNumber = reservation.CustomerNumber;
@@ -657,41 +659,38 @@ public partial class BillingExportPage : Page
             lines.Add(BuildRegularAllocationLine(allocation, markupPercent, applySmallBusinessRegulation, position++));
         }
 
-        if (smallMaterialAllocations.Count > 0)
+        if (smallMaterialFlatFee > 0m)
         {
-            if (smallMaterialFlatFee > 0m)
+            lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, position++));
+        }
+        else if (smallMaterialAllocations.Count > 0)
+        {
+            switch (smallMaterialMode)
             {
-                lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, position++));
-            }
-            else
-            {
-                switch (smallMaterialMode)
-                {
-                    case "Einzeln berechnen":
-                        foreach (var allocation in smallMaterialAllocations)
-                        {
-                            lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, applySmallBusinessRegulation, position++));
-                        }
+                case "Einzeln berechnen":
+                    foreach (var allocation in smallMaterialAllocations)
+                    {
+                        lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, applySmallBusinessRegulation, position++));
+                    }
 
-                        break;
-                    case "Als Sammelposition":
-                        foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, applySmallBusinessRegulation, position, out position))
-                        {
-                            lines.Add(groupedLine);
-                        }
+                    break;
+                case "Als Sammelposition":
+                    foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, applySmallBusinessRegulation, position, out position))
+                    {
+                        lines.Add(groupedLine);
+                    }
 
-                        break;
-                    case "Nicht berechnen":
-                        foreach (var allocation in smallMaterialAllocations)
-                        {
-                            allocation.ExportedMarkupPercent = 0m;
-                            allocation.ExportedUnitPrice = 0m;
-                            allocation.ExportedLineTotal = 0m;
-                            allocation.LastExportedAt = DateTime.Now;
-                        }
+                    break;
+                case "Nicht berechnen":
+                    foreach (var allocation in smallMaterialAllocations)
+                    {
+                        allocation.ExportedMarkupPercent = 0m;
+                        allocation.ExportedUnitPrice = 0m;
+                        allocation.ExportedLineTotal = 0m;
+                        allocation.LastExportedAt = DateTime.Now;
+                    }
 
-                        break;
-                }
+                    break;
             }
         }
 
@@ -902,9 +901,9 @@ public partial class BillingExportPage : Page
         }
     }
 
-    private bool TryGetBillingOptions(out BillingOptionsResult result)
+    private bool TryGetBillingOptions(bool showSmallMaterialMode, out BillingOptionsResult result)
     {
-        var dialog = new BillingOptionsDialog(_lastMarkupPercent, _lastSmallMaterialMode, _lastSmallMaterialFlatFee)
+        var dialog = new BillingOptionsDialog(_lastMarkupPercent, _lastSmallMaterialMode, _lastSmallMaterialFlatFee, showSmallMaterialMode)
         {
             Owner = Window.GetWindow(this)
         };

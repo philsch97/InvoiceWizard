@@ -113,16 +113,23 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
     }
 
     [HttpGet("{customerId:int}/projects")]
-    public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjectsForCustomer(int customerId)
+    public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjectsForCustomer(int customerId, [FromQuery] bool includeInactive = false)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        var projects = await db.Projects.Where(x => x.CustomerId == customerId && x.TenantId == tenantId).OrderBy(x => x.Name)
+        var query = db.Projects.Where(x => x.CustomerId == customerId && x.TenantId == tenantId);
+        if (!includeInactive)
+        {
+            query = query.Where(x => x.ProjectStatus == "Active");
+        }
+
+        var projects = await query.OrderBy(x => x.Name)
             .Select(x => new ProjectListItemDto
             {
                 ProjectId = x.ProjectId,
                 CustomerId = x.CustomerId,
                 CustomerName = x.Customer.Name,
                 Name = x.Name,
+                ProjectStatus = x.ProjectStatus,
                 OpenWorkItems = x.WorkTimeEntries.Count(w => !w.IsPaid),
                 LoggedHours = x.WorkTimeEntries.Sum(w => (decimal?)w.HoursWorked) ?? 0m
             })
@@ -142,13 +149,28 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
         }
 
         var projectName = request.Name.Trim();
-        var project = await db.Projects.FirstOrDefaultAsync(x => x.TenantId == tenantId && x.CustomerId == customerId && x.Name == projectName);
-        if (project is null)
+        var validationError = ValidateProjectName(projectName);
+        if (validationError is not null)
         {
-            project = new Project { TenantId = tenantId, CustomerId = customerId, Name = projectName };
-            db.Projects.Add(project);
-            await db.SaveChangesAsync();
+            return ValidationProblem(validationError);
         }
+
+        var duplicateExists = await db.Projects.AnyAsync(x => x.TenantId == tenantId && x.CustomerId == customerId && x.Name == projectName, HttpContext.RequestAborted);
+        if (duplicateExists)
+        {
+            return ValidationProblem("Dieses Projekt existiert fuer den Kunden bereits.");
+        }
+
+        var project = new Project
+        {
+            TenantId = tenantId,
+            CustomerId = customerId,
+            Name = projectName,
+            ProjectStatus = NormalizeProjectStatus(request.ProjectStatus)
+        };
+        ProjectsController.ApplyProjectDetails(project, request);
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
 
         return Ok(MapProjectListItem(project, customer.Name));
     }
@@ -238,9 +260,36 @@ public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccess
             CustomerId = project.CustomerId,
             CustomerName = customerName ?? project.Customer.Name,
             Name = project.Name,
+            ProjectStatus = project.ProjectStatus,
             OpenWorkItems = project.WorkTimeEntries.Count(w => !w.IsPaid),
             LoggedHours = project.WorkTimeEntries.Sum(w => (decimal?)w.HoursWorked) ?? 0m
         };
+    }
+
+    internal static string NormalizeProjectStatus(string? value)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "active" or "aktiv" => "Active",
+            "paused" or "pausiert" => "Paused",
+            "ended" or "beendet" => "Ended",
+            _ => "Active"
+        };
+    }
+
+    internal static string? ValidateProjectName(string projectName)
+    {
+        if (string.IsNullOrWhiteSpace(projectName))
+        {
+            return "Bitte einen Projektnamen eingeben.";
+        }
+
+        if (projectName.Length < 3 || !char.IsDigit(projectName[0]) || !char.IsDigit(projectName[1]) || !char.IsDigit(projectName[2]))
+        {
+            return "Der Projektname muss mit einer dreistelligen Nummer beginnen, z. B. 001 Musterprojekt.";
+        }
+
+        return null;
     }
 }
 
@@ -307,13 +356,18 @@ public class CompanyProfileController(InvoiceWizardDbContext db, ICurrentTenantA
 public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjects([FromQuery] int? customerId)
+    public async Task<ActionResult<IReadOnlyList<ProjectListItemDto>>> GetProjects([FromQuery] int? customerId, [FromQuery] bool includeInactive = false)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var query = db.Projects.Where(x => x.TenantId == tenantId).AsQueryable();
         if (customerId.HasValue)
         {
             query = query.Where(x => x.CustomerId == customerId.Value);
+        }
+
+        if (!includeInactive)
+        {
+            query = query.Where(x => x.ProjectStatus == "Active");
         }
 
         var projects = await query.Include(x => x.Customer)
@@ -325,6 +379,7 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
                 CustomerId = x.CustomerId,
                 CustomerName = x.Customer.Name,
                 Name = x.Name,
+                ProjectStatus = x.ProjectStatus,
                 OpenWorkItems = x.WorkTimeEntries.Count(w => !w.IsPaid),
                 LoggedHours = x.WorkTimeEntries.Sum(w => (decimal?)w.HoursWorked) ?? 0m
             }).ToListAsync();
@@ -342,7 +397,53 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             return NotFound();
         }
 
-        return Ok(MapProjectDetails(project));
+        return Ok(await MapProjectDetailsAsync(project, tenantId));
+    }
+
+    [HttpPut("{projectId:int}")]
+    public async Task<ActionResult<ProjectDetailsDto>> UpdateProject(int projectId, [FromBody] SaveProjectRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var project = await db.Projects.Include(x => x.Customer).FirstOrDefaultAsync(x => x.ProjectId == projectId && x.TenantId == tenantId);
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        var projectName = (request.Name ?? string.Empty).Trim();
+        var validationError = CustomersController.ValidateProjectName(projectName);
+        if (validationError is not null)
+        {
+            return ValidationProblem(validationError);
+        }
+
+        var duplicateExists = await db.Projects.AnyAsync(x =>
+            x.TenantId == tenantId
+            && x.CustomerId == project.CustomerId
+            && x.ProjectId != projectId
+            && x.Name == projectName,
+            HttpContext.RequestAborted);
+        if (duplicateExists)
+        {
+            return ValidationProblem("Dieses Projekt existiert fuer den Kunden bereits.");
+        }
+
+        var requestedStatus = CustomersController.NormalizeProjectStatus(request.ProjectStatus);
+        if (!string.Equals(project.ProjectStatus, "Ended", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(requestedStatus, "Ended", StringComparison.OrdinalIgnoreCase))
+        {
+            var cannotEndReason = await GetProjectEndBlockingReasonAsync(projectId, tenantId);
+            if (!string.IsNullOrWhiteSpace(cannotEndReason))
+            {
+                return ValidationProblem(cannotEndReason);
+            }
+        }
+
+        project.Name = projectName;
+        project.ProjectStatus = requestedStatus;
+        ApplyProjectDetails(project, request);
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(await MapProjectDetailsAsync(project, tenantId));
     }
 
     [HttpPut("{projectId:int}/details")]
@@ -357,7 +458,7 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
 
         ApplyProjectDetails(project, request);
         await db.SaveChangesAsync();
-        return Ok(MapProjectDetails(project));
+        return Ok(await MapProjectDetailsAsync(project, tenantId));
     }
 
     [HttpDelete("{projectId:int}")]
@@ -381,7 +482,7 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         return NoContent();
     }
 
-    private static void ApplyProjectDetails(Project project, SaveProjectDetailsRequest request)
+    internal static void ApplyProjectDetails(Project project, SaveProjectDetailsRequest request)
     {
         project.ConnectionUserSameAsCustomer = request.ConnectionUserSameAsCustomer;
         project.ConnectionUserFirstName = request.ConnectionUserSameAsCustomer ? string.Empty : (request.ConnectionUserFirstName ?? string.Empty).Trim();
@@ -405,14 +506,54 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         project.PropertyOwnerPhoneNumber = request.PropertyOwnerSameAsCustomer ? string.Empty : (request.PropertyOwnerPhoneNumber ?? string.Empty).Trim();
     }
 
-    private static ProjectDetailsDto MapProjectDetails(Project project)
+    internal static void ApplyProjectDetails(Project project, SaveProjectRequest request)
     {
+        ApplyProjectDetails(project, new SaveProjectDetailsRequest
+        {
+            ConnectionUserSameAsCustomer = request.ConnectionUserSameAsCustomer,
+            ConnectionUserFirstName = request.ConnectionUserFirstName,
+            ConnectionUserLastName = request.ConnectionUserLastName,
+            ConnectionUserStreet = request.ConnectionUserStreet,
+            ConnectionUserHouseNumber = request.ConnectionUserHouseNumber,
+            ConnectionUserPostalCode = request.ConnectionUserPostalCode,
+            ConnectionUserCity = request.ConnectionUserCity,
+            ConnectionUserParcelNumber = request.ConnectionUserParcelNumber,
+            ConnectionUserEmailAddress = request.ConnectionUserEmailAddress,
+            ConnectionUserPhoneNumber = request.ConnectionUserPhoneNumber,
+            PropertyOwnerSameAsCustomer = request.PropertyOwnerSameAsCustomer,
+            PropertyOwnerFirstName = request.PropertyOwnerFirstName,
+            PropertyOwnerLastName = request.PropertyOwnerLastName,
+            PropertyOwnerStreet = request.PropertyOwnerStreet,
+            PropertyOwnerHouseNumber = request.PropertyOwnerHouseNumber,
+            PropertyOwnerPostalCode = request.PropertyOwnerPostalCode,
+            PropertyOwnerCity = request.PropertyOwnerCity,
+            PropertyOwnerEmailAddress = request.PropertyOwnerEmailAddress,
+            PropertyOwnerPhoneNumber = request.PropertyOwnerPhoneNumber
+        });
+    }
+
+    private async Task<ProjectDetailsDto> MapProjectDetailsAsync(Project project, int tenantId)
+    {
+        var openTodoItemCount = await db.TodoItems.CountAsync(x => x.TenantId == tenantId && x.TodoList.ProjectId == project.ProjectId && !x.IsCompleted, HttpContext.RequestAborted);
+        var openMaterialPositionCount = await db.LineAllocations.CountAsync(x => x.TenantId == tenantId && x.ProjectId == project.ProjectId && string.IsNullOrWhiteSpace(x.CustomerInvoiceNumber), HttpContext.RequestAborted);
+        var openWorkTimeCount = await db.WorkTimeEntries.CountAsync(x => x.TenantId == tenantId && x.ProjectId == project.ProjectId && string.IsNullOrWhiteSpace(x.CustomerInvoiceNumber), HttpContext.RequestAborted);
+        var openDraftInvoiceCount = await db.Invoices.CountAsync(x =>
+            x.TenantId == tenantId
+            && x.InvoiceDirection == "Revenue"
+            && x.InvoiceStatus == "Draft"
+            && (x.Lines.Any(l => l.Allocations.Any(a => a.ProjectId == project.ProjectId))
+                || db.WorkTimeEntries.Any(w => w.TenantId == tenantId && w.ProjectId == project.ProjectId && w.RevenueInvoiceId == x.InvoiceId)),
+            HttpContext.RequestAborted);
+        var cannotEndReason = await GetProjectEndBlockingReasonAsync(project.ProjectId, tenantId);
+
         return new ProjectDetailsDto
         {
             ProjectId = project.ProjectId,
             CustomerId = project.CustomerId,
             CustomerName = project.Customer.Name,
             Name = project.Name,
+            CreatedAt = project.CreatedAt,
+            ProjectStatus = project.ProjectStatus,
             ConnectionUserSameAsCustomer = project.ConnectionUserSameAsCustomer,
             ConnectionUserFirstName = project.ConnectionUserSameAsCustomer ? project.Customer.FirstName : project.ConnectionUserFirstName,
             ConnectionUserLastName = project.ConnectionUserSameAsCustomer ? project.Customer.LastName : project.ConnectionUserLastName,
@@ -431,8 +572,48 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
             PropertyOwnerPostalCode = project.PropertyOwnerSameAsCustomer ? project.Customer.PostalCode : project.PropertyOwnerPostalCode,
             PropertyOwnerCity = project.PropertyOwnerSameAsCustomer ? project.Customer.City : project.PropertyOwnerCity,
             PropertyOwnerEmailAddress = project.PropertyOwnerSameAsCustomer ? project.Customer.EmailAddress : project.PropertyOwnerEmailAddress,
-            PropertyOwnerPhoneNumber = project.PropertyOwnerSameAsCustomer ? project.Customer.PhoneNumber : project.PropertyOwnerPhoneNumber
+            PropertyOwnerPhoneNumber = project.PropertyOwnerSameAsCustomer ? project.Customer.PhoneNumber : project.PropertyOwnerPhoneNumber,
+            OpenTodoItemCount = openTodoItemCount,
+            OpenPositionCount = openMaterialPositionCount + openWorkTimeCount,
+            OpenDraftInvoiceCount = openDraftInvoiceCount,
+            CanBeEnded = string.IsNullOrWhiteSpace(cannotEndReason),
+            CannotEndReason = cannotEndReason ?? string.Empty
         };
+    }
+
+    private async Task<string?> GetProjectEndBlockingReasonAsync(int projectId, int tenantId)
+    {
+        var draftRevenueInvoiceCount = await db.Invoices.CountAsync(x =>
+            x.TenantId == tenantId
+            && x.InvoiceDirection == "Revenue"
+            && x.InvoiceStatus == "Draft"
+            && (x.Lines.Any(l => l.Allocations.Any(a => a.ProjectId == projectId))
+                || db.WorkTimeEntries.Any(w => w.TenantId == tenantId && w.ProjectId == projectId && w.RevenueInvoiceId == x.InvoiceId)),
+            HttpContext.RequestAborted);
+        var openTodoItemCount = await db.TodoItems.CountAsync(x => x.TenantId == tenantId && x.TodoList.ProjectId == projectId && !x.IsCompleted, HttpContext.RequestAborted);
+        var openMaterialPositionCount = await db.LineAllocations.CountAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && string.IsNullOrWhiteSpace(x.CustomerInvoiceNumber), HttpContext.RequestAborted);
+        var openWorkTimeCount = await db.WorkTimeEntries.CountAsync(x => x.TenantId == tenantId && x.ProjectId == projectId && string.IsNullOrWhiteSpace(x.CustomerInvoiceNumber), HttpContext.RequestAborted);
+
+        var reasons = new List<string>();
+        if (draftRevenueInvoiceCount > 0)
+        {
+            reasons.Add($"{draftRevenueInvoiceCount} Entwurfsrechnung(en)");
+        }
+
+        if (openTodoItemCount > 0)
+        {
+            reasons.Add($"{openTodoItemCount} offener Punkt/Punkte in den Notizen");
+        }
+
+        var openPositionCount = openMaterialPositionCount + openWorkTimeCount;
+        if (openPositionCount > 0)
+        {
+            reasons.Add($"{openPositionCount} offene zugeordnete Position(en)");
+        }
+
+        return reasons.Count == 0
+            ? null
+            : $"Das Projekt kann noch nicht beendet werden. Offen sind noch: {string.Join(", ", reasons)}.";
     }
 }
 
