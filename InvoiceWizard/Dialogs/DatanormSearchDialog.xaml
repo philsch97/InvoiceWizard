@@ -1,0 +1,88 @@
+<Window x:Class="InvoiceWizard.Dialogs.DatanormSearchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DATANORM durchsuchen"
+        Width="1280"
+        Height="760"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="DATANORM-Suche" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
+            <TextBlock x:Name="HintText"
+                       Margin="0,8,0,0"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       Text="Suche nach Artikeln, EAN oder Bezeichnung und übernimm die Position direkt."
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,18,0,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Margin="0,0,12,0">
+                <TextBlock Text="Suchbegriff" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="SearchTextBox" Margin="0,8,0,0" TextChanged="SearchTextBox_TextChanged"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                <TextBlock Text="Menge" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="QuantityTextBox" Margin="0,8,0,0" Text="1"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                <TextBlock Text="Metallzuschlag" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="MetalSurchargeTextBox" Margin="0,8,0,0" Text="0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="3" Margin="0,0,12,0">
+                <TextBlock Text="MwSt. %" Style="{StaticResource MutedLabelStyle}"/>
+                <TextBox x:Name="VatPercentTextBox" Margin="0,8,0,0" Text="19"/>
+            </StackPanel>
+
+            <Button Grid.Column="4"
+                    Width="160"
+                    Height="40"
+                    Margin="0,24,0,0"
+                    Content="Position übernehmen"
+                    Click="Confirm_Click"/>
+        </Grid>
+
+        <DataGrid x:Name="ResultsGrid"
+                  Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  SelectionMode="Single"
+                  SelectionChanged="ResultsGrid_SelectionChanged"
+                  MouseDoubleClick="ResultsGrid_MouseDoubleClick">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="130"/>
+                <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
+                <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
+                <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="90"/>
+                <DataGridTextColumn Header="Netto" Binding="{Binding NetPrice, StringFormat={}{0:N2} €}" Width="110"/>
+                <DataGridTextColumn Header="Metall" Binding="{Binding MetalSurcharge, StringFormat={}{0:N2} €}" Width="110"/>
+                <DataGridTextColumn Header="Brutto-Liste" Binding="{Binding GrossListPrice, StringFormat={}{0:N2} €}" Width="120"/>
+                <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity}" Width="90"/>
+                <DataGridTextColumn Header="Quelle" Binding="{Binding SourceFileName}" Width="180"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <WrapPanel Grid.Row="3" Margin="0,18,0,0" HorizontalAlignment="Right">
+            <Button Width="160" Height="40" Margin="0,0,10,0" Content="Position übernehmen" Click="Confirm_Click"/>
+            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
+        </WrapPanel>
+    </Grid>
+</Window>

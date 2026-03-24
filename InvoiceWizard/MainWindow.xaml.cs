@@ -74,6 +74,7 @@ public partial class MainWindow : Window
                 new SectionNavigationItem { Title = "Rechnungsarchiv", CreatePage = () => new InvoiceArchivePage() },
                 new SectionNavigationItem { Title = "Positionen zuweisen", CreatePage = () => new DataHandling() },
                 new SectionNavigationItem { Title = "Abrechnung / Export", CreatePage = () => new BillingExportPage() },
+                new SectionNavigationItem { Title = "Angebote", CreatePage = () => new OfferPage() },
                 new SectionNavigationItem { Title = "Arbeitszeit", CreatePage = () => new WorkTimePage() }
             });
 

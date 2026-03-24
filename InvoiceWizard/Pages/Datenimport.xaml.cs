@@ -105,6 +105,49 @@ public partial class Datenimport : Page
         SetStatus($"{_manualLines.Count} Position(en) im Dialog aktualisiert.", StatusMessageType.Success);
     }
 
+    private async void AddLineFromDatanorm_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var articles = await App.DatanormCatalog.SearchAsync(string.Empty);
+            if (articles.Count == 0)
+            {
+                SetStatus("Bitte zuerst auf der Sonepar-Seite eine DATANORM-Datei importieren.", StatusMessageType.Warning);
+                return;
+            }
+
+            var dialog = new DatanormSearchDialog(articles)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (dialog.ShowDialog() != true || dialog.Result is null)
+            {
+                return;
+            }
+
+            if (_currentPdfBytes is null)
+            {
+                NoSupplierInvoiceCheckBox.IsChecked = true;
+                _currentSourcePdfPath = "";
+                _currentContentHash = "";
+                _currentOriginalPdfFileName = "";
+                SourceInfoText.Text = "Position aus DATANORM-Katalog";
+            }
+
+            var line = CloneLine(dialog.Result);
+            line.Position = _manualLines.Count + 1;
+            _manualLines.Add(line);
+            RenumberLines();
+            ManualLinesGrid.Items.Refresh();
+            SetStatus($"DATANORM-Position {line.ArticleNumber} wurde übernommen.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"DATANORM-Suche fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private void RemoveSelectedLine_Click(object sender, RoutedEventArgs e)
     {
         var selectedLines = ManualLinesGrid.SelectedItems.OfType<ManualInvoiceLineInput>().ToList();

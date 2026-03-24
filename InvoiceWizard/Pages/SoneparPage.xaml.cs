@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using InvoiceWizard.Data.ViewModels;
+using InvoiceWizard.Dialogs;
+using Microsoft.Win32;
 
 namespace InvoiceWizard;
 
@@ -21,6 +23,7 @@ public partial class SoneparPage : Page
         {
             var connection = await App.Api.GetSoneparConnectionAsync();
             ApplyConnection(connection);
+            await ReloadDatanormStateAsync();
             SearchSummaryText.Text = connection.IsConfigured
                 ? "Sonepar-Zugang ist gespeichert. Du kannst direkt nach Produkten suchen."
                 : "Noch keine Sonepar-Zugangsdaten gespeichert.";
@@ -32,6 +35,24 @@ public partial class SoneparPage : Page
         {
             SetStatus($"Sonepar-Zugang konnte nicht geladen werden: {ex.Message}", StatusMessageType.Error);
         }
+    }
+
+    private async Task ReloadDatanormStateAsync()
+    {
+        var state = await App.DatanormCatalog.GetStateAsync();
+        if (state.ArticleCount <= 0)
+        {
+            DatanormSummaryText.Text = "Noch keine DATANORM-Datei importiert.";
+            DatanormPreviewText.Text = "Importiere hier die DATANORM-Datei deines Großhändlers. Danach steht die Artikelsuche auch im Rechnungsimport ohne Beleg und auf der neuen Angebotsseite bereit.";
+            return;
+        }
+
+        DatanormSummaryText.Text = $"{state.ArticleCount} DATANORM-Artikel importiert aus {state.SourceFileName}."
+            + (state.ImportedAt.HasValue ? $" Letzter Import: {state.ImportedAt.Value:dd.MM.yyyy HH:mm}." : string.Empty);
+        var previewItems = await App.DatanormCatalog.SearchAsync(string.Empty, 5);
+        DatanormPreviewText.Text = previewItems.Count == 0
+            ? string.Empty
+            : "Beispiele: " + string.Join(" | ", previewItems.Select(x => $"{x.ArticleNumber} - {x.Description}"));
     }
 
     private void ApplyConnection(SoneparConnectionViewModel connection)
@@ -142,6 +163,52 @@ public partial class SoneparPage : Page
     private async void Reload_Click(object sender, RoutedEventArgs e)
     {
         await ReloadAsync();
+    }
+
+    private async void ImportDatanorm_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "DATANORM / Textdateien (*.001;*.txt;*.dat;*.csv)|*.001;*.txt;*.dat;*.csv|Alle Dateien (*.*)|*.*"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await App.DatanormCatalog.ImportAsync(dialog.FileName);
+            await ReloadDatanormStateAsync();
+            SetStatus($"{result.ImportedCount} DATANORM-Artikel aus {result.SourceFileName} importiert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"DATANORM-Import fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
+    private async void OpenDatanormSearch_Click(object sender, RoutedEventArgs e)
+    {
+        var articles = await App.DatanormCatalog.SearchAsync(string.Empty);
+        if (articles.Count == 0)
+        {
+            SetStatus("Bitte zuerst eine DATANORM-Datei importieren.", StatusMessageType.Warning);
+            return;
+        }
+
+        var dialog = new DatanormSearchDialog(articles)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        dialog.ShowDialog();
+    }
+
+    private async void ReloadDatanorm_Click(object sender, RoutedEventArgs e)
+    {
+        await ReloadDatanormStateAsync();
+        SetStatus("DATANORM-Katalog neu geladen.", StatusMessageType.Info);
     }
 
     private void ProductsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)

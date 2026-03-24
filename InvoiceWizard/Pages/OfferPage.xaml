@@ -1,0 +1,95 @@
+<Page x:Class="InvoiceWizard.OfferPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Title="OfferPage">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Angebote" Style="{StaticResource PageTitleStyle}"/>
+                    <TextBlock Text="Erstelle Kundenangebote mit DATANORM-Artikeln oder manuellen Positionen und exportiere sie direkt als PDF."
+                               Foreground="{StaticResource MutedTextBrush}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.1*"/>
+                        <ColumnDefinition Width="1.1*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Margin="0,0,14,0">
+                        <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                        <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                        <TextBlock Text="Projekt optional" Style="{StaticResource MutedLabelStyle}"/>
+                        <ComboBox x:Name="ProjectCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId"/>
+                    </StackPanel>
+
+                    <WrapPanel Grid.Column="2" Margin="0,24,0,0">
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Content="Aus DATANORM suchen" Click="AddFromDatanorm_Click"/>
+                        <Button Width="190" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Positionen bearbeiten" Click="EditLines_Click"/>
+                        <Button Width="170" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte entfernen" Click="RemoveSelectedLines_Click"/>
+                        <Button Width="170" Height="40" Content="Angebot erzeugen" Click="GenerateOffer_Click"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <TextBlock x:Name="SummaryText"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           Text="Noch keine Angebotspositionen vorhanden."
+                           TextWrapping="Wrap"/>
+            </Border>
+
+            <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="0" Margin="0,0,0,16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Angebotspositionen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                    <DataGrid x:Name="LinesGrid"
+                              Grid.Row="1"
+                              Margin="0,16,0,0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              SelectionMode="Extended">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="60"/>
+                            <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
+                            <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
+                            <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="90"/>
+                            <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
+                            <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} €}" Width="160"/>
+                            <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} €}" Width="170"/>
+                            <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, StringFormat={}{0:N2} €}" Width="120"/>
+                            <DataGridTextColumn Header="Materialzuschlag&#10;pro Basis" Binding="{Binding MetalSurcharge, StringFormat={}{0:N2} €}" Width="170"/>
+                            <DataGridTextColumn Header="Gesamtpreis&#10;Netto" Binding="{Binding LineTotal, StringFormat={}{0:N2} €}" Width="130"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <Border x:Name="StatusBorder" Grid.Row="4" Background="{StaticResource StatusInfoBackgroundBrush}" BorderBrush="{StaticResource StatusInfoBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+                <TextBlock x:Name="StatusText" Foreground="{StaticResource StatusInfoTextBrush}" TextWrapping="Wrap"/>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</Page>

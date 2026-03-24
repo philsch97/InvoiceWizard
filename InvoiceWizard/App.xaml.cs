@@ -11,6 +11,7 @@ namespace InvoiceWizard;
 public partial class App : Application
 {
     public static Services.BackendApiClient Api { get; } = new();
+    public static Services.DatanormCatalogService DatanormCatalog { get; } = new();
     public static AuthSessionViewModel? Session { get; private set; }
     public static int? SelectedCustomerId { get; private set; }
 
