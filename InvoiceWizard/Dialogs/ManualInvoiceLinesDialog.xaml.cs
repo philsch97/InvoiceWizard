@@ -13,6 +13,7 @@ public partial class ManualInvoiceLinesDialog : Window
 {
     private readonly ObservableCollection<ManualInvoiceLineInput> _lines;
     private readonly bool _requireVatPerLine;
+    private ManualInvoiceLineInput? _selectedLine;
 
     public ManualInvoiceLinesDialog(IEnumerable<ManualInvoiceLineInput> initialLines, bool requireVatPerLine)
     {
@@ -20,36 +21,52 @@ public partial class ManualInvoiceLinesDialog : Window
         _requireVatPerLine = requireVatPerLine;
         _lines = new ObservableCollection<ManualInvoiceLineInput>(initialLines.Select(CloneLine));
         LinesGrid.ItemsSource = _lines;
-        LinesGrid.CellEditEnding += LinesGrid_CellEditEnding;
         VatPercentLabel.Text = requireVatPerLine ? "MwSt. in % * Pflicht" : "MwSt. in % optional";
         VatPercentLabel.Style = (Style)FindResource(requireVatPerLine ? "RequiredLabelStyle" : "MutedLabelStyle");
         InfoText.Text = requireVatPerLine
-            ? "Ohne Rechnungsbeleg muss jede Position einen MwSt.-Satz groesser als 0 haben. Aenderungen werden erst nach dem Speichern in den Rechnungsimport uebernommen."
-            : "Pro Position muss entweder ein Netto-Preis oder ein Brutto-Preis angegeben sein. Wenn nur der Brutto-Preis eingetragen wird, wird der Netto-Preis ueber die MwSt. berechnet.";
+            ? "Ohne Rechnungsbeleg muss jede Position einen MwSt.-Satz groesser als 0 haben. Waehle eine Zeile aus, um sie oben zu bearbeiten."
+            : "Pro Position muss entweder ein Netto-Preis oder ein Brutto-Preis angegeben sein. Waehle eine Zeile aus, um sie oben zu bearbeiten.";
 
         RefreshLines();
+        UpdateSaveButtonCaption();
     }
 
     public List<ManualInvoiceLineInput> ResultLines { get; private set; } = new();
 
     private void AddLine_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryReadLine(out var line, out var error))
+        if (!TryReadLine(out var editedLine, out var error))
         {
             MessageBox.Show(error, "Positionen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        line.Position = _lines.Count + 1;
-        _lines.Add(line);
-        ClearInputFields();
+        if (_selectedLine is null)
+        {
+            editedLine.Position = _lines.Count + 1;
+            _lines.Add(editedLine);
+        }
+        else
+        {
+            _selectedLine.ArticleNumber = editedLine.ArticleNumber;
+            _selectedLine.Ean = editedLine.Ean;
+            _selectedLine.Description = editedLine.Description;
+            _selectedLine.Quantity = editedLine.Quantity;
+            _selectedLine.Unit = editedLine.Unit;
+            _selectedLine.NetUnitPrice = editedLine.NetUnitPrice;
+            _selectedLine.MetalSurcharge = editedLine.MetalSurcharge;
+            _selectedLine.VatPercent = editedLine.VatPercent;
+            _selectedLine.GrossListPrice = editedLine.GrossListPrice;
+            _selectedLine.PriceBasisQuantity = editedLine.PriceBasisQuantity;
+            InitializeManualLineAmounts(_selectedLine);
+        }
+
         RefreshLines();
+        ClearEditor();
     }
 
     private void RemoveSelectedLines_Click(object sender, RoutedEventArgs e)
     {
-        FinishGridEdit();
-
         var selected = LinesGrid.SelectedItems.OfType<ManualInvoiceLineInput>().ToList();
         if (selected.Count == 0)
         {
@@ -63,12 +80,11 @@ public partial class ManualInvoiceLinesDialog : Window
         }
 
         RefreshLines();
+        ClearEditor();
     }
 
     private void Confirm_Click(object sender, RoutedEventArgs e)
     {
-        FinishGridEdit();
-
         var normalized = new List<ManualInvoiceLineInput>();
         for (var i = 0; i < _lines.Count; i++)
         {
@@ -94,9 +110,28 @@ public partial class ManualInvoiceLinesDialog : Window
         DialogResult = false;
     }
 
-    private void LinesGrid_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e)
+    private void LinesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        Dispatcher.BeginInvoke(RefreshLines);
+        if (LinesGrid.SelectedItems.Count == 1)
+        {
+            _selectedLine = (ManualInvoiceLineInput?)LinesGrid.SelectedItem;
+            FillEditorFromSelection(_selectedLine);
+        }
+        else if (LinesGrid.SelectedItems.Count == 0)
+        {
+            ClearEditor();
+        }
+        else
+        {
+            _selectedLine = null;
+            UpdateSaveButtonCaption();
+        }
+    }
+
+    private void ClearSelection_Click(object sender, RoutedEventArgs e)
+    {
+        LinesGrid.SelectedItems.Clear();
+        ClearEditor();
     }
 
     private void RefreshLines()
@@ -113,12 +148,6 @@ public partial class ManualInvoiceLinesDialog : Window
         {
             view.Refresh();
         }
-    }
-
-    private void FinishGridEdit()
-    {
-        LinesGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-        LinesGrid.CommitEdit(DataGridEditingUnit.Row, true);
     }
 
     private bool TryReadLine(out ManualInvoiceLineInput line, out string error)
@@ -225,8 +254,30 @@ public partial class ManualInvoiceLinesDialog : Window
         return true;
     }
 
-    private void ClearInputFields()
+    private void FillEditorFromSelection(ManualInvoiceLineInput? line)
     {
+        if (line is null)
+        {
+            ClearEditor();
+            return;
+        }
+
+        ArticleNumberText.Text = line.ArticleNumber;
+        EanText.Text = line.Ean;
+        DescriptionText.Text = line.Description;
+        QuantityText.Text = FormatDecimal(line.Quantity);
+        UnitText.Text = line.Unit;
+        NetPriceText.Text = line.NetUnitPrice > 0m ? FormatDecimal(line.NetUnitPrice) : string.Empty;
+        MetalSurchargeText.Text = FormatDecimal(line.MetalSurcharge);
+        GrossPriceText.Text = line.GrossListPrice > 0m ? FormatDecimal(line.GrossListPrice) : string.Empty;
+        VatPercentText.Text = line.VatPercent > 0m ? FormatDecimal(line.VatPercent) : string.Empty;
+        PriceBasisText.Text = FormatDecimal(line.PriceBasisQuantity <= 0m ? 1m : line.PriceBasisQuantity);
+        UpdateSaveButtonCaption();
+    }
+
+    private void ClearEditor()
+    {
+        _selectedLine = null;
         ArticleNumberText.Clear();
         EanText.Clear();
         DescriptionText.Clear();
@@ -237,6 +288,12 @@ public partial class ManualInvoiceLinesDialog : Window
         GrossPriceText.Clear();
         VatPercentText.Text = "19";
         PriceBasisText.Text = "1";
+        UpdateSaveButtonCaption();
+    }
+
+    private void UpdateSaveButtonCaption()
+    {
+        SaveLineButton.Content = _selectedLine is null ? "Position hinzufuegen" : "Aenderungen uebernehmen";
     }
 
     private static string? ValidateLine(ManualInvoiceLineInput line, int position, bool requireVatPerLine)
@@ -337,7 +394,9 @@ public partial class ManualInvoiceLinesDialog : Window
             GrossListPrice = line.GrossListPrice,
             GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
-            GrossLineTotal = line.GrossLineTotal
+            GrossLineTotal = line.GrossLineTotal,
+            ShippingNetShare = line.ShippingNetShare,
+            ShippingGrossShare = line.ShippingGrossShare
         };
     }
 
@@ -356,5 +415,10 @@ public partial class ManualInvoiceLinesDialog : Window
         }
 
         return TryParseDecimal(input, out value);
+    }
+
+    private static string FormatDecimal(decimal value)
+    {
+        return value.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
     }
 }

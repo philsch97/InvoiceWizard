@@ -20,6 +20,7 @@ namespace InvoiceWizard;
 
 public partial class Datenimport : Page
 {
+    private static ImportDraftState? _draftState;
     private static readonly HttpClient DragDropHttpClient = CreateDragDropHttpClient();
     private static readonly XNamespace rsm = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100";
     private static readonly XNamespace ram = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100";
@@ -63,9 +64,21 @@ public partial class Datenimport : Page
         AccountingCategoryCombo.SelectedValuePath = "Value";
         AccountingCategoryCombo.SelectedValue = "MaterialAndGoods";
         InvoiceDatePicker.SelectedDate = DateTime.Today;
-        Loaded += async (_, _) => await LoadStoredInvoicesAsync();
+        Loaded += Datenimport_Loaded;
+        Unloaded += Datenimport_Unloaded;
         UpdateInvoiceModeUi();
         SetStatus("Bereit fuer den Import.", StatusMessageType.Info);
+    }
+
+    private async void Datenimport_Loaded(object sender, RoutedEventArgs e)
+    {
+        RestoreDraftState();
+        await LoadStoredInvoicesAsync();
+    }
+
+    private void Datenimport_Unloaded(object sender, RoutedEventArgs e)
+    {
+        SaveDraftState();
     }
 
     private void ChoosePdf_Click(object sender, RoutedEventArgs e)
@@ -324,6 +337,8 @@ public partial class Datenimport : Page
                     : $"Manuell hinzugefuegte Positionen ohne Lieferantenrechnung wurden gespeichert.";
                 SetStatus(summary, StatusMessageType.Success);
             }
+
+            _draftState = null;
         }
         catch (Exception ex)
         {
@@ -422,6 +437,7 @@ public partial class Datenimport : Page
 
     private void ResetForm()
     {
+        _draftState = null;
         _loadedReviewInvoiceId = null;
         InvoiceNumberText.Clear();
         SupplierNameText.Clear();
@@ -439,6 +455,72 @@ public partial class Datenimport : Page
         ShippingCostText.Text = "0";
         ShippingAmountModeCombo.SelectedIndex = 0;
         UpdateInvoiceModeUi();
+    }
+
+    private void SaveDraftState()
+    {
+        _draftState = new ImportDraftState
+        {
+            InvoiceNumber = InvoiceNumberText.Text ?? string.Empty,
+            SupplierName = SupplierNameText.Text ?? string.Empty,
+            InvoiceDate = InvoiceDatePicker.SelectedDate,
+            PaymentDueDate = PaymentDueDatePicker.SelectedDate,
+            NoSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked == true,
+            InvoiceDirection = InvoiceDirectionCombo.SelectedValue as string ?? "Expense",
+            AccountingCategory = AccountingCategoryCombo.SelectedValue as string ?? "MaterialAndGoods",
+            InvoiceTotalAmountText = InvoiceTotalAmountText.Text ?? string.Empty,
+            ShippingCostText = ShippingCostText.Text ?? string.Empty,
+            ShippingAmountModeIndex = ShippingAmountModeCombo.SelectedIndex,
+            CurrentSourcePdfPath = _currentSourcePdfPath,
+            CurrentContentHash = _currentContentHash,
+            CurrentOriginalPdfFileName = _currentOriginalPdfFileName,
+            CurrentPdfBytes = _currentPdfBytes is null ? null : [.. _currentPdfBytes],
+            LoadedReviewInvoiceId = _loadedReviewInvoiceId,
+            ManualLines = _manualLines.Select(CloneLine).ToList()
+        };
+    }
+
+    private void RestoreDraftState()
+    {
+        if (_draftState is null)
+        {
+            return;
+        }
+
+        InvoiceNumberText.Text = _draftState.InvoiceNumber;
+        SupplierNameText.Text = _draftState.SupplierName;
+        InvoiceDatePicker.SelectedDate = _draftState.InvoiceDate ?? DateTime.Today;
+        PaymentDueDatePicker.SelectedDate = _draftState.PaymentDueDate;
+        NoSupplierInvoiceCheckBox.IsChecked = _draftState.NoSupplierInvoice;
+        InvoiceDirectionCombo.SelectedValue = _draftState.InvoiceDirection;
+        AccountingCategoryCombo.SelectedValue = _draftState.AccountingCategory;
+        InvoiceTotalAmountText.Text = _draftState.InvoiceTotalAmountText;
+        ShippingCostText.Text = string.IsNullOrWhiteSpace(_draftState.ShippingCostText) ? "0" : _draftState.ShippingCostText;
+        ShippingAmountModeCombo.SelectedIndex = _draftState.ShippingAmountModeIndex is < 0 ? 0 : _draftState.ShippingAmountModeIndex;
+        _currentSourcePdfPath = _draftState.CurrentSourcePdfPath;
+        _currentContentHash = _draftState.CurrentContentHash;
+        _currentOriginalPdfFileName = _draftState.CurrentOriginalPdfFileName;
+        _currentPdfBytes = _draftState.CurrentPdfBytes is null ? null : [.. _draftState.CurrentPdfBytes];
+        _loadedReviewInvoiceId = _draftState.LoadedReviewInvoiceId;
+
+        _manualLines.Clear();
+        foreach (var line in _draftState.ManualLines.Select(CloneLine))
+        {
+            _manualLines.Add(line);
+        }
+
+        RenumberLines();
+        UpdateInvoiceModeUi();
+        if (!string.IsNullOrWhiteSpace(_currentSourcePdfPath))
+        {
+            SourceInfoText.Text = _currentSourcePdfPath;
+        }
+        else if (_currentPdfBytes is not null && !string.IsNullOrWhiteSpace(_currentOriginalPdfFileName))
+        {
+            SourceInfoText.Text = _currentOriginalPdfFileName;
+        }
+
+        ManualLinesGrid.Items.Refresh();
     }
 
     private async Task LoadStoredInvoicesAsync()
@@ -2091,5 +2173,25 @@ public partial class Datenimport : Page
         public decimal ShippingCostNet { get; set; }
         public decimal ShippingCostGross { get; set; }
         public List<ManualInvoiceLineInput> Lines { get; set; } = new();
+    }
+
+    private sealed class ImportDraftState
+    {
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public string SupplierName { get; set; } = string.Empty;
+        public DateTime? InvoiceDate { get; set; }
+        public DateTime? PaymentDueDate { get; set; }
+        public bool NoSupplierInvoice { get; set; }
+        public string InvoiceDirection { get; set; } = "Expense";
+        public string AccountingCategory { get; set; } = "MaterialAndGoods";
+        public string InvoiceTotalAmountText { get; set; } = string.Empty;
+        public string ShippingCostText { get; set; } = "0";
+        public int ShippingAmountModeIndex { get; set; }
+        public string CurrentSourcePdfPath { get; set; } = string.Empty;
+        public string CurrentContentHash { get; set; } = string.Empty;
+        public byte[]? CurrentPdfBytes { get; set; }
+        public string CurrentOriginalPdfFileName { get; set; } = string.Empty;
+        public int? LoadedReviewInvoiceId { get; set; }
+        public List<ManualInvoiceLineInput> ManualLines { get; set; } = new();
     }
 }

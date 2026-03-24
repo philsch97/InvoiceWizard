@@ -17,7 +17,7 @@
         <StackPanel>
             <TextBlock Text="Manuelle Positionen bearbeiten" Style="{StaticResource PageTitleStyle}" FontSize="24"/>
             <TextBlock x:Name="InfoText"
-                       Text="Hier kannst du Positionen anlegen, anpassen und löschen. Änderungen werden erst nach dem Speichern in den Rechnungsimport übernommen."
+                       Text="Hier kannst du Positionen anlegen, anpassen und loeschen. Aenderungen werden erst nach dem Speichern in den Rechnungsimport uebernommen."
                        Foreground="{StaticResource MutedTextBrush}"
                        Margin="0,8,0,0"
                        TextWrapping="Wrap"/>
@@ -82,8 +82,24 @@
             </StackPanel>
 
             <WrapPanel Grid.Row="4" Grid.ColumnSpan="3" Margin="0,6,0,0">
-                <Button Width="170" Height="40" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Position hinzufügen" Click="AddLine_Click"/>
-                <Button Width="190" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte Positionen löschen" Click="RemoveSelectedLines_Click"/>
+                <Button x:Name="SaveLineButton"
+                        Width="170"
+                        Height="40"
+                        Margin="0,0,10,0"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Content="Position hinzufuegen"
+                        Click="AddLine_Click"/>
+                <Button Width="160"
+                        Height="40"
+                        Margin="0,0,10,0"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Content="Auswahl aufheben"
+                        Click="ClearSelection_Click"/>
+                <Button Width="190"
+                        Height="40"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Content="Markierte Positionen loeschen"
+                        Click="RemoveSelectedLines_Click"/>
             </WrapPanel>
         </Grid>
 
@@ -91,28 +107,30 @@
                   Grid.Row="2"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
+                  IsReadOnly="True"
                   SelectionMode="Extended"
+                  SelectionChanged="LinesGrid_SelectionChanged"
                   MinHeight="340">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Pos." Binding="{Binding Position}" IsReadOnly="True" Width="60"/>
-                <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
-                <DataGridTextColumn Header="EAN" Binding="{Binding Ean, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
-                <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
-                <DataGridTextColumn Header="Einheit" Binding="{Binding Unit, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
-                <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" IsReadOnly="True" Width="160"/>
-                <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" IsReadOnly="True" Width="170"/>
-                <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>
-                <DataGridTextColumn Header="Materialzuschlag&#10;pro Basis" Binding="{Binding MetalSurcharge, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
-                <DataGridTextColumn Header="Brutto-Liste" Binding="{Binding GrossListPrice, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>
-                <DataGridTextColumn Header="MwSt. %" Binding="{Binding VatPercent, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="90"/>
-                <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat=N2}" Width="80"/>
-                <DataGridTextColumn Header="Gesamtpreis&#10;Netto" Binding="{Binding LineTotal, StringFormat={}{0:N2} &#x20AC;}" IsReadOnly="True" Width="130"/>
+                <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
+                <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
+                <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
+                <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, StringFormat=N2}" Width="90"/>
+                <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>
+                <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="160"/>
+                <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
+                <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>
+                <DataGridTextColumn Header="Materialzuschlag&#10;pro Basis" Binding="{Binding MetalSurcharge, StringFormat={}{0:N2} &#x20AC;}" Width="170"/>
+                <DataGridTextColumn Header="Brutto-Liste" Binding="{Binding GrossListPrice, StringFormat={}{0:N2} &#x20AC;}" Width="120"/>
+                <DataGridTextColumn Header="MwSt. %" Binding="{Binding VatPercent, StringFormat=N2}" Width="90"/>
+                <DataGridTextColumn Header="Basis" Binding="{Binding PriceBasisQuantity, StringFormat=N2}" Width="80"/>
+                <DataGridTextColumn Header="Gesamtpreis&#10;Netto" Binding="{Binding LineTotal, StringFormat={}{0:N2} &#x20AC;}" Width="130"/>
             </DataGrid.Columns>
         </DataGrid>
 
         <WrapPanel Grid.Row="3" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button Width="180" Height="40" Margin="0,0,10,0" Content="Positionen übernehmen" Click="Confirm_Click"/>
+            <Button Width="180" Height="40" Margin="0,0,10,0" Content="Positionen uebernehmen" Click="Confirm_Click"/>
             <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
         </WrapPanel>
     </Grid>
