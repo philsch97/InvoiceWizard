@@ -205,9 +205,7 @@ public partial class ProjectContactsPage : Page
 
         try
         {
-            var project = await App.Api.GetProjectDetailsAsync(projectSelection.ProjectId.Value);
-            project.ProjectStatus = newStatus;
-            var savedProject = await App.Api.SaveProjectAsync(project);
+            var savedProject = await App.Api.UpdateProjectStatusAsync(projectSelection.ProjectId.Value, newStatus);
             await LoadProjectsAsync(customer, savedProject.ProjectId);
             SetStatus($"Projekt {savedProject.Name} wurde {successSuffix}.", StatusMessageType.Success);
         }

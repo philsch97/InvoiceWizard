@@ -253,6 +253,17 @@ public partial class BackendApiClient
         return MapProjectDetails(item);
     }
 
+    public async Task<ProjectEntity> UpdateProjectStatusAsync(int projectId, string projectStatus)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"api/projects/{projectId}/status", new
+        {
+            projectStatus
+        });
+        await EnsureSuccessWithMessageAsync(response);
+        var item = await response.Content.ReadFromJsonAsync<ProjectDetailsDto>(_jsonOptions) ?? new ProjectDetailsDto();
+        return MapProjectDetails(item);
+    }
+
     public async Task<ProjectEntity> UpdateProjectDetailsAsync(ProjectEntity project)
     {
         var payload = new

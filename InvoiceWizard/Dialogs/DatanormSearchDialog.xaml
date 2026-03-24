@@ -94,8 +94,8 @@
             <Border Width="360"
                     Padding="22"
                     CornerRadius="16"
-                    Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrushTheme}"
                     BorderThickness="1"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">

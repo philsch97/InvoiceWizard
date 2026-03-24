@@ -7,6 +7,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Diagnostics;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -19,6 +20,7 @@ namespace InvoiceWizard;
 
 public partial class Datenimport : Page
 {
+    private static readonly HttpClient DragDropHttpClient = CreateDragDropHttpClient();
     private static readonly XNamespace rsm = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100";
     private static readonly XNamespace ram = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100";
     private static readonly XNamespace udt = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100";
@@ -879,9 +881,7 @@ public partial class Datenimport : Page
 
     private void ImportRoot_PreviewDragOver(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop)
-            || e.Data.GetDataPresent("FileGroupDescriptorW")
-            || e.Data.GetDataPresent("FileGroupDescriptor"))
+        if (HasAnySupportedDropFormat(e.Data))
         {
             if (DropOverlay.Visibility != Visibility.Visible)
             {
@@ -944,21 +944,27 @@ public partial class Datenimport : Page
 
     private static async Task<List<string>> ExtractDroppedPdfFilesAsync(IDataObject dataObject, List<string> tempFiles)
     {
-        if (dataObject.GetDataPresent(DataFormats.FileDrop))
+        if (SafeGetDataPresent(dataObject, DataFormats.FileDrop) && SafeGetData(dataObject, DataFormats.FileDrop) is string[] droppedFiles)
         {
-            return ((string[])dataObject.GetData(DataFormats.FileDrop))
+            return droppedFiles
                 .Where(path => string.Equals(Path.GetExtension(path), ".pdf", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
-        var descriptorFormat = dataObject.GetDataPresent("FileGroupDescriptorW") ? "FileGroupDescriptorW" : "FileGroupDescriptor";
-        if (!dataObject.GetDataPresent(descriptorFormat) || !dataObject.GetDataPresent("FileContents"))
+        var urlFiles = await DownloadDroppedPdfUrlsAsync(dataObject, tempFiles);
+        if (urlFiles.Count > 0)
+        {
+            return urlFiles;
+        }
+
+        var descriptorFormat = SafeGetDataPresent(dataObject, "FileGroupDescriptorW") ? "FileGroupDescriptorW" : "FileGroupDescriptor";
+        if (!SafeGetDataPresent(dataObject, descriptorFormat) || !SafeGetDataPresent(dataObject, "FileContents"))
         {
             return new List<string>();
         }
 
-        using var descriptorStream = dataObject.GetData(descriptorFormat) as MemoryStream;
+        using var descriptorStream = SafeGetData(dataObject, descriptorFormat) as MemoryStream;
         if (descriptorStream is null)
         {
             return new List<string>();
@@ -970,7 +976,12 @@ public partial class Datenimport : Page
             return new List<string>();
         }
 
-        var fileContents = dataObject.GetData("FileContents");
+        var fileContents = SafeGetData(dataObject, "FileContents");
+        if (fileContents is null)
+        {
+            return new List<string>();
+        }
+
         var extractedFiles = new List<string>();
         for (var i = 0; i < fileNames.Count; i++)
         {
@@ -997,6 +1008,179 @@ public partial class Datenimport : Page
         }
 
         return extractedFiles;
+    }
+
+    private static async Task<List<string>> DownloadDroppedPdfUrlsAsync(IDataObject dataObject, List<string> tempFiles)
+    {
+        var urls = ExtractDroppedUrls(dataObject)
+            .Where(url => Uri.TryCreate(url, UriKind.Absolute, out _))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (urls.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        var downloadedFiles = new List<string>();
+        foreach (var url in urls)
+        {
+            var file = await TryDownloadPdfFromUrlAsync(url, tempFiles);
+            if (!string.IsNullOrWhiteSpace(file))
+            {
+                downloadedFiles.Add(file);
+            }
+        }
+
+        return downloadedFiles;
+    }
+
+    private static IEnumerable<string> ExtractDroppedUrls(IDataObject dataObject)
+    {
+        var values = new List<string>();
+
+        foreach (var format in new[] { "UniformResourceLocatorW", "UniformResourceLocator", DataFormats.UnicodeText, DataFormats.Text, DataFormats.Html })
+        {
+            if (!SafeGetDataPresent(dataObject, format))
+            {
+                continue;
+            }
+
+            var data = SafeGetData(dataObject, format);
+            switch (data)
+            {
+                case string text:
+                    values.Add(text);
+                    break;
+                case MemoryStream stream:
+                    values.Add(ReadStreamText(stream));
+                    break;
+                case byte[] bytes:
+                    values.Add(Encoding.UTF8.GetString(bytes));
+                    break;
+            }
+        }
+
+        foreach (var value in values)
+        {
+            foreach (Match match in Regex.Matches(value ?? string.Empty, @"https?://[^\s'""<>]+", RegexOptions.IgnoreCase))
+            {
+                yield return match.Value;
+            }
+        }
+    }
+
+    private static string ReadStreamText(MemoryStream stream)
+    {
+        var buffer = stream.ToArray();
+        return Encoding.UTF8.GetString(buffer).TrimEnd('\0');
+    }
+
+    private static async Task<string?> TryDownloadPdfFromUrlAsync(string url, List<string> tempFiles)
+    {
+        try
+        {
+            using var response = await DragDropHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+            var isPdf = mediaType.Contains("pdf", StringComparison.OrdinalIgnoreCase)
+                || url.Contains(".pdf", StringComparison.OrdinalIgnoreCase);
+            if (!isPdf)
+            {
+                return null;
+            }
+
+            var fileName = GetFileNameFromResponse(response, url);
+            var tempFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{SanitizeFileName(fileName)}");
+            await using var sourceStream = await response.Content.ReadAsStreamAsync();
+            await using var targetStream = File.Create(tempFile);
+            await sourceStream.CopyToAsync(targetStream);
+            tempFiles.Add(tempFile);
+            return tempFile;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string GetFileNameFromResponse(HttpResponseMessage response, string url)
+    {
+        var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                       ?? response.Content.Headers.ContentDisposition?.FileName;
+        if (!string.IsNullOrWhiteSpace(fileName))
+        {
+            return fileName.Trim('"');
+        }
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var lastSegment = uri.Segments.LastOrDefault()?.Trim('/');
+            if (!string.IsNullOrWhiteSpace(lastSegment))
+            {
+                return lastSegment.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? lastSegment : $"{lastSegment}.pdf";
+            }
+        }
+
+        return "WebImport.pdf";
+    }
+
+    private static HttpClient CreateDragDropHttpClient()
+    {
+        var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("InvoiceWizard/1.0");
+        return client;
+    }
+
+    private static bool HasAnySupportedDropFormat(IDataObject dataObject)
+    {
+        foreach (var format in new[]
+                 {
+                     DataFormats.FileDrop,
+                     "FileGroupDescriptorW",
+                     "FileGroupDescriptor",
+                     DataFormats.UnicodeText,
+                     DataFormats.Text,
+                     "UniformResourceLocator",
+                     "UniformResourceLocatorW",
+                     DataFormats.Html
+                 })
+        {
+            if (SafeGetDataPresent(dataObject, format))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool SafeGetDataPresent(IDataObject dataObject, string format)
+    {
+        try
+        {
+            return dataObject.GetDataPresent(format);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static object? SafeGetData(IDataObject dataObject, string format)
+    {
+        try
+        {
+            return dataObject.GetData(format);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static Stream? GetVirtualFileStream(object fileContents, int index)

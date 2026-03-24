@@ -446,6 +446,32 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         return Ok(await MapProjectDetailsAsync(project, tenantId));
     }
 
+    [HttpPut("{projectId:int}/status")]
+    public async Task<ActionResult<ProjectDetailsDto>> UpdateProjectStatus(int projectId, [FromBody] UpdateProjectStatusRequest request)
+    {
+        var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var project = await db.Projects.Include(x => x.Customer).FirstOrDefaultAsync(x => x.ProjectId == projectId && x.TenantId == tenantId);
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        var requestedStatus = CustomersController.NormalizeProjectStatus(request.ProjectStatus);
+        if (!string.Equals(project.ProjectStatus, "Ended", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(requestedStatus, "Ended", StringComparison.OrdinalIgnoreCase))
+        {
+            var cannotEndReason = await GetProjectEndBlockingReasonAsync(projectId, tenantId);
+            if (!string.IsNullOrWhiteSpace(cannotEndReason))
+            {
+                return ValidationProblem(cannotEndReason);
+            }
+        }
+
+        project.ProjectStatus = requestedStatus;
+        await db.SaveChangesAsync(HttpContext.RequestAborted);
+        return Ok(await MapProjectDetailsAsync(project, tenantId));
+    }
+
     [HttpPut("{projectId:int}/details")]
     public async Task<ActionResult<ProjectDetailsDto>> UpdateProjectDetails(int projectId, [FromBody] SaveProjectDetailsRequest request)
     {

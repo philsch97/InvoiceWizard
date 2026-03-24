@@ -242,6 +242,12 @@ public class ProjectDetailsDto
     public string CannotEndReason { get; set; } = "";
 }
 
+public class UpdateProjectStatusRequest
+{
+    [MaxLength(20)]
+    public string ProjectStatus { get; set; } = "Active";
+}
+
 public class SaveProjectDetailsRequest
 {
     public bool ConnectionUserSameAsCustomer { get; set; }
