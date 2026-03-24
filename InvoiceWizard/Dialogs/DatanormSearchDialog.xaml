@@ -19,7 +19,7 @@
             <TextBlock x:Name="HintText"
                        Margin="0,8,0,0"
                        Foreground="{StaticResource MutedTextBrush}"
-                       Text="Suche nach Artikeln, EAN oder Bezeichnung und übernimm die Position direkt."
+                       Text="Suche nach Artikeln, EAN oder Bezeichnung und übernimm Positionen direkt."
                        TextWrapping="Wrap"/>
         </StackPanel>
 
@@ -53,7 +53,7 @@
             </StackPanel>
 
             <Button Grid.Column="4"
-                    Width="160"
+                    Width="180"
                     Height="40"
                     Margin="0,24,0,0"
                     Content="Position übernehmen"
@@ -81,7 +81,13 @@
         </DataGrid>
 
         <WrapPanel Grid.Row="3" Margin="0,18,0,0" HorizontalAlignment="Right">
-            <Button Width="160" Height="40" Margin="0,0,10,0" Content="Position übernehmen" Click="Confirm_Click"/>
+            <TextBlock x:Name="SelectedCountText"
+                       VerticalAlignment="Center"
+                       Margin="0,0,18,0"
+                       Foreground="{StaticResource MutedTextBrush}"
+                       Text="0 Position(en) vorgemerkt"/>
+            <Button Width="180" Height="40" Margin="0,0,10,0" Content="Position übernehmen" Click="Confirm_Click"/>
+            <Button Width="120" Height="40" Margin="0,0,10,0" Content="Fertig" Click="Finish_Click"/>
             <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
         </WrapPanel>
 

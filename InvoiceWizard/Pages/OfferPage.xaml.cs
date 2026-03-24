@@ -77,14 +77,18 @@ public partial class OfferPage : Page
             Owner = Window.GetWindow(this)
         };
 
-        if (dialog.ShowDialog() != true || dialog.Result is null)
+        if (dialog.ShowDialog() != true || dialog.ResultLines.Count == 0)
         {
             return;
         }
 
-        var line = CloneLine(dialog.Result);
-        line.Position = _lines.Count + 1;
-        _lines.Add(line);
+        ManualInvoiceLineInput? line = null;
+        foreach (var importedLine in dialog.ResultLines)
+        {
+            line = CloneLine(importedLine);
+            line.Position = _lines.Count + 1;
+            _lines.Add(line);
+        }
         RenumberLines();
         UpdateSummary();
         SetStatus($"DATANORM-Artikel {line.ArticleNumber} zum Angebot hinzugefügt.", StatusMessageType.Success);

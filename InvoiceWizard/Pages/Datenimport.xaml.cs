@@ -123,7 +123,7 @@ public partial class Datenimport : Page
                 Owner = Window.GetWindow(this)
             };
 
-            if (dialog.ShowDialog() != true || dialog.Result is null)
+            if (dialog.ShowDialog() != true || dialog.ResultLines.Count == 0)
             {
                 return;
             }
@@ -137,9 +137,13 @@ public partial class Datenimport : Page
                 SourceInfoText.Text = "Position aus DATANORM-Katalog";
             }
 
-            var line = CloneLine(dialog.Result);
-            line.Position = _manualLines.Count + 1;
-            _manualLines.Add(line);
+            ManualInvoiceLineInput? line = null;
+            foreach (var importedLine in dialog.ResultLines)
+            {
+                line = CloneLine(importedLine);
+                line.Position = _manualLines.Count + 1;
+                _manualLines.Add(line);
+            }
             RenumberLines();
             ManualLinesGrid.Items.Refresh();
             SetStatus($"DATANORM-Position {line.ArticleNumber} wurde übernommen.", StatusMessageType.Success);

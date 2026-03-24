@@ -22,6 +22,7 @@ public partial class DatanormSearchDialog : Window
     }
 
     public ManualInvoiceLineInput? Result { get; private set; }
+    public List<ManualInvoiceLineInput> ResultLines { get; } = [];
 
     private async void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -59,6 +60,11 @@ public partial class DatanormSearchDialog : Window
     private void Confirm_Click(object sender, RoutedEventArgs e)
     {
         ConfirmSelection();
+    }
+
+    private void Finish_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = ResultLines.Count > 0;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -119,7 +125,31 @@ public partial class DatanormSearchDialog : Window
             Result.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(Result.GrossLineTotal, Result.Quantity);
         }
 
-        DialogResult = true;
+        ResultLines.Add(CloneLine(Result));
+        SelectedCountText.Text = $"{ResultLines.Count} Position(en) vorgemerkt";
+        QuantityTextBox.Text = "1";
+        SearchTextBox.Focus();
+        SearchTextBox.SelectAll();
+    }
+
+    private static ManualInvoiceLineInput CloneLine(ManualInvoiceLineInput source)
+    {
+        return new ManualInvoiceLineInput
+        {
+            Position = source.Position,
+            ArticleNumber = source.ArticleNumber,
+            Ean = source.Ean,
+            Description = source.Description,
+            Quantity = source.Quantity,
+            Unit = source.Unit,
+            NetUnitPrice = source.NetUnitPrice,
+            MetalSurcharge = source.MetalSurcharge,
+            GrossListPrice = source.GrossListPrice,
+            GrossUnitPrice = source.GrossUnitPrice,
+            VatPercent = source.VatPercent,
+            PriceBasisQuantity = source.PriceBasisQuantity,
+            GrossLineTotal = source.GrossLineTotal
+        };
     }
 
     private static bool TryParseDecimal(string? text, out decimal value)
