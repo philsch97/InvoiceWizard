@@ -10,6 +10,7 @@ namespace InvoiceWizard;
 public partial class SoneparPage : Page
 {
     private List<SoneparProductViewModel> _products = [];
+    private BusyDialog? _busyDialog;
 
     public SoneparPage()
     {
@@ -179,6 +180,7 @@ public partial class SoneparPage : Page
 
         try
         {
+            ShowBusy("DATANORM importieren", "Die DATANORM-Datei wird eingelesen. Das kann etwas dauern.");
             var result = await App.DatanormCatalog.ImportAsync(dialog.FileName);
             await ReloadDatanormStateAsync();
             SetStatus($"{result.ImportedCount} DATANORM-Artikel aus {result.SourceFileName} importiert.", StatusMessageType.Success);
@@ -187,18 +189,22 @@ public partial class SoneparPage : Page
         {
             SetStatus($"DATANORM-Import fehlgeschlagen: {ex.Message}", StatusMessageType.Error);
         }
+        finally
+        {
+            HideBusy();
+        }
     }
 
     private async void OpenDatanormSearch_Click(object sender, RoutedEventArgs e)
     {
-        var articles = await App.DatanormCatalog.SearchAsync(string.Empty);
-        if (articles.Count == 0)
+        var state = await App.DatanormCatalog.GetStateAsync();
+        if (state.ArticleCount == 0)
         {
             SetStatus("Bitte zuerst eine DATANORM-Datei importieren.", StatusMessageType.Warning);
             return;
         }
 
-        var dialog = new DatanormSearchDialog(articles)
+        var dialog = new DatanormSearchDialog([])
         {
             Owner = Window.GetWindow(this)
         };
@@ -253,5 +259,37 @@ public partial class SoneparPage : Page
         StatusBorder.Background = background;
         StatusBorder.BorderBrush = border;
         StatusText.Foreground = foreground;
+    }
+
+    private void ShowBusy(string title, string message)
+    {
+        if (_busyDialog is not null)
+        {
+            return;
+        }
+
+        var owner = Window.GetWindow(this);
+        _busyDialog = new BusyDialog(title, message)
+        {
+            Owner = owner
+        };
+        if (owner is not null)
+        {
+            owner.IsEnabled = false;
+        }
+
+        _busyDialog.Show();
+    }
+
+    private void HideBusy()
+    {
+        var owner = Window.GetWindow(this);
+        if (owner is not null)
+        {
+            owner.IsEnabled = true;
+        }
+
+        _busyDialog?.Close();
+        _busyDialog = null;
     }
 }

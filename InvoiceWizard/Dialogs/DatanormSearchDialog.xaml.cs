@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,32 +11,34 @@ namespace InvoiceWizard.Dialogs;
 
 public partial class DatanormSearchDialog : Window
 {
-    private readonly List<DatanormArticleEntity> _allArticles;
+    private CancellationTokenSource? _searchCts;
 
     public DatanormSearchDialog(IEnumerable<DatanormArticleEntity> articles, bool requireVat = true)
     {
         InitializeComponent();
-        _allArticles = articles.ToList();
-        ResultsGrid.ItemsSource = _allArticles;
         MetalSurchargeTextBox.Text = "0";
         VatPercentTextBox.Text = "19";
+        Loaded += async (_, _) => await RunSearchAsync(string.Empty, showBusy: true);
     }
 
     public ManualInvoiceLineInput? Result { get; private set; }
 
-    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private async void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         var query = SearchTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            ResultsGrid.ItemsSource = _allArticles;
-            return;
-        }
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
 
-        var tokens = query.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        ResultsGrid.ItemsSource = _allArticles
-            .Where(article => tokens.All(token => article.SearchText.Contains(token, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
+        try
+        {
+            await Task.Delay(250, token);
+            await RunSearchAsync(query, showBusy: true, token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void ResultsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -124,5 +127,35 @@ public partial class DatanormSearchDialog : Window
         var culture = CultureInfo.GetCultureInfo("de-DE");
         return decimal.TryParse(text, NumberStyles.Number, culture, out value)
                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+    }
+
+    private async Task RunSearchAsync(string query, bool showBusy, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            ToggleBusy(showBusy, string.IsNullOrWhiteSpace(query)
+                ? "Katalog wird geladen..."
+                : $"Suche nach \"{query}\" läuft...");
+            var results = await App.DatanormCatalog.SearchAsync(query, 200);
+            cancellationToken.ThrowIfCancellationRequested();
+            ResultsGrid.ItemsSource = results;
+            ResultsGrid.SelectedItem = results.FirstOrDefault();
+        }
+        finally
+        {
+            ToggleBusy(false, string.Empty);
+        }
+    }
+
+    private void ToggleBusy(bool isBusy, string message)
+    {
+        BusyOverlay.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
+        BusyMessageText.Text = string.IsNullOrWhiteSpace(message) ? "DATANORM-Suche läuft..." : message;
+        Cursor = isBusy ? Cursors.Wait : Cursors.Arrow;
+        SearchTextBox.IsEnabled = !isBusy;
+        QuantityTextBox.IsEnabled = !isBusy;
+        MetalSurchargeTextBox.IsEnabled = !isBusy;
+        VatPercentTextBox.IsEnabled = !isBusy;
+        ResultsGrid.IsEnabled = !isBusy;
     }
 }

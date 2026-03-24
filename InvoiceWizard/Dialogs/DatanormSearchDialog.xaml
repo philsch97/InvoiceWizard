@@ -84,5 +84,35 @@
             <Button Width="160" Height="40" Margin="0,0,10,0" Content="Position übernehmen" Click="Confirm_Click"/>
             <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
         </WrapPanel>
+
+        <Border x:Name="BusyOverlay"
+                Grid.RowSpan="4"
+                Background="#CC0F172A"
+                CornerRadius="18"
+                Visibility="Collapsed"
+                IsHitTestVisible="True">
+            <Border Width="360"
+                    Padding="22"
+                    CornerRadius="16"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock x:Name="BusyTitleText"
+                               Text="Bitte warten"
+                               Style="{StaticResource SectionTitleStyle}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="BusyMessageText"
+                               Margin="0,12,0,0"
+                               Text="DATANORM-Suche läuft..."
+                               Foreground="{StaticResource MutedTextBrush}"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                    <ProgressBar Margin="0,18,0,0" Height="10" IsIndeterminate="True"/>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </Window>

@@ -65,14 +65,14 @@ public partial class OfferPage : Page
 
     private async void AddFromDatanorm_Click(object sender, RoutedEventArgs e)
     {
-        var articles = await App.DatanormCatalog.SearchAsync(string.Empty);
-        if (articles.Count == 0)
+        var state = await App.DatanormCatalog.GetStateAsync();
+        if (state.ArticleCount == 0)
         {
             SetStatus("Bitte zuerst auf der Sonepar-Seite eine DATANORM-Datei importieren.", StatusMessageType.Warning);
             return;
         }
 
-        var dialog = new DatanormSearchDialog(articles)
+        var dialog = new DatanormSearchDialog([])
         {
             Owner = Window.GetWindow(this)
         };
