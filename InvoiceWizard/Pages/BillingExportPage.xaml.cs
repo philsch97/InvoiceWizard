@@ -930,7 +930,7 @@ public partial class BillingExportPage : Page
     private async Task LoadCustomersAsync(string? selectCustomerName = null, int? selectedProjectId = null)
     {
         var selectedCustomerId = CustomerCombo.SelectedItem is CustomerEntity selectedCustomer ? selectedCustomer.CustomerId : (int?)null;
-        var customers = await App.Api.GetCustomersAsync();
+        var customers = await App.Api.GetCustomersAsync(activeProjectsOnly: true);
         CustomerCombo.ItemsSource = customers;
         if (customers.Count == 0)
         {

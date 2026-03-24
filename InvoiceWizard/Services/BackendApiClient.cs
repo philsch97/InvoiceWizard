@@ -120,9 +120,10 @@ public partial class BackendApiClient
         return MapTenantUser(item);
     }
 
-    public async Task<List<CustomerEntity>> GetCustomersAsync()
+    public async Task<List<CustomerEntity>> GetCustomersAsync(bool activeProjectsOnly = false)
     {
-        var items = await _httpClient.GetFromJsonAsync<List<CustomerDto>>("api/customers", _jsonOptions) ?? [];
+        var url = activeProjectsOnly ? "api/customers?activeProjectsOnly=true" : "api/customers";
+        var items = await _httpClient.GetFromJsonAsync<List<CustomerDto>>(url, _jsonOptions) ?? [];
         return items.Select(MapCustomer).OrderBy(x => x.Name).ToList();
     }
 

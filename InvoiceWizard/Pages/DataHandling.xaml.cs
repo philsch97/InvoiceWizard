@@ -288,7 +288,7 @@ public partial class DataHandling : Page
 
     private async Task LoadCustomersAsync(int? selectedCustomerId = null)
     {
-        var customers = await App.Api.GetCustomersAsync();
+        var customers = await App.Api.GetCustomersAsync(activeProjectsOnly: true);
         CustomerCombo.ItemsSource = customers;
         if (customers.Count == 0)
         {

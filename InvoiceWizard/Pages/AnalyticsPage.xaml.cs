@@ -57,7 +57,7 @@ public partial class AnalyticsPage : Page
     private async Task LoadFiltersAsync()
     {
         var customers = new List<CustomerSelectionItem> { new() { CustomerId = null, Name = "Alle Kunden" } };
-        customers.AddRange((await App.Api.GetCustomersAsync()).Select(c => new CustomerSelectionItem { CustomerId = c.CustomerId, Name = c.Name }));
+        customers.AddRange((await App.Api.GetCustomersAsync(activeProjectsOnly: true)).Select(c => new CustomerSelectionItem { CustomerId = c.CustomerId, Name = c.Name }));
         CustomerFilterCombo.ItemsSource = customers;
         var selected = App.SelectedCustomerId.HasValue
             ? customers.FirstOrDefault(c => c.CustomerId == App.SelectedCustomerId.Value)

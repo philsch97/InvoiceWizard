@@ -15,10 +15,16 @@ namespace InvoiceWizard.Backend.Controllers;
 public class CustomersController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<CustomerListItemDto>>> GetCustomers()
+    public async Task<ActionResult<IReadOnlyList<CustomerListItemDto>>> GetCustomers([FromQuery] bool activeProjectsOnly = false)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        var customers = await db.Customers.Where(x => x.TenantId == tenantId)
+        var query = db.Customers.Where(x => x.TenantId == tenantId);
+        if (activeProjectsOnly)
+        {
+            query = query.Where(x => x.Projects.Any(p => p.ProjectStatus == "Active"));
+        }
+
+        var customers = await query
             .OrderBy(x => x.Name)
             .Select(x => new CustomerListItemDto
             {

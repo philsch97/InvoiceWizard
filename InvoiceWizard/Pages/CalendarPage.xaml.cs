@@ -35,7 +35,7 @@ public partial class CalendarPage : Page
             _isLoading = true;
             SelectedDatePicker.SelectedDate ??= DateTime.Today;
             _users = await App.Api.GetCalendarUsersAsync();
-            _customers = await App.Api.GetCustomersAsync();
+            _customers = await App.Api.GetCustomersAsync(activeProjectsOnly: true);
             UserCombo.ItemsSource = _users;
             UserCombo.SelectedItem = _users.FirstOrDefault(x => x.IsCurrentUser) ?? _users.FirstOrDefault();
             await ReloadAllAsync();
