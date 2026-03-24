@@ -1,11 +1,11 @@
-<Page x:Class="InvoiceWizard.DataHandling"
+<Page x:Class="InvoiceWizard.InventoryPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       mc:Ignorable="d"
       d:DesignHeight="700" d:DesignWidth="1200"
-      Title="Datahandling">
+      Title="Materialpool">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,13 +16,24 @@
 
         <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
             <StackPanel>
-                <TextBlock Text="Positionen zuweisen" Style="{StaticResource PageTitleStyle}"/>
-                <TextBlock Text="Verteile importierte Rechnungspositionen auf Kunden und Projekte. Alternativ kannst du Positionen als allgemeines Kleinmaterial oder als Bestand/Lager markieren, ohne sie sofort einem Kunden zuzuordnen." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
+                <TextBlock Text="Bestand und Kleinmaterial" Style="{StaticResource PageTitleStyle}"/>
+                <TextBlock Text="Hier verwaltest du als Bestand oder als allgemeines Kleinmaterial markierte Materialpositionen, kannst sie durchsuchen, direkt Projekten zuweisen oder wieder in die normale Zuweisung zurueckgeben." Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,0"/>
             </StackPanel>
         </Border>
 
         <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
             <WrapPanel>
+                <StackPanel Width="220" Margin="0,0,14,10">
+                    <TextBlock Text="Anzeigen" Style="{StaticResource MutedLabelStyle}"/>
+                    <ComboBox x:Name="PoolModeCombo" SelectionChanged="PoolModeCombo_SelectionChanged">
+                        <ComboBoxItem Content="Bestand" Tag="inventory" IsSelected="True"/>
+                        <ComboBoxItem Content="Allg. Kleinmaterial" Tag="generalSmallMaterial"/>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Width="260" Margin="0,0,14,10">
+                    <TextBlock x:Name="SearchLabelText" Text="Bestand durchsuchen" Style="{StaticResource MutedLabelStyle}"/>
+                    <TextBox x:Name="SearchTextBox" TextChanged="SearchTextBox_TextChanged"/>
+                </StackPanel>
                 <StackPanel Width="220" Margin="0,0,14,10">
                     <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
                     <ComboBox x:Name="CustomerCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerCombo_SelectionChanged"/>
@@ -39,15 +50,11 @@
                     <TextBlock Text="Preis/Stk (optional)" Style="{StaticResource MutedLabelStyle}"/>
                     <TextBox x:Name="CustomerPriceText"/>
                 </StackPanel>
-                <CheckBox x:Name="IsSmallMaterialCheckBox" Margin="0,30,18,0" Content="Als Kleinmaterial zuweisen"/>
-                <Button Width="160" Height="40" Margin="0,24,10,0" Content="Position zuweisen" Click="AllocateQuantity_Click"/>
-                <Button Width="200" Height="40" Margin="0,24,10,0" Content="Markierte komplett zuweisen" Click="AllocateCompleteSelection_Click"/>
-                <Button Width="220" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Als allg. Kleinmaterial markieren" Click="MarkGeneralSmallMaterial_Click"/>
-                <Button Width="190" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="KM-Markierung entfernen" Click="UnmarkGeneralSmallMaterial_Click"/>
-                <Button Width="180" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Als Bestand markieren" Click="MarkInventoryStock_Click"/>
-                <Button Width="175" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Markierte loeschen" Click="DeleteLine_Click"/>
+                <Button x:Name="AllocateButton" Width="180" Height="40" Margin="0,24,10,0" Content="Aus Bestand zuweisen" Click="AllocateQuantity_Click"/>
+                <Button Width="220" Height="40" Margin="0,24,10,0" Content="Markierte komplett zuweisen" Click="AllocateCompleteSelection_Click"/>
+                <Button x:Name="RemoveButton" Width="190" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Aus Bestand nehmen" Click="RemoveFromPool_Click"/>
                 <Button Width="110" Height="40" Margin="0,24,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Aktualisieren" Click="Refresh_Click"/>
-                <CheckBox x:Name="ShowCompletedCheckBox" Margin="0,32,0,0" Content="Vollstaendig zugewiesene anzeigen" Checked="ShowCompletedChanged" Unchecked="ShowCompletedChanged"/>
+                <CheckBox x:Name="ShowCompletedCheckBox" Margin="0,32,0,0" Content="Vollstaendig entnommene anzeigen" Checked="ShowCompletedChanged" Unchecked="ShowCompletedChanged"/>
             </WrapPanel>
         </Border>
 
@@ -57,38 +64,21 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="Importierte Positionen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
+                <TextBlock x:Name="PoolSectionTitleText" Text="Bestandspositionen" Style="{StaticResource SectionTitleStyle}" Margin="18,18,18,0"/>
                 <DataGrid x:Name="LinesGrid" Grid.Row="1" Margin="0,16,0,0" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Extended">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Rechnung" Binding="{Binding InvoiceNumber}" Width="SizeToHeader" MinWidth="120"/>
                         <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="SizeToHeader" MinWidth="110"/>
-                        <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategory}" Width="SizeToHeader" MinWidth="140"/>
                         <DataGridTextColumn Header="Pos." Binding="{Binding Position}" Width="SizeToHeader" MinWidth="60"/>
                         <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="SizeToCells" MinWidth="120"/>
                         <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="SizeToCells" MinWidth="110"/>
-                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="3*" MinWidth="360"/>
+                        <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="3*" MinWidth="380"/>
                         <DataGridTextColumn Header="Menge" Binding="{Binding Quantity}" Width="SizeToHeader" MinWidth="80"/>
-                        <DataGridTextColumn Header="Noch offen" Binding="{Binding RemainingQuantity}" Width="SizeToHeader" MinWidth="90"/>
+                        <DataGridTextColumn x:Name="RemainingColumn" Header="Noch im Bestand" Binding="{Binding RemainingQuantity}" Width="SizeToHeader" MinWidth="120"/>
                         <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="SizeToHeader" MinWidth="80"/>
-                        <DataGridTemplateColumn Header="Allg. KM" Width="SizeToHeader" MinWidth="85">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsGeneralSmallMaterial, Mode=OneWay}" IsHitTestVisible="False" Focusable="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="Bestand" Width="SizeToHeader" MinWidth="85">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsInventoryStock, Mode=OneWay}" IsHitTestVisible="False" Focusable="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="SizeToHeader" MinWidth="160"/>
                         <DataGridTextColumn Header="Gesamtnetto&#10;pro Einheit" Binding="{Binding EffectiveNetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="SizeToHeader" MinWidth="170"/>
-                        <DataGridTextColumn Header="Netto&#10;pro Basis" Binding="{Binding NetUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="SizeToHeader" MinWidth="120"/>
+                        <DataGridTextColumn Header="Gesamtbrutto&#10;pro Einheit" Binding="{Binding GrossUnitPrice, StringFormat={}{0:N2} &#x20AC;}" Width="SizeToHeader" MinWidth="160"/>
                         <DataGridTextColumn Header="Zugeordnet" Binding="{Binding AllocationSummary}" Width="2*" MinWidth="240"/>
-                        <DataGridTextColumn Header="Bezahlt" Binding="{Binding PaidStatus}" Width="SizeToHeader" MinWidth="120"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>

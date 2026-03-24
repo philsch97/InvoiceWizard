@@ -592,16 +592,16 @@ public partial class BackendApiClient
     public Task<byte[]> DownloadTodoAttachmentAsync(int todoAttachmentId)
         => _httpClient.GetByteArrayAsync($"api/todoattachments/{todoAttachmentId}/content");
 
-    public async Task<List<InvoiceLineRow>> GetInvoiceLineRowsAsync(bool showCompleted)
+    public async Task<List<InvoiceLineRow>> GetInvoiceLineRowsAsync(bool showCompleted, string poolMode = "allocatable")
     {
-        var items = await _httpClient.GetFromJsonAsync<List<InvoiceLineDto>>($"api/invoicelines?showCompleted={showCompleted.ToString().ToLowerInvariant()}", _jsonOptions) ?? [];
+        var items = await _httpClient.GetFromJsonAsync<List<InvoiceLineDto>>($"api/invoicelines?showCompleted={showCompleted.ToString().ToLowerInvariant()}&poolMode={Uri.EscapeDataString(poolMode)}", _jsonOptions) ?? [];
         return items.Select(x => new InvoiceLineRow(MapInvoiceLine(x))).ToList();
     }
 
     public async Task CreateAllocationAsync(int invoiceLineId, int customerId, int projectId, decimal qty, decimal customerUnitPrice, bool isSmallMaterial)
     {
         var response = await _httpClient.PostAsJsonAsync("api/allocations", new { invoiceLineId, customerId, projectId, allocatedQuantity = qty, customerUnitPrice, isSmallMaterial });
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response);
     }
 
     public async Task SetInvoiceLineGeneralSmallMaterialAsync(int invoiceLineId, bool isGeneralSmallMaterial)
@@ -1258,6 +1258,42 @@ public partial class BackendApiClient
                 else if (document.RootElement.TryGetProperty("title", out var titleElement))
                 {
                     message = titleElement.GetString() ?? body;
+                }
+
+                if (document.RootElement.TryGetProperty("detail", out var detailElement))
+                {
+                    var detail = detailElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(detail))
+                    {
+                        message = detail;
+                    }
+                }
+
+                if (document.RootElement.TryGetProperty("errors", out var errorsElement)
+                    && errorsElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var property in errorsElement.EnumerateObject())
+                    {
+                        if (property.Value.ValueKind != JsonValueKind.Array)
+                        {
+                            continue;
+                        }
+
+                        foreach (var item in property.Value.EnumerateArray())
+                        {
+                            var validationMessage = item.GetString();
+                            if (!string.IsNullOrWhiteSpace(validationMessage))
+                            {
+                                message = validationMessage;
+                                break;
+                            }
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(message) && !string.Equals(message, body, StringComparison.Ordinal))
+                        {
+                            break;
+                        }
+                    }
                 }
             }
             catch (JsonException)

@@ -198,6 +198,13 @@ public partial class DataHandling : Page
             return;
         }
 
+        var allocatedRows = selectedRows.Where(r => r.AllocatedQuantity > 0m).ToList();
+        if (allocatedRows.Count > 0)
+        {
+            SetStatus("Bereits zugewiesene Positionen koennen nicht als allgemeines Kleinmaterial markiert werden.", StatusMessageType.Warning);
+            return;
+        }
+
         foreach (var row in selectedRows)
         {
             await App.Api.SetInvoiceLineGeneralSmallMaterialAsync(row.Line.InvoiceLineId, true);
@@ -249,24 +256,6 @@ public partial class DataHandling : Page
 
         await LoadLinesAsync();
         SetStatus($"{selectedRows.Count} Position(en) wurden als Bestand/Lager markiert.", StatusMessageType.Success);
-    }
-
-    private async void UnmarkInventoryStock_Click(object sender, RoutedEventArgs e)
-    {
-        var selectedRows = LinesGrid.SelectedItems.OfType<InvoiceLineRow>().Where(r => r.IsInventoryStock).ToList();
-        if (selectedRows.Count == 0)
-        {
-            SetStatus("Bitte mindestens eine als Bestand/Lager markierte Position auswaehlen.", StatusMessageType.Warning);
-            return;
-        }
-
-        foreach (var row in selectedRows)
-        {
-            await App.Api.SetInvoiceLineInventoryStockAsync(row.Line.InvoiceLineId, false);
-        }
-
-        await LoadLinesAsync();
-        SetStatus($"{selectedRows.Count} Bestandsmarkierung(en) wurden entfernt.", StatusMessageType.Success);
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)

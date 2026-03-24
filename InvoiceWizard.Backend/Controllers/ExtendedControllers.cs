@@ -571,14 +571,22 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
 public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAccessor tenantAccessor) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<InvoiceLineItemDto>>> GetLines([FromQuery] bool showCompleted = true)
+    public async Task<ActionResult<IReadOnlyList<InvoiceLineItemDto>>> GetLines([FromQuery] bool showCompleted = true, [FromQuery] string? poolMode = null)
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
-        var lines = await db.InvoiceLines
+        var query = db.InvoiceLines
             .Where(x => x.TenantId == tenantId
                         && x.Invoice.InvoiceDirection == "Expense"
                         && x.Invoice.InvoiceStatus != "Review"
-                        && x.Invoice.AccountingCategory == "MaterialAndGoods")
+                        && x.Invoice.AccountingCategory == "MaterialAndGoods");
+        query = ((poolMode ?? "allocatable").Trim().ToLowerInvariant()) switch
+        {
+            "inventory" => query.Where(x => x.IsInventoryStock),
+            "generalsmallmaterial" => query.Where(x => x.IsGeneralSmallMaterial),
+            _ => query.Where(x => !x.IsInventoryStock && !x.IsGeneralSmallMaterial)
+        };
+
+        var lines = await query
             .Include(x => x.Invoice)
             .Include(x => x.Allocations).ThenInclude(x => x.Customer)
             .Include(x => x.Allocations).ThenInclude(x => x.Project)
@@ -663,11 +671,6 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             return ValidationProblem("Nur Materialpositionen aus Ausgaberechnungen koennen als allgemeines Kleinmaterial markiert werden.");
         }
 
-        if (request.IsGeneralSmallMaterial && line.Allocations.Count > 0)
-        {
-            return ValidationProblem("Bereits zugewiesene Positionen koennen nicht als allgemeines Kleinmaterial markiert werden.");
-        }
-
         line.IsGeneralSmallMaterial = request.IsGeneralSmallMaterial;
         if (request.IsGeneralSmallMaterial)
         {
@@ -696,11 +699,6 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             || !string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationProblem("Nur Materialpositionen aus Ausgaberechnungen koennen als Bestand/Lager markiert werden.");
-        }
-
-        if (request.IsInventoryStock && line.Allocations.Count > 0)
-        {
-            return ValidationProblem("Bereits zugewiesene Positionen koennen nicht als Bestand/Lager markiert werden.");
         }
 
         line.IsInventoryStock = request.IsInventoryStock;
