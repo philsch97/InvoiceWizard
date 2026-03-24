@@ -575,7 +575,9 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
     {
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var lines = await db.InvoiceLines
-            .Where(x => x.TenantId == tenantId && x.Invoice.InvoiceDirection == "Expense")
+            .Where(x => x.TenantId == tenantId
+                        && x.Invoice.InvoiceDirection == "Expense"
+                        && x.Invoice.InvoiceStatus != "Review")
             .Include(x => x.Invoice)
             .Include(x => x.Allocations).ThenInclude(x => x.Customer)
             .Include(x => x.Allocations).ThenInclude(x => x.Project)
@@ -836,6 +838,11 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
         if (!string.Equals(line.Invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationProblem("Nur Ausgaberechnungen koennen Projekten zugewiesen werden.");
+        }
+
+        if (string.Equals(line.Invoice.InvoiceStatus, "Review", StringComparison.OrdinalIgnoreCase))
+        {
+            return ValidationProblem("Positionen aus Rechnungen im Status 'Pruefen' koennen erst nach Abschluss der Pruefung zugewiesen werden.");
         }
 
         if (!string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
