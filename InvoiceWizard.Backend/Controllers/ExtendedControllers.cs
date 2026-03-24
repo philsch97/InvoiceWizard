@@ -577,7 +577,8 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
         var lines = await db.InvoiceLines
             .Where(x => x.TenantId == tenantId
                         && x.Invoice.InvoiceDirection == "Expense"
-                        && x.Invoice.InvoiceStatus != "Review")
+                        && x.Invoice.InvoiceStatus != "Review"
+                        && x.Invoice.AccountingCategory == "MaterialAndGoods")
             .Include(x => x.Invoice)
             .Include(x => x.Allocations).ThenInclude(x => x.Customer)
             .Include(x => x.Allocations).ThenInclude(x => x.Project)
