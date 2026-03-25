@@ -1,0 +1,55 @@
+<Window x:Class="InvoiceWizard.Dialogs.SelectDraftInvoiceDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Kunden-Entwurf auswaehlen"
+        Width="860"
+        Height="560"
+        MinWidth="760"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Kunden-Entwurf auswaehlen" Style="{StaticResource PageTitleStyle}" FontSize="26"/>
+            <TextBlock x:Name="DialogHintText"
+                       Margin="0,8,0,0"
+                       Text="Waehle den Entwurf aus, an den die aktuell offenen Positionen angehaengt werden sollen."
+                       Foreground="{StaticResource MutedTextBrush}"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,18,0,12">
+            <TextBlock Text="Suche" Style="{StaticResource MutedLabelStyle}"/>
+            <TextBox x:Name="SearchTextBox" TextChanged="SearchTextBox_TextChanged"/>
+        </StackPanel>
+
+        <DataGrid x:Name="DraftsGrid"
+                  Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  MouseDoubleClick="DraftsGrid_MouseDoubleClick"
+                  MinHeight="260">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Entwurf" Binding="{Binding DisplayNumber}" Width="150"/>
+                <DataGridTextColumn Header="Belegtyp" Binding="{Binding InvoiceDirectionLabel}" Width="150"/>
+                <DataGridTextColumn Header="Datum" Binding="{Binding InvoiceDate, StringFormat=dd.MM.yyyy}" Width="110"/>
+                <DataGridTextColumn Header="Lieferdatum" Binding="{Binding DeliveryDate, StringFormat=dd.MM.yyyy}" Width="110"/>
+                <DataGridTextColumn Header="Betreff" Binding="{Binding Subject}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <WrapPanel Grid.Row="3" Margin="0,18,0,0" HorizontalAlignment="Right">
+            <Button Width="170" Height="40" Margin="0,0,10,0" Content="Entwurf auswaehlen" Click="Confirm_Click"/>
+            <Button Width="120" Height="40" Style="{StaticResource SecondaryButtonStyle}" Content="Abbrechen" Click="Cancel_Click"/>
+        </WrapPanel>
+    </Grid>
+</Window>

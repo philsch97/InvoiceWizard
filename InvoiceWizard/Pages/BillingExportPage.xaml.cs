@@ -251,6 +251,203 @@ public partial class BillingExportPage : Page
         await CreateRevenueInvoiceAsync(saveAsDraft: true);
     }
 
+    private async void AppendToDraftInvoice_Click(object sender, RoutedEventArgs e)
+    {
+        if (CustomerCombo.SelectedItem is not CustomerEntity customer)
+        {
+            SetStatus("Bitte zuerst einen Kunden auswaehlen.", StatusMessageType.Warning);
+            return;
+        }
+
+        try
+        {
+            var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
+            var selectedProjectName = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.Name;
+            var selectedAllocationIds = AllocationsGrid.SelectedItems
+                .OfType<LineAllocationEntity>()
+                .Select(x => x.LineAllocationId)
+                .ToHashSet();
+            var selectedWorkEntryIds = WorkEntriesGrid.SelectedItems
+                .OfType<WorkTimeEntryEntity>()
+                .Select(x => x.WorkTimeEntryId)
+                .ToHashSet();
+            var hasExplicitSelection = selectedAllocationIds.Count > 0 || selectedWorkEntryIds.Count > 0;
+
+            var availableDrafts = (await App.Api.GetInvoicesAsync())
+                .Where(x => x.IsDraft && x.IsCustomerDocument && x.CustomerId == customer.CustomerId)
+                .OrderByDescending(x => x.InvoiceDate)
+                .ToList();
+
+            if (availableDrafts.Count == 0)
+            {
+                SetStatus("Fuer diesen Kunden gibt es noch keinen offenen Einnahme-Entwurf.", StatusMessageType.Warning);
+                return;
+            }
+
+            var draftDialog = new SelectDraftInvoiceDialog(availableDrafts, customer.Name)
+            {
+                Owner = Window.GetWindow(this)
+            };
+
+            if (draftDialog.ShowDialog() != true || draftDialog.SelectedDraft is null)
+            {
+                return;
+            }
+
+            var draftSummary = draftDialog.SelectedDraft;
+            var draftDetail = await App.Api.GetInvoiceAsync(draftSummary.InvoiceId);
+
+            var allAllocations = (await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId))
+                .Where(a => !hasExplicitSelection || selectedAllocationIds.Contains(a.LineAllocationId))
+                .OrderBy(GetAllocationInvoiceDate)
+                .ThenBy(GetAllocationPosition)
+                .ToList();
+            var allWorkEntries = (await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId))
+                .Where(w => !hasExplicitSelection || selectedWorkEntryIds.Contains(w.WorkTimeEntryId))
+                .OrderBy(w => w.WorkDate)
+                .ThenBy(w => w.StartTime)
+                .ToList();
+
+            var isCreditNote = string.Equals(draftDetail.InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase);
+            var allocations = FilterAllocationsForDocument(allAllocations, isCreditNote, hasExplicitSelection).ToList();
+            var workEntries = FilterWorkEntriesForDocument(allWorkEntries, isCreditNote, hasExplicitSelection).ToList();
+
+            if (allocations.Count == 0 && workEntries.Count == 0)
+            {
+                SetStatus(isCreditNote
+                    ? (hasExplicitSelection
+                        ? "Die markierten Positionen koennen nicht an diesen Gutschriftsentwurf angehaengt werden."
+                        : "Bitte fuer einen Gutschriftsentwurf zuerst die betroffenen Positionen markieren.")
+                    : (hasExplicitSelection
+                        ? "Die markierten Positionen sind nicht offen genug, um an den Entwurf angehaengt zu werden."
+                        : "Fuer diese Auswahl gibt es keine offenen Positionen zum Anhaengen an den Entwurf."),
+                    StatusMessageType.Warning);
+                return;
+            }
+
+            var hasAssignedSmallMaterial = allocations.Any(a => a.IsSmallMaterial);
+            if (!TryGetBillingOptions(hasAssignedSmallMaterial, out var billingOptions))
+            {
+                return;
+            }
+
+            var generatedLines = BuildGeneratedInvoiceLines(
+                allocations,
+                workEntries,
+                billingOptions.MarkupPercent,
+                billingOptions.SmallMaterialFlatFee,
+                billingOptions.SmallMaterialMode,
+                selectedProjectName,
+                draftDetail.ApplySmallBusinessRegulation,
+                isCreditNote);
+
+            if (generatedLines.Count == 0)
+            {
+                SetStatus("Es konnten keine berechenbaren Positionen fuer den ausgewaehlten Entwurf erstellt werden.", StatusMessageType.Warning);
+                return;
+            }
+
+            var existingLines = draftDetail.Lines
+                .OrderBy(x => x.Position)
+                .Select(ToManualLineInput)
+                .ToList();
+            var nextPosition = existingLines.Count == 0 ? 1 : existingLines.Max(x => x.Position) + 1;
+            foreach (var line in generatedLines)
+            {
+                existingLines.Add(new ManualInvoiceLineInput
+                {
+                    Position = nextPosition++,
+                    AccountingCategory = line.AccountingCategory,
+                    Description = line.Description,
+                    Quantity = line.Quantity,
+                    Unit = line.Unit,
+                    NetUnitPrice = line.UnitPrice,
+                    MetalSurcharge = 0m,
+                    GrossListPrice = 0m,
+                    GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(
+                        PricingHelper.CalculateRevenueGrossTotal(line.LineTotal, draftDetail.ApplySmallBusinessRegulation),
+                        line.Quantity),
+                    PriceBasisQuantity = 1m,
+                    GrossLineTotal = PricingHelper.CalculateRevenueGrossTotal(line.LineTotal, draftDetail.ApplySmallBusinessRegulation)
+                });
+            }
+
+            UpdateRevenueLineGrossAmounts(existingLines, draftDetail.ApplySmallBusinessRegulation);
+
+            var company = await App.Api.GetCompanyProfileAsync();
+            var pdfBytes = CustomerInvoicePdfService.Create(new CustomerInvoicePdfService.InvoiceDocument
+            {
+                Company = company,
+                Customer = customer,
+                InvoiceNumber = draftDetail.InvoiceNumber,
+                CustomerNumber = customer.CustomerNumber,
+                InvoiceDate = draftDetail.InvoiceDate,
+                DeliveryDate = draftDetail.DeliveryDate ?? draftDetail.InvoiceDate,
+                Subject = draftDetail.Subject,
+                InvoiceDirection = draftDetail.InvoiceDirection,
+                ApplySmallBusinessRegulation = draftDetail.ApplySmallBusinessRegulation,
+                IsDraft = true,
+                Lines = existingLines.Select(x => new CustomerInvoicePdfService.InvoiceLine
+                {
+                    Position = x.Position,
+                    Description = x.Description,
+                    Quantity = x.Quantity,
+                    Unit = x.Unit,
+                    UnitPrice = PricingHelper.NormalizeUnitPrice(x.NetUnitPrice, x.MetalSurcharge, x.PriceBasisQuantity),
+                    LineTotal = x.LineTotal
+                }).ToList()
+            });
+
+            await App.Api.UpdateInvoiceAsync(
+                draftDetail.InvoiceId,
+                draftDetail.InvoiceDirection,
+                "Draft",
+                draftDetail.InvoiceNumber,
+                draftDetail.InvoiceDate,
+                draftDetail.DeliveryDate,
+                draftDetail.PaymentDueDate,
+                draftDetail.CustomerId,
+                draftDetail.SupplierName,
+                draftDetail.AccountingCategory,
+                draftDetail.Subject,
+                draftDetail.ApplySmallBusinessRegulation,
+                PricingHelper.CalculateRevenueGrossTotal(existingLines.Sum(x => x.LineTotal), draftDetail.ApplySmallBusinessRegulation),
+                0m,
+                0m,
+                draftDetail.SourcePdfPath,
+                draftDetail.OriginalPdfFileName,
+                Convert.ToBase64String(pdfBytes),
+                ComputeSha256(pdfBytes),
+                existingLines,
+                hasSupplierInvoice: true);
+
+            foreach (var allocation in allocations)
+            {
+                await App.Api.UpdateAllocationExportAsync(allocation.LineAllocationId, allocation.ExportedMarkupPercent, allocation.ExportedUnitPrice, allocation.ExportedLineTotal);
+                if (!isCreditNote || string.IsNullOrWhiteSpace(allocation.CustomerInvoiceNumber))
+                {
+                    await App.Api.UpdateAllocationRevenueLinkAsync(allocation.LineAllocationId, draftDetail.InvoiceId, draftDetail.InvoiceNumber, false);
+                }
+            }
+
+            foreach (var workEntry in workEntries)
+            {
+                await App.Api.UpdateWorkTimeExportAsync(workEntry.WorkTimeEntryId, workEntry.ExportedUnitPrice, workEntry.ExportedLineTotal);
+                if (!isCreditNote || string.IsNullOrWhiteSpace(workEntry.CustomerInvoiceNumber))
+                {
+                    await App.Api.UpdateWorkTimeRevenueLinkAsync(workEntry.WorkTimeEntryId, draftDetail.InvoiceId, draftDetail.InvoiceNumber, false);
+                }
+            }
+
+            await LoadCustomerDataAsync();
+            SetStatus($"{generatedLines.Count} Position(en) wurden an Entwurf {draftDetail.InvoiceNumber} angehaengt.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Positionen konnten nicht an den Entwurf angehaengt werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private async Task CreateRevenueInvoiceAsync(bool saveAsDraft)
     {
         if (CustomerCombo.SelectedItem is not CustomerEntity customer)
@@ -1103,6 +1300,37 @@ public partial class BillingExportPage : Page
     {
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash);
+    }
+
+    private static void UpdateRevenueLineGrossAmounts(IEnumerable<ManualInvoiceLineInput> lines, bool applySmallBusinessRegulation)
+    {
+        foreach (var line in lines)
+        {
+            line.GrossLineTotal = PricingHelper.CalculateRevenueGrossTotal(line.LineTotal, applySmallBusinessRegulation);
+            line.GrossUnitPrice = PricingHelper.CalculateGrossUnitPriceFromLineTotal(line.GrossLineTotal, line.Quantity);
+        }
+    }
+
+    private static ManualInvoiceLineInput ToManualLineInput(InvoiceLineEntity line)
+    {
+        return new ManualInvoiceLineInput
+        {
+            Position = line.Position,
+            ArticleNumber = line.ArticleNumber,
+            Ean = line.Ean,
+            Description = line.Description,
+            Quantity = line.Quantity,
+            Unit = line.Unit,
+            NetUnitPrice = line.NetUnitPrice,
+            MetalSurcharge = line.MetalSurcharge,
+            AccountingCategory = line.AccountingCategory,
+            GrossListPrice = line.GrossListPrice,
+            GrossUnitPrice = line.GrossUnitPrice,
+            PriceBasisQuantity = line.PriceBasisQuantity,
+            ShippingNetShare = line.ShippingNetShare,
+            ShippingGrossShare = line.ShippingGrossShare,
+            GrossLineTotal = line.GrossLineTotal
+        };
     }
 
     private static string SanitizeFileName(string value)
