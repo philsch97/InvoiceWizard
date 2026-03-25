@@ -981,7 +981,7 @@ public partial class BillingExportPage : Page
     {
         EnsureAllocationCanBeBilled(allocation);
         var purchaseUnitPrice = GetPurchaseUnitPrice(allocation, useGrossPurchaseValues);
-        var salesUnitPrice = PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
+        var salesUnitPrice = CalculateRevenueSalesUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation, useGrossPurchaseValues);
         allocation.ExportedMarkupPercent = markupPercent;
         allocation.ExportedUnitPrice = salesUnitPrice;
         allocation.ExportedLineTotal = salesUnitPrice * allocation.AllocatedQuantity;
@@ -1004,7 +1004,7 @@ public partial class BillingExportPage : Page
     {
         EnsureAllocationCanBeBilled(allocation);
         var purchaseUnitPrice = GetPurchaseUnitPrice(allocation, useGrossPurchaseValues);
-        var salesUnitPrice = PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
+        var salesUnitPrice = CalculateRevenueSalesUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation, useGrossPurchaseValues);
         allocation.ExportedMarkupPercent = markupPercent;
         allocation.ExportedUnitPrice = salesUnitPrice;
         allocation.ExportedLineTotal = salesUnitPrice * allocation.AllocatedQuantity;
@@ -1034,7 +1034,7 @@ public partial class BillingExportPage : Page
             foreach (var allocation in group)
             {
                 var purchaseUnitPrice = GetPurchaseUnitPrice(allocation, useGrossPurchaseValues);
-                var salesUnitPrice = PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
+                var salesUnitPrice = CalculateRevenueSalesUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation, useGrossPurchaseValues);
                 var lineTotal = salesUnitPrice * allocation.AllocatedQuantity;
                 allocation.ExportedMarkupPercent = markupPercent;
                 allocation.ExportedUnitPrice = salesUnitPrice;
@@ -1092,6 +1092,16 @@ public partial class BillingExportPage : Page
 
     private static decimal ApplyDocumentSign(decimal amount, bool isCreditNote)
         => isCreditNote ? -amount : amount;
+
+    private static decimal CalculateRevenueSalesUnitPrice(decimal purchaseUnitPrice, decimal markupPercent, bool applySmallBusinessRegulation, bool useGrossPurchaseValues)
+    {
+        if (applySmallBusinessRegulation && useGrossPurchaseValues)
+        {
+            return PricingHelper.ApplyMarkup(purchaseUnitPrice, markupPercent);
+        }
+
+        return PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
+    }
 
     private static IEnumerable<LineAllocationEntity> FilterAllocationsForDocument(IEnumerable<LineAllocationEntity> allocations, bool isCreditNote, bool hasExplicitSelection)
     {
