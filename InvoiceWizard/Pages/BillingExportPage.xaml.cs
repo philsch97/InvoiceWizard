@@ -832,13 +832,22 @@ public partial class BillingExportPage : Page
         });
     }
 
-    private decimal GetPurchaseUnitPrice(LineAllocationEntity allocation)
+    private decimal GetPurchaseUnitPrice(LineAllocationEntity allocation, bool useGrossPurchaseValues = false)
     {
-        if (allocation.CustomerUnitPrice > 0m)
+        if (allocation.InvoiceLine is not null)
         {
-            return PricingHelper.RoundUnitPrice(allocation.CustomerUnitPrice);
+            return useGrossPurchaseValues
+                ? GetDefaultAllocationGrossUnitPrice(allocation)
+                : GetDefaultAllocationNetUnitPrice(allocation);
         }
 
+        return allocation.CustomerUnitPrice <= 0m
+            ? 0m
+            : PricingHelper.RoundUnitPrice(allocation.CustomerUnitPrice);
+    }
+
+    private static decimal GetDefaultAllocationNetUnitPrice(LineAllocationEntity allocation)
+    {
         if (allocation.InvoiceLine is null)
         {
             return 0m;
@@ -855,6 +864,29 @@ public partial class BillingExportPage : Page
             allocation.InvoiceLine.PriceBasisQuantity);
     }
 
+    private static decimal GetDefaultAllocationGrossUnitPrice(LineAllocationEntity allocation)
+    {
+        if (allocation.InvoiceLine is null)
+        {
+            return 0m;
+        }
+
+        if (allocation.InvoiceLine.Quantity > 0m && allocation.InvoiceLine.GrossLineTotal > 0m)
+        {
+            return PricingHelper.RoundUnitPrice(allocation.InvoiceLine.GrossLineTotal / allocation.InvoiceLine.Quantity);
+        }
+
+        if (allocation.InvoiceLine.GrossUnitPrice > 0m)
+        {
+            return PricingHelper.RoundUnitPrice(allocation.InvoiceLine.GrossUnitPrice);
+        }
+
+        var netUnitPrice = GetDefaultAllocationNetUnitPrice(allocation);
+        return netUnitPrice <= 0m
+            ? 0m
+            : PricingHelper.RoundUnitPrice(PricingHelper.CalculateExpenseGrossTotal(netUnitPrice));
+    }
+
     private List<GeneratedInvoiceLine> BuildGeneratedInvoiceLines(
         IReadOnlyList<LineAllocationEntity> allocations,
         IReadOnlyList<WorkTimeEntryEntity> workEntries,
@@ -869,10 +901,11 @@ public partial class BillingExportPage : Page
         var position = 1;
         var regularAllocations = allocations.Where(a => !a.IsSmallMaterial).ToList();
         var smallMaterialAllocations = allocations.Where(a => a.IsSmallMaterial).ToList();
+        var useGrossPurchaseValues = applySmallBusinessRegulation;
 
         foreach (var allocation in regularAllocations)
         {
-            lines.Add(BuildRegularAllocationLine(allocation, markupPercent, applySmallBusinessRegulation, position++, isCreditNote));
+            lines.Add(BuildRegularAllocationLine(allocation, markupPercent, applySmallBusinessRegulation, useGrossPurchaseValues, position++, isCreditNote));
         }
 
         if (smallMaterialFlatFee > 0m)
@@ -886,12 +919,12 @@ public partial class BillingExportPage : Page
                 case "Einzeln berechnen":
                     foreach (var allocation in smallMaterialAllocations)
                     {
-                        lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, applySmallBusinessRegulation, position++, isCreditNote));
+                        lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, applySmallBusinessRegulation, useGrossPurchaseValues, position++, isCreditNote));
                     }
 
                     break;
                 case "Als Sammelposition":
-                    foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, applySmallBusinessRegulation, position, out position, isCreditNote))
+                    foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, applySmallBusinessRegulation, useGrossPurchaseValues, position, out position, isCreditNote))
                     {
                         lines.Add(groupedLine);
                     }
@@ -944,10 +977,10 @@ public partial class BillingExportPage : Page
         return lines.Where(x => x.LineTotal > 0m).ToList();
     }
 
-    private GeneratedInvoiceLine BuildRegularAllocationLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, int position, bool isCreditNote)
+    private GeneratedInvoiceLine BuildRegularAllocationLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, bool useGrossPurchaseValues, int position, bool isCreditNote)
     {
         EnsureAllocationCanBeBilled(allocation);
-        var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
+        var purchaseUnitPrice = GetPurchaseUnitPrice(allocation, useGrossPurchaseValues);
         var salesUnitPrice = PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
         allocation.ExportedMarkupPercent = markupPercent;
         allocation.ExportedUnitPrice = salesUnitPrice;
@@ -967,10 +1000,10 @@ public partial class BillingExportPage : Page
         };
     }
 
-    private GeneratedInvoiceLine BuildSmallMaterialSingleLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, int position, bool isCreditNote)
+    private GeneratedInvoiceLine BuildSmallMaterialSingleLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, bool useGrossPurchaseValues, int position, bool isCreditNote)
     {
         EnsureAllocationCanBeBilled(allocation);
-        var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
+        var purchaseUnitPrice = GetPurchaseUnitPrice(allocation, useGrossPurchaseValues);
         var salesUnitPrice = PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
         allocation.ExportedMarkupPercent = markupPercent;
         allocation.ExportedUnitPrice = salesUnitPrice;
@@ -990,7 +1023,7 @@ public partial class BillingExportPage : Page
         };
     }
 
-    private List<GeneratedInvoiceLine> BuildSmallMaterialGroupedLines(IReadOnlyList<LineAllocationEntity> allocations, decimal markupPercent, bool applySmallBusinessRegulation, int startPosition, out int nextPosition, bool isCreditNote)
+    private List<GeneratedInvoiceLine> BuildSmallMaterialGroupedLines(IReadOnlyList<LineAllocationEntity> allocations, decimal markupPercent, bool applySmallBusinessRegulation, bool useGrossPurchaseValues, int startPosition, out int nextPosition, bool isCreditNote)
     {
         var lines = new List<GeneratedInvoiceLine>();
         var position = startPosition;
@@ -1000,7 +1033,7 @@ public partial class BillingExportPage : Page
             var salesTotal = 0m;
             foreach (var allocation in group)
             {
-                var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
+                var purchaseUnitPrice = GetPurchaseUnitPrice(allocation, useGrossPurchaseValues);
                 var salesUnitPrice = PricingHelper.CalculateRevenueUnitPrice(purchaseUnitPrice, markupPercent, applySmallBusinessRegulation);
                 var lineTotal = salesUnitPrice * allocation.AllocatedQuantity;
                 allocation.ExportedMarkupPercent = markupPercent;
