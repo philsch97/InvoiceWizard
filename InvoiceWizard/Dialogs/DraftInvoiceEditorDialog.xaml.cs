@@ -11,6 +11,7 @@ public partial class DraftInvoiceEditorDialog : Window
 {
     private readonly ObservableCollection<ManualInvoiceLineInput> _lines;
     private bool _applySmallBusinessRegulation;
+    private readonly string _invoiceDirection;
 
     public DraftInvoiceEditorDialog(string invoiceNumber, string customerNumber, string customerName, GeneratedInvoiceOptions initialOptions, IEnumerable<ManualInvoiceLineInput> initialLines)
     {
@@ -22,6 +23,7 @@ public partial class DraftInvoiceEditorDialog : Window
         DeliveryDatePicker.SelectedDate = initialOptions.DeliveryDate.Date;
         SubjectText.Text = initialOptions.Subject;
         _applySmallBusinessRegulation = initialOptions.ApplySmallBusinessRegulation;
+        _invoiceDirection = initialOptions.InvoiceDirection;
         WithoutVatRadio.IsChecked = initialOptions.ApplySmallBusinessRegulation;
         WithVatRadio.IsChecked = !initialOptions.ApplySmallBusinessRegulation;
         _lines = new ObservableCollection<ManualInvoiceLineInput>(initialLines.Select(line => CloneLine(line)));
@@ -40,6 +42,7 @@ public partial class DraftInvoiceEditorDialog : Window
         _lines.Add(new ManualInvoiceLineInput
         {
             Position = _lines.Count + 1,
+            AccountingCategory = "MaterialAndGoods",
             Quantity = 1m,
             Unit = "ST",
             PriceBasisQuantity = 1m
@@ -96,7 +99,8 @@ public partial class DraftInvoiceEditorDialog : Window
             InvoiceDate = InvoiceDatePicker.SelectedDate ?? DateTime.Today,
             DeliveryDate = DeliveryDatePicker.SelectedDate.Value.Date,
             Subject = (SubjectText.Text ?? string.Empty).Trim(),
-            ApplySmallBusinessRegulation = WithoutVatRadio.IsChecked == true
+            ApplySmallBusinessRegulation = WithoutVatRadio.IsChecked == true,
+            InvoiceDirection = _invoiceDirection
         };
         ResultLines = normalizedLines;
         DialogResult = true;
@@ -188,6 +192,7 @@ public partial class DraftInvoiceEditorDialog : Window
             Description = line.Description,
             Quantity = line.Quantity,
             Unit = line.Unit,
+            AccountingCategory = line.AccountingCategory,
             NetUnitPrice = line.NetUnitPrice,
             MetalSurcharge = line.MetalSurcharge,
             GrossListPrice = line.GrossListPrice,

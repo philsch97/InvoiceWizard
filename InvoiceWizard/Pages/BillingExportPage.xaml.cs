@@ -280,28 +280,18 @@ public partial class BillingExportPage : Page
                 .ToHashSet();
             var hasExplicitSelection = selectedAllocationIds.Count > 0 || selectedWorkEntryIds.Count > 0;
 
-            var allocations = (await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId))
-                .Where(a => string.IsNullOrWhiteSpace(a.CustomerInvoiceNumber) && !a.RevenueInvoiceId.HasValue)
+            var allAllocations = (await App.Api.GetAllocationsAsync(customer.CustomerId, selectedProjectId))
                 .Where(a => !hasExplicitSelection || selectedAllocationIds.Contains(a.LineAllocationId))
                 .OrderBy(GetAllocationInvoiceDate)
                 .ThenBy(GetAllocationPosition)
                 .ToList();
-            var workEntries = (await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId))
-                .Where(w => string.IsNullOrWhiteSpace(w.CustomerInvoiceNumber) && !w.RevenueInvoiceId.HasValue)
+            var allWorkEntries = (await App.Api.GetWorkTimeEntriesAsync(customer.CustomerId, selectedProjectId))
                 .Where(w => !hasExplicitSelection || selectedWorkEntryIds.Contains(w.WorkTimeEntryId))
                 .OrderBy(w => w.WorkDate)
                 .ThenBy(w => w.StartTime)
                 .ToList();
 
-            if (allocations.Count == 0 && workEntries.Count == 0)
-            {
-                SetStatus(hasExplicitSelection
-                    ? "Die markierten Positionen sind nicht offen genug fuer eine Rechnung oder passen nicht zum aktuellen Filter."
-                    : "Fuer diese Auswahl gibt es keine offenen Positionen fuer eine Rechnung.", StatusMessageType.Warning);
-                return;
-            }
-
-            var hasAssignedSmallMaterial = allocations.Any(a => a.IsSmallMaterial);
+            var hasAssignedSmallMaterial = allAllocations.Any(a => a.IsSmallMaterial);
             if (!TryGetBillingOptions(hasAssignedSmallMaterial, out var billingOptions))
             {
                 return;
@@ -310,10 +300,11 @@ public partial class BillingExportPage : Page
             var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
             var smallMaterialMode = billingOptions.SmallMaterialMode;
 
-            var reservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId);
-            customer.CustomerNumber = reservation.CustomerNumber;
+            var invoiceReservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId, "Revenue");
+            var creditNoteReservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId, "RevenueReduction");
+            customer.CustomerNumber = invoiceReservation.CustomerNumber;
 
-            var dialog = new GenerateInvoiceDialog(reservation.InvoiceNumber, reservation.CustomerNumber, customer.Name, saveAsDraft)
+            var dialog = new GenerateInvoiceDialog(invoiceReservation.InvoiceNumber, creditNoteReservation.InvoiceNumber, invoiceReservation.CustomerNumber, customer.Name, saveAsDraft)
             {
                 Owner = Window.GetWindow(this)
             };
@@ -323,17 +314,36 @@ public partial class BillingExportPage : Page
                 return;
             }
 
+            var isCreditNote = string.Equals(dialog.Result.InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase);
+            var allocations = FilterAllocationsForDocument(allAllocations, isCreditNote, hasExplicitSelection).ToList();
+            var workEntries = FilterWorkEntriesForDocument(allWorkEntries, isCreditNote, hasExplicitSelection).ToList();
+
+            if (allocations.Count == 0 && workEntries.Count == 0)
+            {
+                SetStatus(isCreditNote
+                    ? (hasExplicitSelection
+                        ? "Die markierten Positionen koennen nicht fuer eine Gutschrift verwendet werden."
+                        : "Bitte fuer eine Gutschrift zuerst die betroffenen Positionen markieren.")
+                    : (hasExplicitSelection
+                        ? "Die markierten Positionen sind nicht offen genug fuer eine Rechnung oder passen nicht zum aktuellen Filter."
+                        : "Fuer diese Auswahl gibt es keine offenen Positionen fuer eine Rechnung."),
+                    StatusMessageType.Warning);
+                return;
+            }
+
             if (!saveAsDraft)
             {
                 var confirmation = MessageBox.Show(
-                    "Diese Rechnung wird jetzt final erstellt und kann danach nicht mehr bearbeitet werden.\n\nWenn spaeter ein Fehler auffaellt, muss die Rechnung storniert werden.\n\nWillst du die Rechnung jetzt verbindlich erzeugen?",
-                    "Rechnung verbindlich erzeugen",
+                    isCreditNote
+                        ? "Diese Gutschrift wird jetzt final erstellt und kann danach nicht mehr bearbeitet werden.\n\nWenn spaeter ein Fehler auffaellt, muss der Beleg storniert werden.\n\nWillst du die Gutschrift jetzt verbindlich erzeugen?"
+                        : "Diese Rechnung wird jetzt final erstellt und kann danach nicht mehr bearbeitet werden.\n\nWenn spaeter ein Fehler auffaellt, muss die Rechnung storniert werden.\n\nWillst du die Rechnung jetzt verbindlich erzeugen?",
+                    isCreditNote ? "Gutschrift verbindlich erzeugen" : "Rechnung verbindlich erzeugen",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
 
                 if (confirmation != MessageBoxResult.Yes)
                 {
-                    SetStatus("Rechnungserzeugung abgebrochen. Du kannst stattdessen auch zuerst einen Entwurf speichern.", StatusMessageType.Info);
+                    SetStatus($"{(isCreditNote ? "Gutschrift" : "Rechnung")}serzeugung abgebrochen. Du kannst stattdessen auch zuerst einen Entwurf speichern.", StatusMessageType.Info);
                     return;
                 }
             }
@@ -341,7 +351,7 @@ public partial class BillingExportPage : Page
             List<GeneratedInvoiceLine> invoiceLines;
             try
             {
-                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, smallMaterialMode, selectedProjectName, dialog.Result.ApplySmallBusinessRegulation);
+                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, smallMaterialMode, selectedProjectName, dialog.Result.ApplySmallBusinessRegulation, isCreditNote);
             }
             catch (Exception ex)
             {
@@ -377,6 +387,7 @@ public partial class BillingExportPage : Page
                     InvoiceDate = dialog.Result.InvoiceDate.Date,
                     DeliveryDate = dialog.Result.DeliveryDate.Date,
                     Subject = dialog.Result.Subject,
+                    InvoiceDirection = dialog.Result.InvoiceDirection,
                     IsDraft = saveAsDraft,
                     ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
                     Lines = invoiceLines.Select(x => new CustomerInvoicePdfService.InvoiceLine
@@ -401,7 +412,7 @@ public partial class BillingExportPage : Page
             try
             {
                 invoiceId = await App.Api.SaveInvoiceAsync(
-                    "Revenue",
+                    dialog.Result.InvoiceDirection,
                     saveAsDraft ? "Draft" : "Finalized",
                     dialog.Result.InvoiceNumber,
                     dialog.Result.InvoiceDate.Date,
@@ -422,6 +433,7 @@ public partial class BillingExportPage : Page
                     invoiceLines.Select(x => new ManualInvoiceLineInput
                     {
                         Position = x.Position,
+                        AccountingCategory = x.AccountingCategory,
                         Description = x.Description,
                         Quantity = x.Quantity,
                         Unit = x.Unit,
@@ -446,13 +458,19 @@ public partial class BillingExportPage : Page
                 foreach (var allocation in allocations)
                 {
                     await App.Api.UpdateAllocationExportAsync(allocation.LineAllocationId, allocation.ExportedMarkupPercent, allocation.ExportedUnitPrice, allocation.ExportedLineTotal);
-                    await App.Api.UpdateAllocationRevenueLinkAsync(allocation.LineAllocationId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                    if (!isCreditNote || string.IsNullOrWhiteSpace(allocation.CustomerInvoiceNumber))
+                    {
+                        await App.Api.UpdateAllocationRevenueLinkAsync(allocation.LineAllocationId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                    }
                 }
 
                 foreach (var workEntry in workEntries)
                 {
                     await App.Api.UpdateWorkTimeExportAsync(workEntry.WorkTimeEntryId, workEntry.ExportedUnitPrice, workEntry.ExportedLineTotal);
-                    await App.Api.UpdateWorkTimeRevenueLinkAsync(workEntry.WorkTimeEntryId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                    if (!isCreditNote || string.IsNullOrWhiteSpace(workEntry.CustomerInvoiceNumber))
+                    {
+                        await App.Api.UpdateWorkTimeRevenueLinkAsync(workEntry.WorkTimeEntryId, invoiceId, dialog.Result.InvoiceNumber, !saveAsDraft);
+                    }
                 }
             }
             catch (Exception ex)
@@ -462,8 +480,8 @@ public partial class BillingExportPage : Page
 
             await LoadCustomerDataAsync();
             SetStatus(saveAsDraft
-                ? $"Entwurf {dialog.Result.InvoiceNumber} wurde gespeichert und mit den offenen Positionen verknuepft."
-                : $"Rechnung {dialog.Result.InvoiceNumber} wurde erstellt und als PDF gespeichert.", StatusMessageType.Success);
+                ? $"Entwurf {dialog.Result.InvoiceNumber} wurde gespeichert."
+                : $"{(isCreditNote ? "Gutschrift" : "Rechnung")} {dialog.Result.InvoiceNumber} wurde erstellt und als PDF gespeichert.", StatusMessageType.Success);
         }
         catch (InvalidOperationException ex)
         {
@@ -647,7 +665,8 @@ public partial class BillingExportPage : Page
         decimal smallMaterialFlatFee,
         string smallMaterialMode,
         string? selectedProjectName,
-        bool applySmallBusinessRegulation)
+        bool applySmallBusinessRegulation,
+        bool isCreditNote)
     {
         var lines = new List<GeneratedInvoiceLine>();
         var position = 1;
@@ -656,12 +675,12 @@ public partial class BillingExportPage : Page
 
         foreach (var allocation in regularAllocations)
         {
-            lines.Add(BuildRegularAllocationLine(allocation, markupPercent, applySmallBusinessRegulation, position++));
+            lines.Add(BuildRegularAllocationLine(allocation, markupPercent, applySmallBusinessRegulation, position++, isCreditNote));
         }
 
         if (smallMaterialFlatFee > 0m)
         {
-            lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, position++));
+            lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, position++, isCreditNote));
         }
         else if (smallMaterialAllocations.Count > 0)
         {
@@ -670,12 +689,12 @@ public partial class BillingExportPage : Page
                 case "Einzeln berechnen":
                     foreach (var allocation in smallMaterialAllocations)
                     {
-                        lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, applySmallBusinessRegulation, position++));
+                        lines.Add(BuildSmallMaterialSingleLine(allocation, markupPercent, applySmallBusinessRegulation, position++, isCreditNote));
                     }
 
                     break;
                 case "Als Sammelposition":
-                    foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, applySmallBusinessRegulation, position, out position))
+                    foreach (var groupedLine in BuildSmallMaterialGroupedLines(smallMaterialAllocations, markupPercent, applySmallBusinessRegulation, position, out position, isCreditNote))
                     {
                         lines.Add(groupedLine);
                     }
@@ -719,15 +738,16 @@ public partial class BillingExportPage : Page
                 Description = description,
                 Quantity = totalHours,
                 Unit = "h",
-                UnitPrice = totalHours > 0m ? totalAmount / totalHours : totalAmount,
-                LineTotal = totalAmount
+                AccountingCategory = "Services",
+                UnitPrice = ApplyDocumentSign(totalHours > 0m ? totalAmount / totalHours : totalAmount, isCreditNote),
+                LineTotal = ApplyDocumentSign(totalAmount, isCreditNote)
             });
         }
 
         return lines.Where(x => x.LineTotal > 0m).ToList();
     }
 
-    private GeneratedInvoiceLine BuildRegularAllocationLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, int position)
+    private GeneratedInvoiceLine BuildRegularAllocationLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, int position, bool isCreditNote)
     {
         EnsureAllocationCanBeBilled(allocation);
         var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
@@ -739,17 +759,18 @@ public partial class BillingExportPage : Page
         return new GeneratedInvoiceLine
         {
             Position = position,
+            AccountingCategory = allocation.InvoiceLine?.AccountingCategory ?? "MaterialAndGoods",
             Description = allocation.Project is null
                 ? GetAllocationDescription(allocation)
                 : $"[{allocation.Project.Name}] {GetAllocationDescription(allocation)}",
             Quantity = allocation.AllocatedQuantity,
             Unit = GetAllocationUnit(allocation),
-            UnitPrice = salesUnitPrice,
-            LineTotal = allocation.ExportedLineTotal
+            UnitPrice = ApplyDocumentSign(salesUnitPrice, isCreditNote),
+            LineTotal = ApplyDocumentSign(allocation.ExportedLineTotal, isCreditNote)
         };
     }
 
-    private GeneratedInvoiceLine BuildSmallMaterialSingleLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, int position)
+    private GeneratedInvoiceLine BuildSmallMaterialSingleLine(LineAllocationEntity allocation, decimal markupPercent, bool applySmallBusinessRegulation, int position, bool isCreditNote)
     {
         EnsureAllocationCanBeBilled(allocation);
         var purchaseUnitPrice = GetPurchaseUnitPrice(allocation);
@@ -761,17 +782,18 @@ public partial class BillingExportPage : Page
         return new GeneratedInvoiceLine
         {
             Position = position,
+            AccountingCategory = "MaterialAndGoods",
             Description = allocation.Project is null
                 ? $"Kleinmaterial: {GetAllocationDescription(allocation)}"
                 : $"[{allocation.Project.Name}] Kleinmaterial: {GetAllocationDescription(allocation)}",
             Quantity = allocation.AllocatedQuantity,
             Unit = GetAllocationUnit(allocation),
-            UnitPrice = salesUnitPrice,
-            LineTotal = allocation.ExportedLineTotal
+            UnitPrice = ApplyDocumentSign(salesUnitPrice, isCreditNote),
+            LineTotal = ApplyDocumentSign(allocation.ExportedLineTotal, isCreditNote)
         };
     }
 
-    private List<GeneratedInvoiceLine> BuildSmallMaterialGroupedLines(IReadOnlyList<LineAllocationEntity> allocations, decimal markupPercent, bool applySmallBusinessRegulation, int startPosition, out int nextPosition)
+    private List<GeneratedInvoiceLine> BuildSmallMaterialGroupedLines(IReadOnlyList<LineAllocationEntity> allocations, decimal markupPercent, bool applySmallBusinessRegulation, int startPosition, out int nextPosition, bool isCreditNote)
     {
         var lines = new List<GeneratedInvoiceLine>();
         var position = startPosition;
@@ -794,11 +816,12 @@ public partial class BillingExportPage : Page
             lines.Add(new GeneratedInvoiceLine
             {
                 Position = position++,
+                AccountingCategory = "MaterialAndGoods",
                 Description = $"[{group.Key}] Kleinmaterial laut Nachweis",
                 Quantity = 1m,
                 Unit = "Pauschale",
-                UnitPrice = salesTotal,
-                LineTotal = salesTotal
+                UnitPrice = ApplyDocumentSign(salesTotal, isCreditNote),
+                LineTotal = ApplyDocumentSign(salesTotal, isCreditNote)
             });
         }
 
@@ -806,7 +829,7 @@ public partial class BillingExportPage : Page
         return lines;
     }
 
-    private GeneratedInvoiceLine BuildSmallMaterialFlatFeeLine(IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, int position)
+    private GeneratedInvoiceLine BuildSmallMaterialFlatFeeLine(IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, int position, bool isCreditNote)
     {
         if (allocations.Count > 0)
         {
@@ -828,12 +851,36 @@ public partial class BillingExportPage : Page
         return new GeneratedInvoiceLine
         {
             Position = position,
+            AccountingCategory = "MaterialAndGoods",
             Description = $"[{label}] Kleinmaterial-Pauschale",
             Quantity = 1m,
             Unit = "Pauschale",
-            UnitPrice = flatFee,
-            LineTotal = flatFee
+            UnitPrice = ApplyDocumentSign(flatFee, isCreditNote),
+            LineTotal = ApplyDocumentSign(flatFee, isCreditNote)
         };
+    }
+
+    private static decimal ApplyDocumentSign(decimal amount, bool isCreditNote)
+        => isCreditNote ? -amount : amount;
+
+    private static IEnumerable<LineAllocationEntity> FilterAllocationsForDocument(IEnumerable<LineAllocationEntity> allocations, bool isCreditNote, bool hasExplicitSelection)
+    {
+        if (isCreditNote)
+        {
+            return hasExplicitSelection ? allocations : [];
+        }
+
+        return allocations.Where(a => string.IsNullOrWhiteSpace(a.CustomerInvoiceNumber) && !a.RevenueInvoiceId.HasValue);
+    }
+
+    private static IEnumerable<WorkTimeEntryEntity> FilterWorkEntriesForDocument(IEnumerable<WorkTimeEntryEntity> workEntries, bool isCreditNote, bool hasExplicitSelection)
+    {
+        if (isCreditNote)
+        {
+            return hasExplicitSelection ? workEntries : [];
+        }
+
+        return workEntries.Where(w => string.IsNullOrWhiteSpace(w.CustomerInvoiceNumber) && !w.RevenueInvoiceId.HasValue);
     }
 
     private static string ResolveSmallMaterialLabel(string? selectedProjectName, IReadOnlyList<LineAllocationEntity> allocations)
@@ -1067,6 +1114,7 @@ public partial class BillingExportPage : Page
     private sealed class GeneratedInvoiceLine
     {
         public int Position { get; set; }
+        public string AccountingCategory { get; set; } = "MaterialAndGoods";
         public string Description { get; set; } = "";
         public decimal Quantity { get; set; }
         public string Unit { get; set; } = "";

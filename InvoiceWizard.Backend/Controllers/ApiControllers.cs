@@ -571,7 +571,7 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
         var openWorkTimeCount = await db.WorkTimeEntries.CountAsync(x => x.TenantId == tenantId && x.ProjectId == project.ProjectId && string.IsNullOrWhiteSpace(x.CustomerInvoiceNumber), HttpContext.RequestAborted);
         var openDraftInvoiceCount = await db.Invoices.CountAsync(x =>
             x.TenantId == tenantId
-            && x.InvoiceDirection == "Revenue"
+            && (x.InvoiceDirection == "Revenue" || x.InvoiceDirection == "RevenueReduction")
             && x.InvoiceStatus == "Draft"
             && (x.Lines.Any(l => l.Allocations.Any(a => a.ProjectId == project.ProjectId))
                 || db.WorkTimeEntries.Any(w => w.TenantId == tenantId && w.ProjectId == project.ProjectId && w.RevenueInvoiceId == x.InvoiceId)),
@@ -617,7 +617,7 @@ public class ProjectsController(InvoiceWizardDbContext db, ICurrentTenantAccesso
     {
         var draftRevenueInvoiceCount = await db.Invoices.CountAsync(x =>
             x.TenantId == tenantId
-            && x.InvoiceDirection == "Revenue"
+            && (x.InvoiceDirection == "Revenue" || x.InvoiceDirection == "RevenueReduction")
             && x.InvoiceStatus == "Draft"
             && (x.Lines.Any(l => l.Allocations.Any(a => a.ProjectId == projectId))
                 || db.WorkTimeEntries.Any(w => w.TenantId == tenantId && w.ProjectId == projectId && w.RevenueInvoiceId == x.InvoiceId)),

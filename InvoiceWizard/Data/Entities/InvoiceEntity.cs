@@ -31,8 +31,18 @@ public class InvoiceEntity
     public string ContentHash { get; set; } = "";
     public string DisplayNumber => HasSupplierInvoice ? InvoiceNumber : "Keine Rechnung";
     public string ExpenseStatus => HasSupplierInvoice ? "Mit Rechnung" : "Ohne Rechnung";
-    public string InvoiceDirectionLabel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) ? "Einnahme" : "Ausgabe";
-    public string PartyLabel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) ? "Kunde / Auftraggeber" : "Lieferant";
+    public string InvoiceDirectionLabel => InvoiceDirection switch
+    {
+        "Revenue" => "Einnahme",
+        "RevenueReduction" => "Einnahmenminderung",
+        "ExpenseReduction" => "Ausgabenminderung",
+        _ => "Ausgabe"
+    };
+    public string PartyLabel => IsCustomerDocument ? "Kunde / Auftraggeber" : "Lieferant";
+    public bool IsCustomerDocument => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase);
+    public bool IsCreditNote => string.Equals(InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase);
     public bool IsDraft => string.Equals(InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase);
     public bool IsReview => string.Equals(InvoiceStatus, "Review", StringComparison.OrdinalIgnoreCase);
     public bool IsFinalized => string.Equals(InvoiceStatus, "Finalized", StringComparison.OrdinalIgnoreCase);
@@ -44,12 +54,14 @@ public class InvoiceEntity
         "Cancelled" => "Storniert",
         _ => "Final"
     };
-    public bool CanEditDraft => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && IsDraft;
+    public bool CanEditDraft => IsCustomerDocument && IsDraft;
     public bool CanFinalizeDraft => CanEditDraft;
-    public bool CanLoadForReview => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase) && IsReview;
-    public bool CanCancel => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && !IsCancelled;
+    public bool CanLoadForReview => (string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase)) && IsReview;
+    public bool CanCancel => IsCustomerDocument && !IsCancelled;
     public bool CanDelete => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
-        || (string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase) && IsDraft);
+        || string.Equals(InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase)
+        || (IsCustomerDocument && IsDraft);
     public string AccountingCategoryLabel => AccountingCategory switch
     {
         "Tools" => "Werkzeug",

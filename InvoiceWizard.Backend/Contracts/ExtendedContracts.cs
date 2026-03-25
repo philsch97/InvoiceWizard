@@ -24,6 +24,7 @@ public class InvoiceLineItemDto
     public decimal PriceBasisQuantity { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
+    public string LineAccountingCategory { get; set; } = "MaterialAndGoods";
     public bool IsGeneralSmallMaterial { get; set; }
     public bool IsInventoryStock { get; set; }
     public bool IsPaid { get; set; }
@@ -141,6 +142,7 @@ public class ReserveRevenueInvoiceNumberRequest
 {
     [Range(1, int.MaxValue)]
     public int CustomerId { get; set; }
+    public string InvoiceDirection { get; set; } = "Revenue";
 }
 
 public class ReserveRevenueInvoiceNumberResponse
@@ -162,6 +164,7 @@ public class UploadInvoicePdfRequest
 public class SaveInvoiceLineRequest
 {
     public int Position { get; set; }
+    public string AccountingCategory { get; set; } = "MaterialAndGoods";
     public string ArticleNumber { get; set; } = "";
     public string Ean { get; set; } = "";
     public string Description { get; set; } = "";

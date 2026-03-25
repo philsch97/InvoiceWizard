@@ -33,7 +33,9 @@ public partial class Datenimport : Page
     private readonly List<KeyValuePair<string, string>> _invoiceDirections =
     [
         new("Ausgaberechnung", "Expense"),
-        new("Einnahmerechnung", "Revenue")
+        new("Ausgabenminderung", "ExpenseReduction"),
+        new("Einnahmerechnung", "Revenue"),
+        new("Einnahmenminderung", "RevenueReduction")
     ];
     private readonly List<KeyValuePair<string, string>> _accountingCategories =
     [
@@ -374,19 +376,26 @@ public partial class Datenimport : Page
     {
         var noSupplierInvoice = NoSupplierInvoiceCheckBox.IsChecked == true;
         var invoiceDirection = InvoiceDirectionCombo.SelectedValue as string ?? "Expense";
-        var isRevenue = string.Equals(invoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase);
+        var isCustomerDocument = string.Equals(invoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(invoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase);
+        var isReduction = string.Equals(invoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(invoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase);
 
         InvoiceNumberLabel.Text = noSupplierInvoice ? "Interne Referenz optional" : "Rechnungsnummer * Pflicht";
         InvoiceDateLabel.Text = noSupplierInvoice ? "Erfassungsdatum * Pflicht" : "Rechnungsdatum * Pflicht";
-        PartyLabelText.Text = isRevenue ? "Kunde / Auftraggeber optional" : "Lieferant optional";
-        NoSupplierInvoiceCheckBox.Content = isRevenue
+        PartyLabelText.Text = isCustomerDocument ? "Kunde / Auftraggeber optional" : "Lieferant optional";
+        NoSupplierInvoiceCheckBox.Content = isCustomerDocument
             ? "Ohne Rechnungsbeleg erfassen"
             : "Ohne Rechnungsbeleg erfassen (Altbestand / manuell hinzugefuegt)";
 
         AccountingCategoryCombo.IsEnabled = true;
-        InvoiceDirectionHintText.Text = isRevenue
-            ? "Einnahmerechnungen werden fuer Zahlungseingang und Archiv getrennt von Material-Einkaeufen gespeichert."
-            : "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.";
+        InvoiceDirectionHintText.Text = isCustomerDocument
+            ? (isReduction
+                ? "Einnahmenminderungen werden als Kunden-Gutschriften oder Erlöskorrekturen getrennt im Archiv gespeichert."
+                : "Einnahmerechnungen werden fuer Zahlungseingang und Archiv getrennt von Material-Einkaeufen gespeichert.")
+            : (isReduction
+                ? "Ausgabenminderungen bilden Lieferanten-Gutschriften oder Kostenkorrekturen ab und werden nicht zugewiesen."
+                : "Ausgaberechnungen koennen je nach Kategorie in Material- und Kostenprozessen weiterverarbeitet werden.");
 
         SaveInvoiceButton.Content = noSupplierInvoice ? "Positionen speichern" : "Rechnung speichern";
         InvoiceTotalAmountLabel.Text = noSupplierInvoice ? "Rechnungsbetrag optional" : "Rechnungsbetrag * Pflicht";
@@ -613,6 +622,7 @@ public partial class Datenimport : Page
                 Unit = x.Unit,
                 NetUnitPrice = x.NetUnitPrice,
                 MetalSurcharge = x.MetalSurcharge,
+                AccountingCategory = x.AccountingCategory,
                 GrossListPrice = x.GrossListPrice,
                 GrossUnitPrice = x.GrossUnitPrice,
                 PriceBasisQuantity = x.PriceBasisQuantity,
@@ -630,7 +640,8 @@ public partial class Datenimport : Page
                     InvoiceDate = detail.InvoiceDate,
                     DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
                     Subject = detail.Subject,
-                    ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
+                    ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation,
+                    InvoiceDirection = detail.InvoiceDirection
                 },
                 lines)
             {
@@ -664,6 +675,7 @@ public partial class Datenimport : Page
                 InvoiceDate = dialog.Result.InvoiceDate.Date,
                 DeliveryDate = dialog.Result.DeliveryDate.Date,
                 Subject = dialog.Result.Subject,
+                InvoiceDirection = dialog.Result.InvoiceDirection,
                 ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
                 IsDraft = true,
                 Lines = lines.Select(x => new CustomerInvoicePdfService.InvoiceLine
@@ -680,7 +692,7 @@ public partial class Datenimport : Page
             await File.WriteAllBytesAsync(saveDialog.FileName, pdfBytes);
             await App.Api.UpdateInvoiceAsync(
                 detail.InvoiceId,
-                "Revenue",
+                dialog.Result.InvoiceDirection,
                 "Draft",
                 detail.InvoiceNumber,
                 dialog.Result.InvoiceDate.Date,
@@ -732,6 +744,7 @@ public partial class Datenimport : Page
 
             var dialog = new GenerateInvoiceDialog(
                 detail.InvoiceNumber,
+                detail.InvoiceNumber,
                 customer.CustomerNumber,
                 customer.Name,
                 isDraftMode: false,
@@ -742,7 +755,8 @@ public partial class Datenimport : Page
                     InvoiceDate = finalizationDate,
                     DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
                     Subject = detail.Subject,
-                    ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
+                    ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation,
+                    InvoiceDirection = detail.InvoiceDirection
                 })
             {
                 Owner = Window.GetWindow(this)
@@ -763,6 +777,7 @@ public partial class Datenimport : Page
                 Unit = x.Unit,
                 NetUnitPrice = x.NetUnitPrice,
                 MetalSurcharge = x.MetalSurcharge,
+                AccountingCategory = x.AccountingCategory,
                 GrossListPrice = x.GrossListPrice,
                 GrossUnitPrice = x.GrossUnitPrice,
                 PriceBasisQuantity = x.PriceBasisQuantity,
@@ -789,6 +804,7 @@ public partial class Datenimport : Page
                 InvoiceDate = finalizationDate,
                 DeliveryDate = dialog.Result.DeliveryDate.Date,
                 Subject = dialog.Result.Subject,
+                InvoiceDirection = dialog.Result.InvoiceDirection,
                 ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
                 IsDraft = false,
                 Lines = lines.Select(x => new CustomerInvoicePdfService.InvoiceLine
@@ -805,7 +821,7 @@ public partial class Datenimport : Page
             await File.WriteAllBytesAsync(saveDialog.FileName, pdfBytes);
             await App.Api.UpdateInvoiceAsync(
                 detail.InvoiceId,
-                "Revenue",
+                dialog.Result.InvoiceDirection,
                 "Draft",
                 detail.InvoiceNumber,
                 finalizationDate,
@@ -1478,6 +1494,7 @@ public partial class Datenimport : Page
                     .Select(line => new ManualInvoiceLineInput
                     {
                         Position = line.Position,
+                        AccountingCategory = importedInvoice.AccountingCategory,
                         ArticleNumber = line.ArticleNumber,
                         Ean = line.Ean,
                         Description = line.Description,
@@ -1544,6 +1561,7 @@ public partial class Datenimport : Page
             : detail.Lines.OrderBy(x => x.Position).Select(line => new ManualInvoiceLineInput
             {
                 Position = line.Position,
+                AccountingCategory = line.AccountingCategory,
                 ArticleNumber = line.ArticleNumber,
                 Ean = line.Ean,
                 Description = line.Description,
@@ -1599,6 +1617,7 @@ public partial class Datenimport : Page
         return new ManualInvoiceLineInput
         {
             Position = line.Position,
+            AccountingCategory = line.AccountingCategory,
             ArticleNumber = line.ArticleNumber,
             Ean = line.Ean,
             Description = line.Description,

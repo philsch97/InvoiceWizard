@@ -111,6 +111,7 @@ public class InvoiceLine
     public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
+    public string AccountingCategory { get; set; } = "MaterialAndGoods";
     public bool IsGeneralSmallMaterial { get; set; }
     public bool IsInventoryStock { get; set; }
     public bool IsPaid { get; set; }

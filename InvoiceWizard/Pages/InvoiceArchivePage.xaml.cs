@@ -88,7 +88,8 @@ public partial class InvoiceArchivePage : Page
                 InvoiceDate = finalizationDate,
                 DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
                 Subject = detail.Subject,
-                ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
+                ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation,
+                InvoiceDirection = detail.InvoiceDirection
             };
 
             var lines = detail.Lines
@@ -103,6 +104,7 @@ public partial class InvoiceArchivePage : Page
                     Unit = line.Unit,
                     NetUnitPrice = line.NetUnitPrice,
                     MetalSurcharge = line.MetalSurcharge,
+                    AccountingCategory = line.AccountingCategory,
                     GrossListPrice = line.GrossListPrice,
                     GrossUnitPrice = line.GrossUnitPrice,
                     PriceBasisQuantity = line.PriceBasisQuantity,
@@ -132,6 +134,7 @@ public partial class InvoiceArchivePage : Page
                 InvoiceDate = finalizationDate,
                 DeliveryDate = dialog.Result.DeliveryDate.Date,
                 Subject = dialog.Result.Subject,
+                InvoiceDirection = dialog.Result.InvoiceDirection,
                 ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
                 IsDraft = true,
                 Lines = lines.Select(x => new CustomerInvoicePdfService.InvoiceLine
@@ -147,7 +150,7 @@ public partial class InvoiceArchivePage : Page
 
             await App.Api.UpdateInvoiceAsync(
                 detail.InvoiceId,
-                "Revenue",
+                dialog.Result.InvoiceDirection,
                 "Draft",
                 detail.InvoiceNumber,
                 finalizationDate,
@@ -204,10 +207,11 @@ public partial class InvoiceArchivePage : Page
                 InvoiceDate = finalizationDate,
                 DeliveryDate = detail.DeliveryDate ?? detail.InvoiceDate,
                 Subject = detail.Subject,
-                ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation
+                ApplySmallBusinessRegulation = detail.ApplySmallBusinessRegulation,
+                InvoiceDirection = detail.InvoiceDirection
             };
 
-            var dialog = new GenerateInvoiceDialog(detail.InvoiceNumber, customer.CustomerNumber, customer.Name, false, options)
+            var dialog = new GenerateInvoiceDialog(detail.InvoiceNumber, detail.InvoiceNumber, customer.CustomerNumber, customer.Name, false, options)
             {
                 Owner = Window.GetWindow(this)
             };
@@ -240,6 +244,7 @@ public partial class InvoiceArchivePage : Page
                     Unit = line.Unit,
                     NetUnitPrice = line.NetUnitPrice,
                     MetalSurcharge = line.MetalSurcharge,
+                    AccountingCategory = line.AccountingCategory,
                     GrossListPrice = line.GrossListPrice,
                     GrossUnitPrice = line.GrossUnitPrice,
                     PriceBasisQuantity = line.PriceBasisQuantity,
@@ -257,6 +262,7 @@ public partial class InvoiceArchivePage : Page
                 InvoiceDate = finalizationDate,
                 DeliveryDate = dialog.Result.DeliveryDate.Date,
                 Subject = dialog.Result.Subject,
+                InvoiceDirection = dialog.Result.InvoiceDirection,
                 ApplySmallBusinessRegulation = dialog.Result.ApplySmallBusinessRegulation,
                 IsDraft = false,
                 Lines = lines.Select(x => new CustomerInvoicePdfService.InvoiceLine
@@ -273,7 +279,7 @@ public partial class InvoiceArchivePage : Page
             await File.WriteAllBytesAsync(saveDialog.FileName, pdfBytes);
             await App.Api.UpdateInvoiceAsync(
                 detail.InvoiceId,
-                "Revenue",
+                dialog.Result.InvoiceDirection,
                 "Draft",
                 detail.InvoiceNumber,
                 finalizationDate,

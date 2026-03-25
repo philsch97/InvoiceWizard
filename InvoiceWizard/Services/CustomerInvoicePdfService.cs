@@ -33,9 +33,13 @@ public static partial class CustomerInvoicePdfService
         public DateTime InvoiceDate { get; set; }
         public DateTime DeliveryDate { get; set; }
         public string Subject { get; set; } = "";
+        public string InvoiceDirection { get; set; } = "Revenue";
         public bool ApplySmallBusinessRegulation { get; set; }
         public bool IsDraft { get; set; }
         public List<InvoiceLine> Lines { get; set; } = new();
+        public bool IsCreditNote => string.Equals(InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase);
+        public string DocumentTitle => IsCreditNote ? "Gutschrift" : "Rechnung";
         public decimal NetTotal => Lines.Sum(x => x.LineTotal);
         public decimal VatAmount => PricingHelper.CalculateRevenueVatAmount(NetTotal, ApplySmallBusinessRegulation);
         public decimal TotalAmount => PricingHelper.CalculateRevenueGrossTotal(NetTotal, ApplySmallBusinessRegulation);
@@ -87,7 +91,7 @@ public static partial class CustomerInvoicePdfService
             var muted = new DeviceRgb(96, 108, 128);
 
             document.Add(BuildTopSection(invoice, bold, font, muted));
-            document.Add(new Paragraph("Rechnung").SetFont(bold).SetFontSize(18).SetMarginTop(18).SetMarginBottom(8));
+            document.Add(new Paragraph(invoice.DocumentTitle).SetFont(bold).SetFontSize(18).SetMarginTop(18).SetMarginBottom(8));
             document.Add(BuildMetaTable(invoice, bold, font, accent));
             document.Add(new Paragraph(string.IsNullOrWhiteSpace(invoice.Subject) ? "Unsere Lieferungen/Leistungen stellen wir Ihnen wie folgt in Rechnung." : invoice.Subject)
                 .SetFont(font)
@@ -101,7 +105,7 @@ public static partial class CustomerInvoicePdfService
                 if (i > 0)
                 {
                     document.Add(new AreaBreak(AreaBreakType.NEXT_PAGE));
-                    document.Add(new Paragraph($"Rechnungsnummer: {invoice.InvoiceNumber}")
+                    document.Add(new Paragraph($"{(invoice.IsCreditNote ? "Gutschriftsnummer" : "Rechnungsnummer")}: {invoice.InvoiceNumber}")
                         .SetFont(font)
                         .SetFontSize(10)
                         .SetMarginTop(0)
@@ -202,11 +206,11 @@ public static partial class CustomerInvoicePdfService
         pdf.GetCatalog().SetLang(new PdfString("de-DE"));
 
         var info = pdf.GetDocumentInfo();
-        info.SetTitle($"Rechnung {invoice.InvoiceNumber}");
+        info.SetTitle($"{invoice.DocumentTitle} {invoice.InvoiceNumber}");
         info.SetAuthor(Safe(invoice.Company.CompanyName));
         info.SetCreator("InvoiceWizard");
         info.SetProducer("InvoiceWizard");
-        info.SetSubject(string.IsNullOrWhiteSpace(invoice.Subject) ? "Rechnung" : invoice.Subject);
+        info.SetSubject(string.IsNullOrWhiteSpace(invoice.Subject) ? invoice.DocumentTitle : invoice.Subject);
 
         if (!invoice.IsDraft)
         {
@@ -229,8 +233,8 @@ public static partial class CustomerInvoicePdfService
         XNamespace pdfaProperty = "http://www.aiim.org/pdfa/ns/property#";
         XNamespace fx = "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#";
 
-        var title = $"Rechnung {invoice.InvoiceNumber}";
-        var subject = string.IsNullOrWhiteSpace(invoice.Subject) ? "Rechnung" : invoice.Subject;
+        var title = $"{invoice.DocumentTitle} {invoice.InvoiceNumber}";
+        var subject = string.IsNullOrWhiteSpace(invoice.Subject) ? invoice.DocumentTitle : invoice.Subject;
 
         var extensionProperties = new[]
         {
@@ -353,8 +357,8 @@ public static partial class CustomerInvoicePdfService
         var meta = new Table(UnitValue.CreatePercentArray(new float[] { 1f, 1f })).UseAllAvailableWidth();
         meta.SetBorder(new SolidBorder(accent, 1));
         meta.SetFixedLayout();
-        AddMetaRow(meta, "Rechnungsnummer", invoice.InvoiceNumber, bold, font);
-        AddMetaRow(meta, "Rechnungsdatum", invoice.InvoiceDate.ToString("dd.MM.yyyy"), bold, font);
+        AddMetaRow(meta, invoice.IsCreditNote ? "Gutschriftsnummer" : "Rechnungsnummer", invoice.InvoiceNumber, bold, font);
+        AddMetaRow(meta, invoice.IsCreditNote ? "Gutschriftsdatum" : "Rechnungsdatum", invoice.InvoiceDate.ToString("dd.MM.yyyy"), bold, font);
         AddMetaRow(meta, "Lieferdatum", invoice.DeliveryDate.ToString("dd.MM.yyyy"), bold, font);
 
         wrapper.AddCell(new Cell().Add(left).SetBorder(Border.NO_BORDER).SetPadding(0).SetVerticalAlignment(VerticalAlignment.TOP));
@@ -668,13 +672,13 @@ public static partial class CustomerInvoicePdfService
 
         var exchangedDocument = new XElement(rsm + "ExchangedDocument",
             new XElement(ram + "ID", invoice.InvoiceNumber),
-            new XElement(ram + "TypeCode", "380"),
+            new XElement(ram + "TypeCode", invoice.IsCreditNote ? "381" : "380"),
             new XElement(ram + "IssueDateTime",
                 new XElement(udt + "DateTimeString",
                     new XAttribute("format", "102"),
                     invoice.InvoiceDate.ToString("yyyyMMdd"))),
             new XElement(ram + "IncludedNote",
-                new XElement(ram + "Content", string.IsNullOrWhiteSpace(invoice.Subject) ? "Rechnung" : invoice.Subject)));
+                new XElement(ram + "Content", string.IsNullOrWhiteSpace(invoice.Subject) ? invoice.DocumentTitle : invoice.Subject)));
 
         var headerAgreement = new XElement(ram + "ApplicableHeaderTradeAgreement",
             sellerParty,

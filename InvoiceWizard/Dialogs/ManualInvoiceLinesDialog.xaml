@@ -35,6 +35,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,14,14">
@@ -59,29 +60,41 @@
                 <TextBox x:Name="QuantityText" Text="1"/>
             </StackPanel>
 
-            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,14">
+            <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,14">
+                <TextBlock Text="Kategorie * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
+                <ComboBox x:Name="AccountingCategoryCombo" SelectedIndex="0">
+                    <ComboBoxItem Content="Material und Waren" Tag="MaterialAndGoods"/>
+                    <ComboBoxItem Content="Werkzeug" Tag="Tools"/>
+                    <ComboBoxItem Content="Dienstleistungen" Tag="Services"/>
+                    <ComboBoxItem Content="Buero" Tag="Office"/>
+                    <ComboBoxItem Content="Fahrzeug" Tag="Vehicle"/>
+                    <ComboBoxItem Content="Sonstiges" Tag="Other"/>
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,14,14">
                 <TextBlock Text="Netto-Preis optional" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="NetPriceText"/>
             </StackPanel>
-            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,14,14">
+            <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,14,14">
                 <TextBlock Text="Materialzuschlag optional" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="MetalSurchargeText" Text="0"/>
             </StackPanel>
-            <StackPanel Grid.Row="2" Grid.Column="2">
+            <StackPanel Grid.Row="3" Grid.Column="2">
                 <TextBlock Text="Preisbasis * Pflicht" Style="{StaticResource RequiredLabelStyle}"/>
                 <TextBox x:Name="PriceBasisText" Text="1"/>
             </StackPanel>
 
-            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,14,14">
+            <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,14,14">
                 <TextBlock Text="Brutto-Preis optional" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="GrossPriceText"/>
             </StackPanel>
-            <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,14,14">
+            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,14,14">
                 <TextBlock x:Name="VatPercentLabel" Text="MwSt. in % optional" Style="{StaticResource MutedLabelStyle}"/>
                 <TextBox x:Name="VatPercentText" Text="19"/>
             </StackPanel>
 
-            <WrapPanel Grid.Row="4" Grid.ColumnSpan="3" Margin="0,6,0,0">
+            <WrapPanel Grid.Row="5" Grid.ColumnSpan="3" Margin="0,6,0,0">
                 <Button x:Name="SaveLineButton"
                         Width="170"
                         Height="40"
@@ -115,6 +128,7 @@
                 <DataGridTextColumn Header="Pos." Binding="{Binding Position}" IsReadOnly="True" Width="60"/>
                 <DataGridTextColumn Header="Artikel" Binding="{Binding ArticleNumber}" Width="120"/>
                 <DataGridTextColumn Header="EAN" Binding="{Binding Ean}" Width="140"/>
+                <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategory}" Width="140"/>
                 <DataGridTextColumn Header="Beschreibung" Binding="{Binding Description}" Width="*"/>
                 <DataGridTextColumn Header="Menge" Binding="{Binding Quantity, StringFormat=N2}" Width="90"/>
                 <DataGridTextColumn Header="Einheit" Binding="{Binding Unit}" Width="80"/>

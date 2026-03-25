@@ -239,6 +239,7 @@ public partial class ManualInvoiceLinesDialog : Window
 
         line = new ManualInvoiceLineInput
         {
+            AccountingCategory = GetSelectedAccountingCategory(),
             ArticleNumber = (ArticleNumberText.Text ?? string.Empty).Trim(),
             Ean = (EanText.Text ?? string.Empty).Trim(),
             Description = description,
@@ -264,6 +265,7 @@ public partial class ManualInvoiceLinesDialog : Window
 
         ArticleNumberText.Text = line.ArticleNumber;
         EanText.Text = line.Ean;
+        SelectAccountingCategory(line.AccountingCategory);
         DescriptionText.Text = line.Description;
         QuantityText.Text = FormatDecimal(line.Quantity);
         UnitText.Text = line.Unit;
@@ -280,6 +282,7 @@ public partial class ManualInvoiceLinesDialog : Window
         _selectedLine = null;
         ArticleNumberText.Clear();
         EanText.Clear();
+        SelectAccountingCategory("MaterialAndGoods");
         DescriptionText.Clear();
         QuantityText.Text = "1";
         UnitText.Text = "ST";
@@ -383,6 +386,7 @@ public partial class ManualInvoiceLinesDialog : Window
         return new ManualInvoiceLineInput
         {
             Position = line.Position,
+            AccountingCategory = line.AccountingCategory,
             ArticleNumber = line.ArticleNumber,
             Ean = line.Ean,
             Description = line.Description,
@@ -420,5 +424,30 @@ public partial class ManualInvoiceLinesDialog : Window
     private static string FormatDecimal(decimal value)
     {
         return value.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
+    }
+
+    private string GetSelectedAccountingCategory()
+    {
+        if (AccountingCategoryCombo.SelectedItem is ComboBoxItem item && item.Tag is string tag && !string.IsNullOrWhiteSpace(tag))
+        {
+            return tag;
+        }
+
+        return "MaterialAndGoods";
+    }
+
+    private void SelectAccountingCategory(string? value)
+    {
+        var target = string.IsNullOrWhiteSpace(value) ? "MaterialAndGoods" : value;
+        foreach (var item in AccountingCategoryCombo.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag as string, target, StringComparison.OrdinalIgnoreCase))
+            {
+                AccountingCategoryCombo.SelectedItem = item;
+                return;
+            }
+        }
+
+        AccountingCategoryCombo.SelectedIndex = 0;
     }
 }

@@ -133,6 +133,7 @@ public class InvoiceWizardDbContext(DbContextOptions<InvoiceWizardDbContext> opt
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceDirection).HasMaxLength(30);
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceStatus).HasMaxLength(30);
         modelBuilder.Entity<Invoice>().Property(x => x.AccountingCategory).HasMaxLength(80);
+        modelBuilder.Entity<InvoiceLine>().Property(x => x.AccountingCategory).HasMaxLength(80);
         modelBuilder.Entity<Invoice>().Property(x => x.Subject).HasMaxLength(500);
         modelBuilder.Entity<Invoice>().Property(x => x.CancellationReason).HasMaxLength(500);
         modelBuilder.Entity<Invoice>().Property(x => x.InvoiceTotalAmount).HasColumnType("numeric(12,2)");

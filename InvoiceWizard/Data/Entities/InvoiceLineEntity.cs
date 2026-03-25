@@ -20,6 +20,7 @@ public class InvoiceLineEntity
     public decimal ShippingGrossShare { get; set; }
     public decimal LineTotal { get; set; }
     public decimal GrossLineTotal { get; set; }
+    public string LineAccountingCategory { get; set; } = "MaterialAndGoods";
     public bool IsGeneralSmallMaterial { get; set; }
     public bool IsInventoryStock { get; set; }
     public bool IsPaid { get; set; }
@@ -29,8 +30,18 @@ public class InvoiceLineEntity
     public bool HasSupplierInvoice => Invoice?.HasSupplierInvoice ?? true;
     public string InvoiceDisplayNumber => Invoice?.DisplayNumber ?? "";
     public string ExpenseStatus => Invoice?.ExpenseStatus ?? "Mit Rechnung";
-    public string AccountingCategory => Invoice?.AccountingCategory ?? "MaterialAndGoods";
-    public string AccountingCategoryLabel => Invoice?.AccountingCategoryLabel ?? "Material und Waren";
+    public string AccountingCategory => string.IsNullOrWhiteSpace(LineAccountingCategory)
+        ? Invoice?.AccountingCategory ?? "MaterialAndGoods"
+        : LineAccountingCategory;
+    public string AccountingCategoryLabel => AccountingCategory switch
+    {
+        "Tools" => "Werkzeug",
+        "Services" => "Dienstleistungen",
+        "Office" => "Buero",
+        "Vehicle" => "Fahrzeug",
+        "Other" => "Sonstiges",
+        _ => "Material und Waren"
+    };
     public bool IsProjectAllocatable => string.Equals(InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
         && string.Equals(AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase)
         && !IsGeneralSmallMaterial

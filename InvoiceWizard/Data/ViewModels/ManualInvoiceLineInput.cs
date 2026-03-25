@@ -5,6 +5,7 @@ namespace InvoiceWizard.Data.ViewModels;
 public class ManualInvoiceLineInput
 {
     public int Position { get; set; }
+    public string AccountingCategory { get; set; } = "MaterialAndGoods";
     public string ArticleNumber { get; set; } = "";
     public string Ean { get; set; } = "";
     public string Description { get; set; } = "";

@@ -40,11 +40,13 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         }
 
         string invoiceNumber;
+        var normalizedDirection = NormalizeInvoiceDirection(request.InvoiceDirection);
+        var prefix = string.Equals(normalizedDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase) ? "GS" : "RE";
         while (true)
         {
-            invoiceNumber = $"RE-{DateTime.Today:yyyy}-{tenant.NextRevenueInvoiceNumber:D4}";
+            invoiceNumber = $"{prefix}-{DateTime.Today:yyyy}-{tenant.NextRevenueInvoiceNumber:D4}";
             tenant.NextRevenueInvoiceNumber++;
-            var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.InvoiceDirection == "Revenue" && x.InvoiceNumber == invoiceNumber, HttpContext.RequestAborted);
+            var exists = await db.Invoices.AnyAsync(x => x.TenantId == tenantId && x.InvoiceNumber == invoiceNumber, HttpContext.RequestAborted);
             if (!exists)
             {
                 break;
@@ -67,7 +69,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
         var normalizedDirection = NormalizeInvoiceDirection(request.InvoiceDirection);
         var requestedStatus = NormalizeInvoiceStatus(request.InvoiceStatus);
-        var requiresSupplierFields = string.Equals(normalizedDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+        var requiresSupplierFields = (string.Equals(normalizedDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalizedDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase))
             && request.HasSupplierInvoice
             && !string.Equals(requestedStatus, "Review", StringComparison.OrdinalIgnoreCase);
 
@@ -137,7 +140,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 ShippingNetShare = line.ShippingNetShare,
                 ShippingGrossShare = line.ShippingGrossShare,
                 LineTotal = line.LineTotal,
-                GrossLineTotal = line.GrossLineTotal
+                GrossLineTotal = line.GrossLineTotal,
+                AccountingCategory = NormalizeAccountingCategory(line.AccountingCategory)
             }).ToList()
         };
 
@@ -234,7 +238,9 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             }
         }
 
-        var requiresSupplierFields = string.Equals(NormalizeInvoiceDirection(request.InvoiceDirection), "Expense", StringComparison.OrdinalIgnoreCase)
+        var normalizedDirection = NormalizeInvoiceDirection(request.InvoiceDirection);
+        var requiresSupplierFields = (string.Equals(normalizedDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalizedDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase))
             && request.HasSupplierInvoice
             && !string.Equals(requestedStatus, "Review", StringComparison.OrdinalIgnoreCase);
 
@@ -248,6 +254,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return ValidationProblem("Bitte ein Zahlungsdatum / Faelligkeitsdatum angeben.");
         }
 
+        invoice.InvoiceDirection = normalizedDirection;
         invoice.InvoiceStatus = requestedStatus;
         invoice.InvoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber) ? invoice.InvoiceNumber : request.InvoiceNumber.Trim();
         invoice.CustomerId = request.CustomerId;
@@ -285,7 +292,8 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             ShippingNetShare = line.ShippingNetShare,
             ShippingGrossShare = line.ShippingGrossShare,
             LineTotal = line.LineTotal,
-            GrossLineTotal = line.GrossLineTotal
+            GrossLineTotal = line.GrossLineTotal,
+            AccountingCategory = NormalizeAccountingCategory(line.AccountingCategory)
         }).ToList();
 
         if (!string.IsNullOrWhiteSpace(request.PdfContentBase64))
@@ -308,7 +316,10 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             return NotFound();
         }
 
-        if (!string.Equals(invoice.InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase))
+        var isCustomerDraft = string.Equals(invoice.InvoiceStatus, "Draft", StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(invoice.InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(invoice.InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase));
+        if (!isCustomerDraft)
         {
             return ValidationProblem("Nur Entwuerfe koennen finalisiert werden.");
         }
@@ -400,12 +411,14 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         }
 
         var normalizedStatus = NormalizeInvoiceStatus(invoice.InvoiceStatus);
-        var isExpenseInvoice = string.Equals(invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase);
-        var isRevenueDraft = string.Equals(invoice.InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
+        var isExpenseInvoice = string.Equals(invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(invoice.InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase);
+        var isRevenueDraft = (string.Equals(invoice.InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(invoice.InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase))
             && string.Equals(normalizedStatus, "Draft", StringComparison.OrdinalIgnoreCase);
         if (!isExpenseInvoice && !isRevenueDraft)
         {
-            return ValidationProblem("Geloescht werden koennen nur Ausgaberechnungen oder Einnahme-Entwuerfe.");
+            return ValidationProblem("Geloescht werden koennen nur Ausgabebelege oder Kunden-Entwuerfe.");
         }
 
         var hasAssignments = await db.BankTransactionAssignments.AnyAsync(
@@ -491,7 +504,9 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
         var normalized = (value ?? string.Empty).Trim();
         return normalized switch
         {
+            "ExpenseReduction" => "ExpenseReduction",
             "Revenue" => "Revenue",
+            "RevenueReduction" => "RevenueReduction",
             _ => "Expense"
         };
     }
@@ -537,6 +552,7 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
             Lines = invoice.Lines.OrderBy(x => x.Position).Select(x => new SaveInvoiceLineRequest
             {
                 Position = x.Position,
+                AccountingCategory = x.AccountingCategory,
                 ArticleNumber = x.ArticleNumber,
                 Ean = x.Ean,
                 Description = x.Description,
@@ -578,7 +594,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             .Where(x => x.TenantId == tenantId
                         && x.Invoice.InvoiceDirection == "Expense"
                         && x.Invoice.InvoiceStatus != "Review"
-                        && x.Invoice.AccountingCategory == "MaterialAndGoods");
+                        && x.AccountingCategory == "MaterialAndGoods");
         query = ((poolMode ?? "allocatable").Trim().ToLowerInvariant()) switch
         {
             "inventory" => query.Where(x => x.IsInventoryStock),
@@ -628,7 +644,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             InvoiceNumber = line.Invoice.InvoiceNumber,
             InvoiceDate = line.Invoice.InvoiceDate,
             HasSupplierInvoice = line.Invoice.HasSupplierInvoice,
-            AccountingCategory = line.Invoice.AccountingCategory,
+            AccountingCategory = line.AccountingCategory,
             Position = line.Position,
             ArticleNumber = line.ArticleNumber,
             Ean = line.Ean,
@@ -642,6 +658,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             PriceBasisQuantity = line.PriceBasisQuantity,
             LineTotal = line.LineTotal,
             GrossLineTotal = line.GrossLineTotal,
+            LineAccountingCategory = line.AccountingCategory,
             IsGeneralSmallMaterial = line.IsGeneralSmallMaterial,
             IsInventoryStock = line.IsInventoryStock,
             IsPaid = line.IsPaid,
@@ -666,7 +683,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
         }
 
         if (!string.Equals(line.Invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(line.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationProblem("Nur Materialpositionen aus Ausgaberechnungen koennen als allgemeines Kleinmaterial markiert werden.");
         }
@@ -696,7 +713,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
         }
 
         if (!string.Equals(line.Invoice.InvoiceDirection, "Expense", StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(line.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationProblem("Nur Materialpositionen aus Ausgaberechnungen koennen als Bestand/Lager markiert werden.");
         }
@@ -720,7 +737,7 @@ public class InvoiceLinesController(InvoiceWizardDbContext db, ICurrentTenantAcc
             InvoiceNumber = allocation.InvoiceLine.Invoice.InvoiceNumber,
             InvoiceDate = allocation.InvoiceLine.Invoice.InvoiceDate,
             HasSupplierInvoice = allocation.InvoiceLine.Invoice.HasSupplierInvoice,
-            AccountingCategory = allocation.InvoiceLine.Invoice.AccountingCategory,
+            AccountingCategory = allocation.InvoiceLine.AccountingCategory,
             ArticleNumber = allocation.InvoiceLine.ArticleNumber,
             Description = allocation.InvoiceLine.Description,
             Unit = allocation.InvoiceLine.Unit,
@@ -788,7 +805,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
                 HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,
-                AccountingCategory = x.InvoiceLine.Invoice.AccountingCategory,
+                AccountingCategory = x.InvoiceLine.AccountingCategory,
                 ArticleNumber = x.InvoiceLine.ArticleNumber,
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
@@ -844,7 +861,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
             return ValidationProblem("Positionen aus Rechnungen im Status 'Pruefen' koennen erst nach Abschluss der Pruefung zugewiesen werden.");
         }
 
-        if (!string.Equals(line.Invoice.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(line.AccountingCategory, "MaterialAndGoods", StringComparison.OrdinalIgnoreCase))
         {
             return ValidationProblem("Nur Rechnungen der Kategorie 'Material und Waren' koennen Projekten zugewiesen werden.");
         }
@@ -897,7 +914,7 @@ public class AllocationsController(InvoiceWizardDbContext db, ICurrentTenantAcce
                 InvoiceNumber = x.InvoiceLine.Invoice.InvoiceNumber,
                 InvoiceDate = x.InvoiceLine.Invoice.InvoiceDate,
                 HasSupplierInvoice = x.InvoiceLine.Invoice.HasSupplierInvoice,
-                AccountingCategory = x.InvoiceLine.Invoice.AccountingCategory,
+                AccountingCategory = x.InvoiceLine.AccountingCategory,
                 ArticleNumber = x.InvoiceLine.ArticleNumber,
                 Description = x.InvoiceLine.Description,
                 Unit = x.InvoiceLine.Unit,
@@ -1098,19 +1115,35 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
         decimal expenses;
         List<ExpenseCategoryTotalDto> expenseCategories;
+        decimal revenue;
+        Dictionary<DateTime, decimal> revenueByMonth;
         if (!customerId.HasValue && !projectId.HasValue)
         {
-            var expenseInvoices = await db.Invoices
-                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense")
+            var customerDocuments = await db.Invoices
+                .Where(x => x.TenantId == tenantId
+                    && (x.InvoiceDirection == "Revenue" || x.InvoiceDirection == "RevenueReduction")
+                    && x.InvoiceStatus != "Cancelled")
                 .Include(x => x.Lines)
+                .AsNoTracking()
                 .ToListAsync();
-            expenses = expenseInvoices.Sum(GetExpenseInvoiceGrossTotal);
+            var expenseInvoices = await db.Invoices
+                .Where(x => x.TenantId == tenantId && (x.InvoiceDirection == "Expense" || x.InvoiceDirection == "ExpenseReduction"))
+                .Include(x => x.Lines)
+                .AsNoTracking()
+                .ToListAsync();
+            revenue = customerDocuments.Sum(GetSignedCustomerDocumentGrossTotal);
+            openRevenue = revenue;
+            revenueByMonth = customerDocuments
+                .GroupBy(x => new DateTime(x.InvoiceDate.Year, x.InvoiceDate.Month, 1))
+                .ToDictionary(g => g.Key, g => g.Sum(GetSignedCustomerDocumentGrossTotal));
+            expenses = expenseInvoices.Sum(GetSignedExpenseInvoiceGrossTotal);
             expenseCategories = expenseInvoices
+                .SelectMany(GetSignedExpenseCategoryRows)
                 .GroupBy(x => x.AccountingCategory)
                 .Select(g => new ExpenseCategoryTotalDto
                 {
                     AccountingCategory = g.Key,
-                    Amount = g.Sum(GetExpenseInvoiceGrossTotal)
+                    Amount = g.Sum(x => x.Amount)
                 })
                 .OrderByDescending(x => x.Amount)
                 .ToList();
@@ -1118,8 +1151,9 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
         else
         {
             expenses = allocations.Sum(GetAllocatedExpenseGross);
+            revenue = paidAllocationRevenue + paidWorkRevenue;
             expenseCategories = allocations
-                .GroupBy(x => x.InvoiceLine.Invoice.AccountingCategory)
+                .GroupBy(x => x.InvoiceLine.AccountingCategory)
                 .Select(g => new ExpenseCategoryTotalDto
                 {
                     AccountingCategory = g.Key,
@@ -1127,33 +1161,31 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
                 })
                 .OrderByDescending(x => x.Amount)
                 .ToList();
-        }
+            revenueByMonth = allocations.Where(x => x.IsPaid && x.PaidAt != null)
+                .GroupBy(x => new DateTime(x.PaidAt!.Value.Year, x.PaidAt.Value.Month, 1))
+                .ToDictionary(g => g.Key, g => g.Sum(GetAllocationRevenueGross));
 
-        var revenue = paidAllocationRevenue + paidWorkRevenue;
+            foreach (var group in workEntries.Where(x => x.IsPaid && x.PaidAt != null)
+                         .GroupBy(x => new DateTime(x.PaidAt!.Value.Year, x.PaidAt.Value.Month, 1)))
+            {
+                revenueByMonth[group.Key] = revenueByMonth.TryGetValue(group.Key, out var existing)
+                    ? existing + group.Sum(GetWorkRevenueGross)
+                    : group.Sum(GetWorkRevenueGross);
+            }
+        }
         var months = Enumerable.Range(0, 6).Select(offset => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-5 + offset)).ToList();
-        var revenueByMonth = allocations.Where(x => x.IsPaid && x.PaidAt != null)
-            .GroupBy(x => new DateTime(x.PaidAt!.Value.Year, x.PaidAt.Value.Month, 1))
-            .ToDictionary(g => g.Key, g => g.Sum(GetAllocationRevenueGross));
-
-        foreach (var group in workEntries.Where(x => x.IsPaid && x.PaidAt != null)
-                     .GroupBy(x => new DateTime(x.PaidAt!.Value.Year, x.PaidAt.Value.Month, 1)))
-        {
-            revenueByMonth[group.Key] = revenueByMonth.TryGetValue(group.Key, out var existing)
-                ? existing + group.Sum(GetWorkRevenueGross)
-                : group.Sum(GetWorkRevenueGross);
-        }
 
         Dictionary<DateTime, decimal> expensesByMonth;
         if (!customerId.HasValue && !projectId.HasValue)
         {
             var expenseInvoicesForMonths = await db.Invoices
-                .Where(x => x.TenantId == tenantId && x.InvoiceDirection == "Expense")
+                .Where(x => x.TenantId == tenantId && (x.InvoiceDirection == "Expense" || x.InvoiceDirection == "ExpenseReduction"))
                 .Include(x => x.Lines)
                 .AsNoTracking()
                 .ToListAsync();
             expensesByMonth = expenseInvoicesForMonths
                 .GroupBy(x => new DateTime(x.InvoiceDate.Year, x.InvoiceDate.Month, 1))
-                .ToDictionary(g => g.Key, g => g.Sum(GetExpenseInvoiceGrossTotal));
+                .ToDictionary(g => g.Key, g => g.Sum(GetSignedExpenseInvoiceGrossTotal));
         }
         else
         {
@@ -1162,7 +1194,7 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
                 .ToDictionary(g => g.Key, g => g.Sum(GetAllocatedExpenseGross));
         }
 
-        var maxValue = months.Select(m => Math.Max(revenueByMonth.GetValueOrDefault(m), expensesByMonth.GetValueOrDefault(m))).DefaultIfEmpty(1m).Max();
+        var maxValue = months.Select(m => Math.Max(Math.Abs(revenueByMonth.GetValueOrDefault(m)), Math.Abs(expensesByMonth.GetValueOrDefault(m)))).DefaultIfEmpty(1m).Max();
         if (maxValue <= 0m)
         {
             maxValue = 1m;
@@ -1264,6 +1296,46 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
         var netTotal = GetInvoiceNetTotal(invoice);
         return AddVat(netTotal);
+    }
+
+    private static decimal GetSignedExpenseInvoiceGrossTotal(Invoice invoice)
+    {
+        var gross = GetExpenseInvoiceGrossTotal(invoice);
+        return string.Equals(invoice.InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase)
+            ? -gross
+            : gross;
+    }
+
+    private static decimal GetSignedCustomerDocumentGrossTotal(Invoice invoice)
+    {
+        var gross = invoice.InvoiceTotalAmount > 0m
+            ? invoice.InvoiceTotalAmount
+            : AddRevenueVatIfRequired(GetInvoiceNetTotal(invoice), invoice.ApplySmallBusinessRegulation);
+        return string.Equals(invoice.InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase)
+            ? -gross
+            : gross;
+    }
+
+    private static IEnumerable<(string AccountingCategory, decimal Amount)> GetSignedExpenseCategoryRows(Invoice invoice)
+    {
+        if (invoice.Lines.Count > 0)
+        {
+            foreach (var line in invoice.Lines)
+            {
+                var gross = line.GrossLineTotal > 0m
+                    ? line.GrossLineTotal
+                    : line.LineTotal * GetExpenseGrossFactor(invoice);
+                yield return (
+                    line.AccountingCategory,
+                    string.Equals(invoice.InvoiceDirection, "ExpenseReduction", StringComparison.OrdinalIgnoreCase) ? -gross : gross);
+            }
+
+            yield break;
+        }
+
+        yield return (
+            invoice.AccountingCategory,
+            GetSignedExpenseInvoiceGrossTotal(invoice));
     }
 
     private static decimal GetInvoiceNetTotal(Invoice invoice)
