@@ -119,6 +119,7 @@ public partial class DraftInvoiceEditorDialog : Window
             return;
         }
 
+        RebuildLinePricesForTaxMode(_applySmallBusinessRegulation, newApplySmallBusinessRegulation);
         _applySmallBusinessRegulation = newApplySmallBusinessRegulation;
         UpdateTotals();
     }
@@ -198,7 +199,36 @@ public partial class DraftInvoiceEditorDialog : Window
             GrossListPrice = line.GrossListPrice,
             GrossUnitPrice = line.GrossUnitPrice,
             PriceBasisQuantity = line.PriceBasisQuantity,
+            ShippingNetShare = line.ShippingNetShare,
+            ShippingGrossShare = line.ShippingGrossShare,
             GrossLineTotal = line.GrossLineTotal
         };
+    }
+
+    private void RebuildLinePricesForTaxMode(bool oldApplySmallBusinessRegulation, bool newApplySmallBusinessRegulation)
+    {
+        if (oldApplySmallBusinessRegulation == newApplySmallBusinessRegulation)
+        {
+            return;
+        }
+
+        var factor = 1m + PricingHelper.GermanVatRate;
+        foreach (var line in _lines)
+        {
+            if (oldApplySmallBusinessRegulation && !newApplySmallBusinessRegulation)
+            {
+                line.NetUnitPrice = PricingHelper.RoundUnitPrice(line.NetUnitPrice / factor);
+                line.MetalSurcharge = PricingHelper.RoundUnitPrice(line.MetalSurcharge / factor);
+                line.ShippingNetShare = PricingHelper.RoundCurrency(line.ShippingNetShare / factor);
+            }
+            else if (!oldApplySmallBusinessRegulation && newApplySmallBusinessRegulation)
+            {
+                line.NetUnitPrice = PricingHelper.RoundUnitPrice(line.NetUnitPrice * factor);
+                line.MetalSurcharge = PricingHelper.RoundUnitPrice(line.MetalSurcharge * factor);
+                line.ShippingNetShare = PricingHelper.RoundCurrency(line.ShippingNetShare * factor);
+            }
+
+            line.ShippingGrossShare = PricingHelper.CalculateRevenueGrossTotal(line.ShippingNetShare, newApplySmallBusinessRegulation);
+        }
     }
 }

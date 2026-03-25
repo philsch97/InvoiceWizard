@@ -108,6 +108,8 @@ public partial class InvoiceArchivePage : Page
                     GrossListPrice = line.GrossListPrice,
                     GrossUnitPrice = line.GrossUnitPrice,
                     PriceBasisQuantity = line.PriceBasisQuantity,
+                    ShippingNetShare = line.ShippingNetShare,
+                    ShippingGrossShare = line.ShippingGrossShare,
                     GrossLineTotal = line.GrossLineTotal
                 })
                 .ToList();
@@ -248,6 +250,8 @@ public partial class InvoiceArchivePage : Page
                     GrossListPrice = line.GrossListPrice,
                     GrossUnitPrice = line.GrossUnitPrice,
                     PriceBasisQuantity = line.PriceBasisQuantity,
+                    ShippingNetShare = line.ShippingNetShare,
+                    ShippingGrossShare = line.ShippingGrossShare,
                     GrossLineTotal = line.GrossLineTotal
                 })
                 .ToList();
