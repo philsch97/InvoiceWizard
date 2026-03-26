@@ -56,6 +56,43 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                 }
             }
 
+            if (CurrentSession is null)
+            {
+                var storedCredentialsJson = await jsRuntime.InvokeAsync<string?>("invoiceWizardAuth.getCredentials");
+                if (!string.IsNullOrWhiteSpace(storedCredentialsJson))
+                {
+                    var storedCredentials = JsonSerializer.Deserialize<StoredLoginCredentials>(storedCredentialsJson, _jsonOptions);
+                    if (storedCredentials is not null
+                        && !string.IsNullOrWhiteSpace(storedCredentials.Email)
+                        && !string.IsNullOrWhiteSpace(storedCredentials.Password))
+                    {
+                        try
+                        {
+                            using var client = CreateClient();
+                            var response = await client.PostAsJsonAsync("api/auth/login", new LoginRequestModel
+                            {
+                                Email = storedCredentials.Email,
+                                Password = storedCredentials.Password
+                            });
+                            if (response.IsSuccessStatusCode)
+                            {
+                                CurrentSession = await response.Content.ReadFromJsonAsync<AuthSessionModel>(_jsonOptions)
+                                    ?? throw new InvalidOperationException("Die gespeicherte Anmeldung konnte nicht gelesen werden.");
+                                await PersistSessionAsync();
+                            }
+                            else
+                            {
+                                await ClearStoredCredentialsAsync();
+                            }
+                        }
+                        catch
+                        {
+                            await ClearStoredCredentialsAsync();
+                        }
+                    }
+                }
+            }
+
             BootstrapState = await GetBootstrapStateAsync();
         }
         catch (Exception ex)
@@ -83,6 +120,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                 ?? throw new InvalidOperationException("Die Anmeldedaten konnten nicht gelesen werden.");
             BootstrapState = await GetBootstrapStateAsync();
             await PersistSessionAsync();
+            await PersistCredentialsAsync(request);
         }
         finally
         {
@@ -118,6 +156,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         ErrorMessage = null;
         BootstrapState = await GetBootstrapStateAsync();
         await ClearStoredSessionAsync();
+        await ClearStoredCredentialsAsync();
         NotifyStateChanged();
     }
 
@@ -159,8 +198,21 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         await jsRuntime.InvokeVoidAsync("invoiceWizardAuth.setSession", json);
     }
 
+    private async Task PersistCredentialsAsync(LoginRequestModel request)
+    {
+        var json = JsonSerializer.Serialize(new StoredLoginCredentials
+        {
+            Email = request.Email,
+            Password = request.Password
+        }, _jsonOptions);
+        await jsRuntime.InvokeVoidAsync("invoiceWizardAuth.setCredentials", json);
+    }
+
     private Task ClearStoredSessionAsync()
         => jsRuntime.InvokeVoidAsync("invoiceWizardAuth.clearSession").AsTask();
+
+    private Task ClearStoredCredentialsAsync()
+        => jsRuntime.InvokeVoidAsync("invoiceWizardAuth.clearCredentials").AsTask();
 
     private async Task EnsureSuccessAsync(HttpResponseMessage response)
     {

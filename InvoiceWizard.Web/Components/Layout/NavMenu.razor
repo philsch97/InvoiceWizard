@@ -3,20 +3,44 @@
 
 <aside class="nav-drawer @(IsOpen ? "open" : string.Empty)">
     <nav class="nav-menu">
-        <NavLink href="/" Match="NavLinkMatch.All" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Status</NavLink>
-        <NavLink href="/worktime" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Arbeitszeit</NavLink>
-        <NavLink href="/customers" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Kunden</NavLink>
-        <NavLink href="/projectdata" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Projektdaten</NavLink>
-        <NavLink href="/calendar" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Kalender</NavLink>
-        <NavLink href="/notes" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Notizen</NavLink>
-        <NavLink href="/analytics" class="nav-pill-button" ActiveClass="active" @onclick="HandleNavigateAsync">Auswertung</NavLink>
+        <div class="nav-brand-block">
+            <strong class="nav-brand-title">@Auth.CurrentSession?.Tenant.Name</strong>
+            <span class="nav-brand-copy">@Auth.CurrentSession?.User.DisplayName</span>
+            <span class="nav-brand-copy">@Auth.CurrentSession?.User.Role</span>
+            @if (!string.IsNullOrWhiteSpace(Auth.CurrentSession?.License?.PlanName))
+            {
+                <span class="pill nav-license-pill">@Auth.CurrentSession!.License!.PlanName</span>
+            }
+        </div>
+
+        <div class="nav-group">
+            <span class="nav-group-label">Übersicht</span>
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-pill-button" ActiveClass="active">Status</NavLink>
+            <NavLink href="/analytics" class="nav-pill-button" ActiveClass="active">Auswertung</NavLink>
+        </div>
+
+        <div class="nav-group">
+            <span class="nav-group-label">Tagesgeschäft</span>
+            <NavLink href="/worktime" class="nav-pill-button" ActiveClass="active">Arbeitszeit</NavLink>
+            <NavLink href="/calendar" class="nav-pill-button" ActiveClass="active">Kalender</NavLink>
+            <NavLink href="/notes" class="nav-pill-button" ActiveClass="active">Notizen</NavLink>
+        </div>
+
+        <div class="nav-group">
+            <span class="nav-group-label">Stammdaten</span>
+            <NavLink href="/customers" class="nav-pill-button" ActiveClass="active">Kunden</NavLink>
+            <NavLink href="/projectdata" class="nav-pill-button" ActiveClass="active">Projektdaten</NavLink>
+        </div>
+
+        <button type="button" class="ghost-button nav-logout-button" @onclick="LogoutAndNavigateAsync">Abmelden</button>
     </nav>
 </aside>
 
 @code {
     [Parameter] public bool IsOpen { get; set; }
-    [Parameter] public EventCallback OnNavigate { get; set; }
-
-    private Task HandleNavigateAsync()
-        => OnNavigate.InvokeAsync();
+    private async Task LogoutAndNavigateAsync()
+    {
+        await Auth.LogoutAsync();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
 }

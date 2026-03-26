@@ -17,8 +17,8 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     public async Task<DashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
         => await TryGetAsync("api/dashboard/summary", new DashboardSummary(), cancellationToken);
 
-    public async Task<List<CustomerItem>> GetCustomersAsync(CancellationToken cancellationToken = default)
-        => await TryGetListAsync<CustomerItem>("api/customers", cancellationToken);
+    public async Task<List<CustomerItem>> GetCustomersAsync(bool activeProjectsOnly = false, CancellationToken cancellationToken = default)
+        => await TryGetListAsync<CustomerItem>($"api/customers{(activeProjectsOnly ? "?activeProjectsOnly=true" : string.Empty)}", cancellationToken);
 
     public async Task<CustomerItem> SaveCustomerAsync(SaveCustomerModel model, int? customerId = null, CancellationToken cancellationToken = default)
     {
@@ -37,9 +37,20 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<List<ProjectItem>> GetProjectsAsync(int? customerId = null, CancellationToken cancellationToken = default)
+    public async Task<List<ProjectItem>> GetProjectsAsync(int? customerId = null, bool includeInactive = false, CancellationToken cancellationToken = default)
     {
-        var url = customerId.HasValue ? $"api/projects?customerId={customerId.Value}" : "api/projects";
+        var query = new List<string>();
+        if (customerId.HasValue)
+        {
+            query.Add($"customerId={customerId.Value}");
+        }
+
+        if (includeInactive)
+        {
+            query.Add("includeInactive=true");
+        }
+
+        var url = query.Count == 0 ? "api/projects" : $"api/projects?{string.Join("&", query)}";
         return await TryGetListAsync<ProjectItem>(url, cancellationToken);
     }
 
@@ -49,6 +60,22 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         var response = await httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", model, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProjectItem>(cancellationToken: cancellationToken))!;
+    }
+
+    public async Task<ProjectDetailsItem> UpdateProjectAsync(int projectId, SaveProjectModel model, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}", model, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
+    }
+
+    public async Task<ProjectDetailsItem> UpdateProjectStatusAsync(int projectId, string projectStatus, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}/status", new { projectStatus }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
     }
 
     public async Task DeleteProjectAsync(int projectId, CancellationToken cancellationToken = default)

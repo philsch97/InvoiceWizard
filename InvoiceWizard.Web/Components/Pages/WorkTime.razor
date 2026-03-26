@@ -8,9 +8,12 @@
     <div class="section-heading">
         <div>
             <h2>Arbeitszeit</h2>
-            <p>Starte Projektzeiten direkt wie an einer Stechuhr. Start, Pause und Stopp werden sofort gespeichert.</p>
+            <p>Starte Projektzeiten direkt wie an einer Stechuhr oder trage Zeiten nachträglich manuell ein.</p>
         </div>
-        <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
+        <div class="row-actions wrap-mobile">
+            <button class="action-button" @onclick="OpenCreateEntryDialog">Arbeitszeit nachtragen</button>
+            <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(StatusMessage))
@@ -23,12 +26,12 @@
             <div class="table-header compact">
                 <div>
                     <h3>Projekt stechen</h3>
-                    <p>Projekt waehlen und direkt loslegen.</p>
+                    <p>Projekt wählen und direkt loslegen.</p>
                 </div>
                 @if (ActiveClock is not null)
                 {
                     <span class="pill @(ActiveClock.PauseStartedAtUtc.HasValue ? "warning" : "success")">
-                        @(ActiveClock.PauseStartedAtUtc.HasValue ? "Pause laeuft" : "Aktiv")
+                        @(ActiveClock.PauseStartedAtUtc.HasValue ? "Pause läuft" : "Aktiv")
                     </span>
                 }
             </div>
@@ -37,7 +40,7 @@
                 <label>
                     <span>Kunde</span>
                     <select @bind="StartForm.CustomerId" @bind:after="LoadProjectsForSelectedCustomerAsync" disabled="@(ActiveClock is not null)">
-                        <option value="0">Bitte waehlen</option>
+                        <option value="0">Bitte wählen</option>
                         @foreach (var customer in Customers)
                         {
                             <option value="@customer.CustomerId">@customer.Name</option>
@@ -47,7 +50,7 @@
                 <label>
                     <span>Projekt</span>
                     <select @bind="StartForm.ProjectId" disabled="@(ActiveClock is not null)">
-                        <option value="">Bitte waehlen</option>
+                        <option value="">Bitte wählen</option>
                         @foreach (var project in AvailableProjects)
                         {
                             <option value="@project.ProjectId">@project.Name</option>
@@ -122,7 +125,7 @@
             </div>
 
             <div class="inline-metrics stats-inline-grid">
-                <div><span>Eintraege</span><strong>@Entries.Count</strong></div>
+                <div><span>Einträge</span><strong>@Entries.Count</strong></div>
                 <div><span>Stunden</span><strong>@Entries.Sum(x => x.HoursWorked).ToString("0.##")</strong></div>
                 <div><span>Kilometer</span><strong>@Entries.Sum(x => x.TravelKilometers).ToString("0.##")</strong></div>
             </div>
@@ -130,7 +133,10 @@
     </div>
 
     <div class="list-card">
-        <div class="table-header"><h3>Zeiteintraege</h3><span>@Entries.Count Eintraege</span></div>
+        <div class="table-header">
+            <h3>Zeiteinträge</h3>
+            <span>@Entries.Count Einträge</span>
+        </div>
         @if (Entries.Count == 0)
         {
             <p class="empty-hint">Noch keine Arbeitszeiten gefunden.</p>
@@ -146,7 +152,7 @@
                             <p>@entry.CustomerName · @(entry.ProjectName ?? "Ohne Projekt")</p>
                         </div>
                         <span class="pill @(entry.IsClockActive ? "success" : entry.IsPaid ? "success" : string.IsNullOrWhiteSpace(entry.CustomerInvoiceNumber) ? string.Empty : "warning")">
-                            @(entry.IsClockActive ? "Laeuft" : entry.IsPaid ? "Bezahlt" : string.IsNullOrWhiteSpace(entry.CustomerInvoiceNumber) ? "Offen" : "Fakturiert")
+                            @(entry.IsClockActive ? "Läuft" : entry.IsPaid ? "Bezahlt" : string.IsNullOrWhiteSpace(entry.CustomerInvoiceNumber) ? "Offen" : "Fakturiert")
                         </span>
                     </div>
                     <div class="entry-meta">
@@ -162,13 +168,13 @@
                     }
                     <div class="status-update">
                         <input placeholder="Rechnungsnr." @bind="InvoiceNumbers[entry.WorkTimeEntryId]" />
-                        @if (Auth.CanManageUsers && !entry.IsClockActive)
+                        @if (CanEditEntry(entry))
                         {
                             <button class="ghost-button" @onclick="() => OpenEditDialog(entry)">Bearbeiten</button>
                         }
                         <button class="ghost-button" @onclick="() => MarkInvoicedAsync(entry.WorkTimeEntryId)">Fakturiert</button>
                         <button class="ghost-button" @onclick="() => MarkPaidAsync(entry.WorkTimeEntryId)">Bezahlt</button>
-                        <button class="ghost-button danger" @onclick="() => DeleteAsync(entry.WorkTimeEntryId)">Loeschen</button>
+                        <button class="ghost-button danger" @onclick="() => DeleteAsync(entry.WorkTimeEntryId)">Löschen</button>
                     </div>
                 </div>
             }
@@ -212,8 +218,8 @@
         <div class="modal-card" @onclick:stopPropagation="true">
             <div class="table-header compact">
                 <div>
-                    <h3>Arbeitszeit bearbeiten</h3>
-                    <p>Admins koennen abgeschlossene Arbeitszeiten hier nachtraeglich korrigieren.</p>
+                    <h3>@(EditingWorkTimeEntryId.HasValue ? "Arbeitszeit bearbeiten" : "Arbeitszeit nachtragen")</h3>
+                    <p>Hier kannst du Arbeitszeiten nachträglich erfassen oder bestehende Einträge anpassen.</p>
                 </div>
             </div>
 
@@ -249,7 +255,7 @@
             </div>
 
             <div class="row-actions wrap-mobile">
-                <button class="action-button" @onclick="SaveEditAsync">Aenderungen speichern</button>
+                <button class="action-button" @onclick="SaveEditAsync">Änderungen speichern</button>
                 <button class="ghost-button" @onclick="CloseEditDialog">Abbrechen</button>
             </div>
         </div>
@@ -278,6 +284,7 @@
     private string EditWorkDateText => EditForm.WorkDate.ToString("yyyy-MM-dd");
     private string EditStartTimeText => EditForm.StartTime.ToString(@"hh\:mm");
     private string EditEndTimeText => EditForm.EndTime.ToString(@"hh\:mm");
+    private int? CurrentUserId => Auth.CurrentSession?.User.AppUserId;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -291,7 +298,7 @@
             return;
         }
 
-        Customers = (await Api.GetCustomersAsync()).ToList();
+        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).ToList();
         if (Customers.Count == 0)
         {
             AvailableProjects = [];
@@ -338,7 +345,7 @@
 
     private async Task LoadProjectsForSelectedCustomerAsync()
     {
-        AvailableProjects = StartForm.CustomerId > 0 ? (await Api.GetProjectsAsync(StartForm.CustomerId)).ToList() : [];
+        AvailableProjects = StartForm.CustomerId > 0 ? (await Api.GetProjectsAsync(StartForm.CustomerId, includeInactive: false)).ToList() : [];
         if (StartForm.ProjectId.HasValue && AvailableProjects.All(x => x.ProjectId != StartForm.ProjectId.Value))
         {
             StartForm.ProjectId = null;
@@ -347,7 +354,7 @@
 
     private async Task HandleFilterCustomerChangedAsync()
     {
-        FilterProjects = FilterCustomerId.HasValue ? (await Api.GetProjectsAsync(FilterCustomerId.Value)).ToList() : [];
+        FilterProjects = FilterCustomerId.HasValue ? (await Api.GetProjectsAsync(FilterCustomerId.Value, includeInactive: false)).ToList() : [];
         if (FilterProjectId.HasValue && FilterProjects.All(x => x.ProjectId != FilterProjectId.Value))
         {
             FilterProjectId = null;
@@ -360,13 +367,13 @@
     {
         if (StartForm.CustomerId <= 0)
         {
-            SetStatus("Bitte zuerst einen Kunden waehlen.", true);
+            SetStatus("Bitte zuerst einen Kunden wählen.", true);
             return;
         }
 
         if (!StartForm.ProjectId.HasValue)
         {
-            SetStatus("Bitte ein konkretes Projekt auswaehlen.", true);
+            SetStatus("Bitte ein konkretes Projekt auswählen.", true);
             return;
         }
 
@@ -378,7 +385,7 @@
 
         StartForm.StartedAt = DateTimeOffset.Now;
         ActiveClock = await Api.StartWorkTimeClockAsync(StartForm);
-        SetStatus($"Projektzeit fuer {ActiveClock.ProjectName} gestartet.", false);
+        SetStatus($"Projektzeit für {ActiveClock.ProjectName} gestartet.", false);
         await ReloadEntriesAsync();
     }
 
@@ -412,7 +419,7 @@
 
     private async Task LoadProjectsForEditCustomerAsync()
     {
-        EditProjects = EditForm.CustomerId > 0 ? (await Api.GetProjectsAsync(EditForm.CustomerId)).ToList() : [];
+        EditProjects = EditForm.CustomerId > 0 ? (await Api.GetProjectsAsync(EditForm.CustomerId, includeInactive: false)).ToList() : [];
         if (EditForm.ProjectId.HasValue && EditProjects.All(x => x.ProjectId != EditForm.ProjectId.Value))
         {
             EditForm.ProjectId = null;
@@ -421,12 +428,6 @@
 
     private void OpenEditDialog(WorkTimeItem entry)
     {
-        if (!Auth.CanManageUsers)
-        {
-            SetStatus("Nur Admins duerfen Arbeitszeiten bearbeiten.", true);
-            return;
-        }
-
         EditingWorkTimeEntryId = entry.WorkTimeEntryId;
         EditForm = new SaveWorkTimeModel
         {
@@ -441,6 +442,29 @@
             TravelRatePerKilometer = entry.TravelRatePerKilometer,
             Description = entry.Description,
             Comment = entry.Comment
+        };
+        _ = LoadProjectsForEditCustomerAsync();
+        ShowEditDialog = true;
+    }
+
+    private void OpenCreateEntryDialog()
+    {
+        if (Customers.Count == 0)
+        {
+            SetStatus("Es sind aktuell keine aktiven Kunden mit Projekt verfügbar.", true);
+            return;
+        }
+
+        EditingWorkTimeEntryId = null;
+        EditForm = new SaveWorkTimeModel
+        {
+            CustomerId = Customers.FirstOrDefault()?.CustomerId ?? 0,
+            WorkDate = DateTime.Today,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(16, 30, 0),
+            BreakMinutes = 30,
+            HourlyRate = 65m,
+            Description = "Arbeitszeit"
         };
         _ = LoadProjectsForEditCustomerAsync();
         ShowEditDialog = true;
@@ -469,33 +493,30 @@
 
     private async Task SaveEditAsync()
     {
-        if (!Auth.CanManageUsers)
-        {
-            SetStatus("Nur Admins duerfen Arbeitszeiten bearbeiten.", true);
-            return;
-        }
-
-        if (!EditingWorkTimeEntryId.HasValue)
-        {
-            return;
-        }
-
         if (EditForm.CustomerId <= 0)
         {
-            SetStatus("Bitte einen Kunden auswaehlen.", true);
+            SetStatus("Bitte einen Kunden auswählen.", true);
             return;
         }
 
         if ((EditForm.EndTime - EditForm.StartTime - TimeSpan.FromMinutes(EditForm.BreakMinutes)) <= TimeSpan.Zero)
         {
-            SetStatus("Bitte gueltige Start-, End- und Pausenzeiten eingeben.", true);
+            SetStatus("Bitte gültige Start-, End- und Pausenzeiten eingeben.", true);
             return;
         }
 
-        await Api.UpdateWorkTimeAsync(EditingWorkTimeEntryId.Value, EditForm);
+        if (EditingWorkTimeEntryId.HasValue)
+        {
+            await Api.UpdateWorkTimeAsync(EditingWorkTimeEntryId.Value, EditForm);
+        }
+        else
+        {
+            await Api.CreateWorkTimeAsync(EditForm);
+        }
+
         CloseEditDialog();
-        SetStatus("Arbeitszeit wurde aktualisiert.", false);
-        await ReloadEntriesAsync();
+        SetStatus(EditingWorkTimeEntryId.HasValue ? "Arbeitszeit wurde aktualisiert." : "Arbeitszeit wurde nachgetragen.", false);
+        await ReloadAsync();
     }
 
     private async Task ConfirmStopClockAsync()
@@ -542,9 +563,12 @@
     private async Task DeleteAsync(int id)
     {
         await Api.DeleteWorkTimeAsync(id);
-        SetStatus("Eintrag geloescht.", false);
+        SetStatus("Eintrag gelöscht.", false);
         await ReloadAsync();
     }
+
+    private bool CanEditEntry(WorkTimeItem entry)
+        => !entry.IsClockActive && (Auth.CanManageUsers || (entry.AppUserId.HasValue && entry.AppUserId == CurrentUserId));
 
     private void SetStatus(string message, bool isWarning)
     {

@@ -49,6 +49,18 @@
                             <TextBlock Text="Rechnungsform" Style="{StaticResource MutedLabelStyle}"/>
                             <ComboBox x:Name="InvoiceDirectionFilterCombo" DisplayMemberPath="Label" SelectedValuePath="Value" SelectionChanged="ArchiveFilter_Changed"/>
                         </StackPanel>
+                        <StackPanel Width="210" Margin="0,0,14,12">
+                            <TextBlock Text="Von" Style="{StaticResource MutedLabelStyle}"/>
+                            <DatePicker x:Name="DateFromFilterPicker" SelectedDateChanged="ArchiveDateFilter_Changed"/>
+                        </StackPanel>
+                        <StackPanel Width="210" Margin="0,0,14,12">
+                            <TextBlock Text="Bis" Style="{StaticResource MutedLabelStyle}"/>
+                            <DatePicker x:Name="DateToFilterPicker" SelectedDateChanged="ArchiveDateFilter_Changed"/>
+                        </StackPanel>
+                        <StackPanel Width="230" Margin="0,0,14,12">
+                            <TextBlock Text="Kategorie" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="AccountingCategoryFilterCombo" DisplayMemberPath="Label" SelectedValuePath="Value" SelectionChanged="ArchiveFilter_Changed"/>
+                        </StackPanel>
                         <StackPanel Width="260" Margin="0,0,14,12">
                             <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
                             <ComboBox x:Name="CustomerFilterCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerFilterCombo_SelectionChanged"/>

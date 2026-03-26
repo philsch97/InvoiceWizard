@@ -12,6 +12,12 @@ public class LoginRequestModel
     public string Password { get; set; } = "";
 }
 
+public class StoredLoginCredentials
+{
+    public string Email { get; set; } = "";
+    public string Password { get; set; } = "";
+}
+
 public class BootstrapAdminRequestModel
 {
     public string TenantName { get; set; } = "";

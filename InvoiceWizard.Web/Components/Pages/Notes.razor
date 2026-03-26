@@ -4,11 +4,11 @@
 
 <PageTitle>Notizen & ToDos</PageTitle>
 
-<section class="page-section">
+<section class="page-section notes-page">
     <div class="section-heading">
         <div>
             <h2>Notizen & ToDos</h2>
-            <p>Checklisten je Kunde oder Projekt pflegen, Unterpunkte abhaken und Bilder mit Beschriftung hinterlegen.</p>
+            <p>Listen mobil übersichtlich pflegen, abhaken und Bilder direkt am ausgewählten Projekt oder Kunden dokumentieren.</p>
         </div>
         <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
     </div>
@@ -23,7 +23,7 @@
             <label>
                 <span>Kunde</span>
                 <select @bind="SelectedCustomerId" @bind:after="OnCustomerChangedAsync">
-                    <option value="">Bitte waehlen</option>
+                    <option value="">Bitte wählen</option>
                     @foreach (var customer in Customers)
                     {
                         <option value="@customer.CustomerId">@customer.Name</option>
@@ -43,113 +43,146 @@
             <label class="wide">
                 <span>Neue Liste</span>
                 <div class="inline-editor">
-                    <input @bind="NewListTitle" />
+                    <input @bind="NewListTitle" placeholder="z. B. Restpunkte Küche" />
                     <button class="action-button" @onclick="CreateListAsync" disabled="@(!SelectedCustomerId.HasValue)">Liste anlegen</button>
                 </div>
             </label>
         </div>
-    </article>
 
-    <article class="feature-card">
-        <div class="table-header"><h3>Listen</h3><span>@Lists.Count Eintraege</span></div>
-        @if (Lists.Count == 0)
-        {
-            <p class="empty-hint">Noch keine Liste vorhanden.</p>
-        }
-        else
-        {
-            @foreach (var list in Lists)
-            {
-                <div class="list-row stacked-mobile @(SelectedList?.TodoListId == list.TodoListId ? "selected-row" : string.Empty)">
-                    <div>
-                        <strong>@list.Title</strong>
-                        <p>@list.CustomerName · @(list.ProjectName ?? "Ohne Projekt")</p>
-                        <p>@list.OpenItemCount offen · @list.CompletedItemCount erledigt</p>
-                    </div>
-                    <div class="row-actions wrap-mobile">
-                        <button class="ghost-button" @onclick="() => SelectList(list)">Oeffnen</button>
-                        <button class="ghost-button danger" @onclick="() => DeleteListAsync(list.TodoListId)">Loeschen</button>
-                    </div>
-                </div>
-            }
-        }
-    </article>
-</section>
-
-@if (ShowListDialog && SelectedList is not null)
-{
-    <div class="modal-backdrop" @onclick="CloseListDialog">
-        <div class="modal-card list-editor-modal" @onclick:stopPropagation="true">
-            <div class="table-header compact">
-                <div>
-                    <h3>@SelectedList.Title</h3>
-                    <p>@SelectedList.CustomerName · @(SelectedList.ProjectName ?? "Ohne Projekt")</p>
-                </div>
-                <div class="row-actions wrap-mobile">
-                    <span class="pill">@SelectedList.OpenItemCount offen</span>
-                    <button class="ghost-button" @onclick="CloseListDialog">Schliessen</button>
-                </div>
+        <div class="compact-info-grid">
+            <div class="compact-info-card">
+                <span>Gewählter Kunde</span>
+                <strong>@SelectedCustomerName</strong>
             </div>
-
-            <div class="form-grid compact-grid">
-                <label class="wide">
-                    <span>Neuer Punkt</span>
-                    <div class="inline-editor">
-                        <input @bind="NewItemText" />
-                        <button class="action-button" @onclick="CreateRootItemAsync">Punkt anlegen</button>
-                    </div>
-                </label>
-                <label class="wide">
-                    <span>Unterpunkt fuer markierten Eintrag</span>
-                    <div class="inline-editor">
-                        <input @bind="NewChildItemText" />
-                        <button class="ghost-button" @onclick="CreateChildItemAsync" disabled="@(SelectedItemId is null)">Unterpunkt</button>
-                    </div>
-                </label>
+            <div class="compact-info-card">
+                <span>Gewähltes Projekt</span>
+                <strong>@SelectedProjectName</strong>
             </div>
-
-            <div class="todo-tree">
-                @foreach (var item in SelectedList.Items.OrderBy(x => x.SortOrder))
-                {
-                    @RenderTodoItem(item, 0)
-                }
+            <div class="compact-info-card">
+                <span>Listen</span>
+                <strong>@Lists.Count</strong>
             </div>
-
-            <div class="attachments-block">
-                <div class="table-header compact"><h3>Bilder</h3><span>@SelectedList.Attachments.Count Eintraege</span></div>
-                <div class="form-grid compact-grid">
-                    <label class="wide"><span>Beschriftung</span><input @bind="AttachmentCaption" /></label>
-                    <label class="wide"><span>Bilddatei</span><InputFile OnChange="HandleFileSelected" accept="image/*" /></label>
-                    <div class="status-update">
-                        <button class="action-button" @onclick="UploadAttachmentAsync" disabled="@(SelectedAttachmentFile is null)">Bild hochladen</button>
-                        @if (SelectedAttachmentFile is not null)
-                        {
-                            <span class="pill">@SelectedAttachmentFile.Name</span>
-                        }
-                    </div>
-                </div>
-
-                @foreach (var attachment in SelectedList.Attachments)
-                {
-                    <div class="list-row stacked-mobile">
-                        <div>
-                            <strong>@attachment.FileName</strong>
-                            <p>@(string.IsNullOrWhiteSpace(attachment.Caption) ? "Ohne Beschriftung" : attachment.Caption)</p>
-                            <p>@attachment.UploadedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</p>
-                        </div>
-                        <div class="row-actions wrap-mobile">
-                            @if (!string.IsNullOrWhiteSpace(attachment.DownloadUrl))
-                            {
-                                <a class="ghost-button link-button" href="@attachment.DownloadUrl" target="_blank">Oeffnen</a>
-                            }
-                            <button class="ghost-button danger" @onclick="() => DeleteAttachmentAsync(attachment.TodoAttachmentId)">Loeschen</button>
-                        </div>
-                    </div>
-                }
+            <div class="compact-info-card">
+                <span>Offene Punkte</span>
+                <strong>@Lists.Sum(x => x.OpenItemCount)</strong>
             </div>
         </div>
+    </article>
+
+    <div class="split-grid two-columns notes-layout">
+        <article class="list-card">
+            <div class="table-header compact">
+                <h3>Listen</h3>
+                <span>@Lists.Count Einträge</span>
+            </div>
+            @if (Lists.Count == 0)
+            {
+                <p class="empty-hint">Noch keine Liste vorhanden.</p>
+            }
+            else
+            {
+                @foreach (var list in Lists)
+                {
+                    <button type="button" class="list-row stacked-mobile selectable-list-row @(SelectedList?.TodoListId == list.TodoListId ? "selected-row" : string.Empty)" @onclick="() => SelectList(list)">
+                        <div>
+                            <strong>@list.Title</strong>
+                            <p>@list.CustomerName · @(list.ProjectName ?? "Ohne Projekt")</p>
+                        </div>
+                        <div class="row-actions wrap-mobile">
+                            <span class="pill">@list.OpenItemCount offen</span>
+                            <span class="pill">@list.CompletedItemCount erledigt</span>
+                        </div>
+                    </button>
+                }
+            }
+        </article>
+
+        <article class="feature-card">
+            @if (SelectedList is null)
+            {
+                <p class="empty-hint">Bitte zuerst eine Liste auswählen.</p>
+            }
+            else
+            {
+                <div class="table-header compact">
+                    <div>
+                        <h3>@SelectedList.Title</h3>
+                        <p>@SelectedList.CustomerName · @(SelectedList.ProjectName ?? "Ohne Projekt")</p>
+                    </div>
+                    <div class="row-actions wrap-mobile">
+                        <span class="pill">@SelectedList.OpenItemCount offen</span>
+                        <button class="ghost-button danger" @onclick="() => DeleteListAsync(SelectedList.TodoListId)">Liste löschen</button>
+                    </div>
+                </div>
+
+                <div class="form-grid compact-grid">
+                    <label class="wide">
+                        <span>Neuer Punkt</span>
+                        <div class="inline-editor">
+                            <input @bind="NewItemText" placeholder="z. B. Steckdosenabdeckung nachbestellen" />
+                            <button class="action-button" @onclick="CreateRootItemAsync">Punkt anlegen</button>
+                        </div>
+                    </label>
+                    <label class="wide">
+                        <span>Unterpunkt für markierten Eintrag</span>
+                        <div class="inline-editor">
+                            <input @bind="NewChildItemText" placeholder="z. B. beim nächsten Termin mitbringen" />
+                            <button class="ghost-button" @onclick="CreateChildItemAsync" disabled="@(SelectedItemId is null)">Unterpunkt</button>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="todo-tree">
+                    @foreach (var item in SelectedList.Items.OrderBy(x => x.SortOrder))
+                    {
+                        @RenderTodoItem(item, 0)
+                    }
+                </div>
+
+                <div class="attachments-block">
+                    <div class="table-header compact">
+                        <h3>Bilder</h3>
+                        <span>@SelectedList.Attachments.Count Einträge</span>
+                    </div>
+                    <div class="form-grid compact-grid">
+                        <label class="wide">
+                            <span>Beschriftung</span>
+                            <input @bind="AttachmentCaption" />
+                        </label>
+                        <label class="wide">
+                            <span>Bilddatei</span>
+                            <InputFile OnChange="HandleFileSelected" accept="image/*" />
+                        </label>
+                        <div class="status-update">
+                            <button class="action-button" @onclick="UploadAttachmentAsync" disabled="@(SelectedAttachmentFile is null)">Bild hochladen</button>
+                            @if (SelectedAttachmentFile is not null)
+                            {
+                                <span class="pill">@SelectedAttachmentFile.Name</span>
+                            }
+                        </div>
+                    </div>
+
+                    @foreach (var attachment in SelectedList.Attachments)
+                    {
+                        <div class="list-row stacked-mobile">
+                            <div>
+                                <strong>@attachment.FileName</strong>
+                                <p>@(string.IsNullOrWhiteSpace(attachment.Caption) ? "Ohne Beschriftung" : attachment.Caption)</p>
+                            </div>
+                            <div class="row-actions wrap-mobile">
+                                @if (!string.IsNullOrWhiteSpace(attachment.DownloadUrl))
+                                {
+                                    <a class="ghost-button link-button" href="@attachment.DownloadUrl" target="_blank">Öffnen</a>
+                                }
+                                <button class="ghost-button danger" @onclick="() => DeleteAttachmentAsync(attachment.TodoAttachmentId)">Löschen</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </article>
     </div>
-}
+</section>
 
 @code {
     private List<CustomerItem> Customers { get; set; } = [];
@@ -165,7 +198,12 @@
     private string AttachmentCaption { get; set; } = string.Empty;
     private IBrowserFile? SelectedAttachmentFile { get; set; }
     private string? StatusMessage { get; set; }
-    private bool ShowListDialog { get; set; }
+
+    private string SelectedCustomerName
+        => SelectedCustomerId.HasValue ? Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId.Value)?.Name ?? "Nicht gefunden" : "Nicht gewählt";
+
+    private string SelectedProjectName
+        => SelectedProjectId.HasValue ? Projects.FirstOrDefault(x => x.ProjectId == SelectedProjectId.Value)?.Name ?? "Nicht gefunden" : "Alle Projekte";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -177,11 +215,10 @@
             SelectedCustomerId = null;
             SelectedProjectId = null;
             SelectedList = null;
-            ShowListDialog = false;
             return;
         }
 
-        Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
         if (!SelectedCustomerId.HasValue && Customers.Count > 0)
         {
             SelectedCustomerId = Customers[0].CustomerId;
@@ -192,21 +229,23 @@
 
     private async Task OnCustomerChangedAsync()
     {
-        Projects = SelectedCustomerId.HasValue ? (await Api.GetProjectsAsync(SelectedCustomerId.Value)).OrderBy(x => x.Name).ToList() : [];
+        Projects = SelectedCustomerId.HasValue ? (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList() : [];
         if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
         {
             SelectedProjectId = null;
         }
+
         await ReloadListsAsync();
     }
 
     private async Task ReloadAsync()
     {
-        Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
         if (SelectedCustomerId.HasValue)
         {
-            Projects = (await Api.GetProjectsAsync(SelectedCustomerId.Value)).OrderBy(x => x.Name).ToList();
+            Projects = (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList();
         }
+
         await ReloadListsAsync();
     }
 
@@ -216,7 +255,6 @@
         {
             Lists = [];
             SelectedList = null;
-            ShowListDialog = false;
             return;
         }
 
@@ -226,11 +264,6 @@
             SelectedList = Lists.FirstOrDefault(x => x.TodoListId == SelectedList.TodoListId);
         }
 
-        if (SelectedList is null)
-        {
-            ShowListDialog = false;
-        }
-
         SelectedList ??= Lists.FirstOrDefault();
         SelectedItemId = null;
     }
@@ -238,13 +271,6 @@
     private void SelectList(TodoListItem list)
     {
         SelectedList = list;
-        SelectedItemId = null;
-        ShowListDialog = true;
-    }
-
-    private void CloseListDialog()
-    {
-        ShowListDialog = false;
         SelectedItemId = null;
     }
 
@@ -258,7 +284,6 @@
 
         SelectedList = await Api.CreateTodoListAsync(SelectedCustomerId.Value, SelectedProjectId, NewListTitle.Trim());
         NewListTitle = string.Empty;
-        ShowListDialog = true;
         StatusMessage = $"Liste {SelectedList.Title} gespeichert.";
         await ReloadListsAsync();
     }
@@ -270,9 +295,9 @@
         {
             SelectedList = null;
             SelectedItemId = null;
-            ShowListDialog = false;
         }
-        StatusMessage = "Liste geloescht.";
+
+        StatusMessage = "Liste gelöscht.";
         await ReloadListsAsync();
     }
 
@@ -294,7 +319,7 @@
     {
         if (SelectedList is null || SelectedItemId is null || string.IsNullOrWhiteSpace(NewChildItemText))
         {
-            StatusMessage = "Bitte einen markierten Punkt und den Text fuer den Unterpunkt angeben.";
+            StatusMessage = "Bitte einen markierten Punkt und den Text für den Unterpunkt angeben.";
             return;
         }
 
@@ -307,7 +332,7 @@
     private async Task ToggleItemAsync(TodoItem item)
     {
         SelectedList = await Api.UpdateTodoItemStateAsync(item.TodoItemId, !item.IsCompleted);
-        StatusMessage = item.IsCompleted ? "Punkt wieder geoeffnet." : "Punkt als erledigt markiert.";
+        StatusMessage = item.IsCompleted ? "Punkt wieder geöffnet." : "Punkt als erledigt markiert.";
         await ReloadListsAsync();
     }
 
@@ -318,7 +343,8 @@
         {
             SelectedItemId = null;
         }
-        StatusMessage = "Punkt geloescht.";
+
+        StatusMessage = "Punkt gelöscht.";
         await ReloadListsAsync();
     }
 
@@ -336,7 +362,7 @@
     {
         if (SelectedList is null || SelectedAttachmentFile is null)
         {
-            StatusMessage = "Bitte zuerst eine Liste und eine Bilddatei auswaehlen.";
+            StatusMessage = "Bitte zuerst eine Liste und eine Bilddatei auswählen.";
             return;
         }
 
@@ -350,7 +376,7 @@
     private async Task DeleteAttachmentAsync(int attachmentId)
     {
         SelectedList = await Api.DeleteTodoAttachmentAsync(attachmentId);
-        StatusMessage = "Bild geloescht.";
+        StatusMessage = "Bild gelöscht.";
         await ReloadListsAsync();
     }
 
@@ -359,7 +385,7 @@
         var sequence = 0;
         builder.OpenElement(sequence++, "div");
         builder.AddAttribute(sequence++, "class", $"todo-item {(SelectedItemId == item.TodoItemId ? "selected-todo" : string.Empty)}");
-        builder.AddAttribute(sequence++, "style", $"margin-left:{depth * 18}px");
+        builder.AddAttribute(sequence++, "style", $"margin-left:{depth * 12}px");
 
         builder.OpenElement(sequence++, "div");
         builder.AddAttribute(sequence++, "class", "todo-item-row");
@@ -388,7 +414,7 @@
         builder.AddAttribute(sequence++, "type", "button");
         builder.AddAttribute(sequence++, "class", "ghost-button danger");
         builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DeleteItemAsync(item)));
-        builder.AddContent(sequence++, "Loeschen");
+        builder.AddContent(sequence++, "Löschen");
         builder.CloseElement();
         builder.CloseElement();
 

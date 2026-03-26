@@ -8,9 +8,12 @@
     <div class="section-heading">
         <div>
             <h2>Projektdaten</h2>
-            <p>Anschlussnutzer und Grundstueckseigentuemer je Projekt mobil hinterlegen und aktualisieren.</p>
+            <p>Projekte anlegen, bearbeiten und ihren Status direkt ändern. Angezeigt werden nur die Daten des aktuell gewählten Projekts.</p>
         </div>
-        <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
+        <div class="row-actions wrap-mobile">
+            <button class="action-button" @onclick="OpenCreateProjectDialog" disabled="@(!SelectedCustomerId.HasValue)">Projekt anlegen</button>
+            <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(StatusMessage))
@@ -23,7 +26,7 @@
             <label>
                 <span>Kunde</span>
                 <select @bind="SelectedCustomerId" @bind:after="OnCustomerChangedAsync">
-                    <option value="">Bitte waehlen</option>
+                    <option value="">Bitte wählen</option>
                     @foreach (var customer in Customers)
                     {
                         <option value="@customer.CustomerId">@customer.Name</option>
@@ -33,7 +36,7 @@
             <label>
                 <span>Projekt</span>
                 <select @bind="SelectedProjectId" @bind:after="OnProjectChangedAsync" disabled="@(Projects.Count == 0)">
-                    <option value="">Bitte waehlen</option>
+                    <option value="">Bitte wählen</option>
                     @foreach (var project in Projects)
                     {
                         <option value="@project.ProjectId">@project.Name</option>
@@ -48,54 +51,167 @@
         <div class="split-grid two-columns">
             <article class="feature-card">
                 <div class="table-header compact">
-                    <h3>Anschlussnutzer</h3>
-                    <label class="checkbox-line"><input type="checkbox" @bind="Details.ConnectionUserSameAsCustomer" @bind:after="ApplyConnectionUserSameAsCustomer" /> <span>Wie Kundendaten</span></label>
+                    <div>
+                        <h3>@CurrentProject.Name</h3>
+                        <p>@CurrentProject.CustomerName</p>
+                    </div>
+                    <div class="row-actions wrap-mobile">
+                        <button class="ghost-button" @onclick="OpenEditProjectDialog">Bearbeiten</button>
+                        <button class="ghost-button danger" @onclick="DeleteProjectAsync">Löschen</button>
+                    </div>
                 </div>
-                <div class="form-grid">
-                    <label><span>Vorname</span><input @bind="Details.ConnectionUserFirstName" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>Nachname</span><input @bind="Details.ConnectionUserLastName" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>Strasse</span><input @bind="Details.ConnectionUserStreet" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>Hausnummer</span><input @bind="Details.ConnectionUserHouseNumber" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>Postleitzahl</span><input @bind="Details.ConnectionUserPostalCode" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>Ort</span><input @bind="Details.ConnectionUserCity" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>Flurnummer</span><input @bind="Details.ConnectionUserParcelNumber" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label><span>E-Mail-Adresse</span><input @bind="Details.ConnectionUserEmailAddress" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
-                    <label class="wide"><span>Telefonnummer</span><input @bind="Details.ConnectionUserPhoneNumber" disabled="@Details.ConnectionUserSameAsCustomer" /></label>
+
+                <div class="compact-info-grid">
+                    <div class="compact-info-card">
+                        <span>Status</span>
+                        <strong>@ProjectStatusLabel(CurrentProject.ProjectStatus)</strong>
+                    </div>
+                    <div class="compact-info-card">
+                        <span>Erstellt</span>
+                        <strong>@CurrentProject.CreatedAt.ToString("dd.MM.yyyy")</strong>
+                    </div>
+                    <div class="compact-info-card">
+                        <span>Offene Positionen</span>
+                        <strong>@CurrentProject.OpenPositionCount</strong>
+                    </div>
+                    <div class="compact-info-card">
+                        <span>Offene Entwürfe</span>
+                        <strong>@CurrentProject.OpenDraftInvoiceCount</strong>
+                    </div>
+                    <div class="compact-info-card">
+                        <span>Offene Notizpunkte</span>
+                        <strong>@CurrentProject.OpenTodoItemCount</strong>
+                    </div>
+                    <div class="compact-info-card">
+                        <span>Beenden möglich</span>
+                        <strong>@(CurrentProject.CanBeEnded ? "Ja" : "Nein")</strong>
+                    </div>
                 </div>
+
+                <div class="row-actions wrap-mobile">
+                    <button class="ghost-button" @onclick='() => ChangeProjectStatusAsync("Active")'>Als aktiv</button>
+                    <button class="ghost-button" @onclick='() => ChangeProjectStatusAsync("Paused")'>Pausieren</button>
+                    <button class="ghost-button" @onclick='() => ChangeProjectStatusAsync("Ended")'>Beenden</button>
+                </div>
+
+                @if (!CurrentProject.CanBeEnded && !string.IsNullOrWhiteSpace(CurrentProject.CannotEndReason))
+                {
+                    <p class="empty-hint">@CurrentProject.CannotEndReason</p>
+                }
             </article>
 
             <article class="feature-card">
-                <div class="table-header compact">
-                    <h3>Grundstueckseigentuemer</h3>
-                    <label class="checkbox-line"><input type="checkbox" @bind="Details.PropertyOwnerSameAsCustomer" @bind:after="ApplyPropertyOwnerSameAsCustomer" /> <span>Wie Kundendaten</span></label>
+                <div class="table-header compact"><h3>Nutzer</h3></div>
+                <div class="compact-info-grid">
+                    <div class="compact-info-card"><span>Name</span><strong>@DisplayName(CurrentProject.ConnectionUserFirstName, CurrentProject.ConnectionUserLastName)</strong></div>
+                    <div class="compact-info-card"><span>Adresse</span><strong>@FormatAddress(CurrentProject.ConnectionUserStreet, CurrentProject.ConnectionUserHouseNumber, CurrentProject.ConnectionUserPostalCode, CurrentProject.ConnectionUserCity)</strong></div>
+                    <div class="compact-info-card"><span>Flurnummer</span><strong>@DisplayOrFallback(CurrentProject.ConnectionUserParcelNumber)</strong></div>
+                    <div class="compact-info-card"><span>E-Mail</span><strong>@DisplayOrFallback(CurrentProject.ConnectionUserEmailAddress)</strong></div>
+                    <div class="compact-info-card"><span>Telefon</span><strong>@DisplayOrFallback(CurrentProject.ConnectionUserPhoneNumber)</strong></div>
                 </div>
-                <div class="form-grid">
-                    <label><span>Vorname</span><input @bind="Details.PropertyOwnerFirstName" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label><span>Nachname</span><input @bind="Details.PropertyOwnerLastName" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label><span>Strasse</span><input @bind="Details.PropertyOwnerStreet" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label><span>Hausnummer</span><input @bind="Details.PropertyOwnerHouseNumber" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label><span>Postleitzahl</span><input @bind="Details.PropertyOwnerPostalCode" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label><span>Ort</span><input @bind="Details.PropertyOwnerCity" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label><span>E-Mail-Adresse</span><input @bind="Details.PropertyOwnerEmailAddress" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
-                    <label class="wide"><span>Telefonnummer</span><input @bind="Details.PropertyOwnerPhoneNumber" disabled="@Details.PropertyOwnerSameAsCustomer" /></label>
+
+                <div class="table-header compact section-divider"><h3>Grundstückseigentümer</h3></div>
+                <div class="compact-info-grid">
+                    <div class="compact-info-card"><span>Name</span><strong>@DisplayName(CurrentProject.PropertyOwnerFirstName, CurrentProject.PropertyOwnerLastName)</strong></div>
+                    <div class="compact-info-card"><span>Adresse</span><strong>@FormatAddress(CurrentProject.PropertyOwnerStreet, CurrentProject.PropertyOwnerHouseNumber, CurrentProject.PropertyOwnerPostalCode, CurrentProject.PropertyOwnerCity)</strong></div>
+                    <div class="compact-info-card"><span>E-Mail</span><strong>@DisplayOrFallback(CurrentProject.PropertyOwnerEmailAddress)</strong></div>
+                    <div class="compact-info-card"><span>Telefon</span><strong>@DisplayOrFallback(CurrentProject.PropertyOwnerPhoneNumber)</strong></div>
                 </div>
             </article>
-        </div>
-
-        <div class="status-update">
-            <button class="action-button" @onclick="SaveAsync">Projektdaten speichern</button>
-            <span class="pill">@CurrentProject.Name</span>
         </div>
     }
 </section>
 
+@if (ShowProjectDialog)
+{
+    <div class="modal-backdrop" @onclick="CloseProjectDialog">
+        <div class="modal-card wizard-modal" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>@(EditingProjectId.HasValue ? "Projekt bearbeiten" : "Projekt anlegen")</h3>
+                    <p>Schritt @WizardStep von 3</p>
+                </div>
+            </div>
+
+            @if (WizardStep == 1)
+            {
+                <div class="form-grid compact-grid">
+                    <label class="wide"><span>Projektname</span><input @bind="ProjectForm.Name" /></label>
+                    <label>
+                        <span>Status</span>
+                        <select @bind="ProjectForm.ProjectStatus">
+                            <option value="Active">Aktiv</option>
+                            <option value="Paused">Pausiert</option>
+                            <option value="Ended">Beendet</option>
+                        </select>
+                    </label>
+                </div>
+                <p class="empty-hint">Der Projektname muss wie in der WPF mit einer dreistelligen Nummer beginnen, z. B. 001 Renovierung Haus.</p>
+            }
+            else if (WizardStep == 2)
+            {
+                <div class="row-actions wrap-mobile">
+                    <button class="ghost-button" @onclick="ApplyConnectionUserFromCustomer">Daten vom Kunden übernehmen</button>
+                </div>
+                <div class="form-grid compact-grid">
+                    <label><span>Vorname</span><input @bind="ProjectForm.ConnectionUserFirstName" /></label>
+                    <label><span>Nachname</span><input @bind="ProjectForm.ConnectionUserLastName" /></label>
+                    <label><span>Straße</span><input @bind="ProjectForm.ConnectionUserStreet" /></label>
+                    <label><span>Hausnummer</span><input @bind="ProjectForm.ConnectionUserHouseNumber" /></label>
+                    <label><span>Postleitzahl</span><input @bind="ProjectForm.ConnectionUserPostalCode" /></label>
+                    <label><span>Ort</span><input @bind="ProjectForm.ConnectionUserCity" /></label>
+                    <label><span>Flurnummer</span><input @bind="ProjectForm.ConnectionUserParcelNumber" /></label>
+                    <label><span>E-Mail-Adresse</span><input @bind="ProjectForm.ConnectionUserEmailAddress" /></label>
+                    <label class="wide"><span>Telefonnummer</span><input @bind="ProjectForm.ConnectionUserPhoneNumber" /></label>
+                </div>
+            }
+            else
+            {
+                <div class="row-actions wrap-mobile">
+                    <button class="ghost-button" @onclick="ApplyPropertyOwnerFromCustomer">Daten vom Kunden übernehmen</button>
+                    <button class="ghost-button" @onclick="ApplyPropertyOwnerFromConnectionUser">Daten vom Nutzer übernehmen</button>
+                </div>
+                <div class="form-grid compact-grid">
+                    <label><span>Vorname</span><input @bind="ProjectForm.PropertyOwnerFirstName" /></label>
+                    <label><span>Nachname</span><input @bind="ProjectForm.PropertyOwnerLastName" /></label>
+                    <label><span>Straße</span><input @bind="ProjectForm.PropertyOwnerStreet" /></label>
+                    <label><span>Hausnummer</span><input @bind="ProjectForm.PropertyOwnerHouseNumber" /></label>
+                    <label><span>Postleitzahl</span><input @bind="ProjectForm.PropertyOwnerPostalCode" /></label>
+                    <label><span>Ort</span><input @bind="ProjectForm.PropertyOwnerCity" /></label>
+                    <label><span>E-Mail-Adresse</span><input @bind="ProjectForm.PropertyOwnerEmailAddress" /></label>
+                    <label class="wide"><span>Telefonnummer</span><input @bind="ProjectForm.PropertyOwnerPhoneNumber" /></label>
+                </div>
+            }
+
+            <div class="row-actions wrap-mobile">
+                @if (WizardStep > 1)
+                {
+                    <button class="ghost-button" @onclick="PreviousWizardStep">Zurück</button>
+                }
+                @if (WizardStep < 3)
+                {
+                    <button class="action-button" @onclick="NextWizardStep">Weiter</button>
+                }
+                else
+                {
+                    <button class="action-button" @onclick="SaveProjectAsync">Speichern</button>
+                }
+                <button class="ghost-button" @onclick="CloseProjectDialog">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<CustomerItem> Customers { get; set; } = [];
     private List<ProjectItem> Projects { get; set; } = [];
-    private ProjectItem? CurrentProject { get; set; }
-    private ProjectDetailsItem Details { get; set; } = new();
+    private ProjectDetailsItem? CurrentProject { get; set; }
+    private SaveProjectModel ProjectForm { get; set; } = new();
     private int? SelectedCustomerId { get; set; }
     private int? SelectedProjectId { get; set; }
+    private int? EditingProjectId { get; set; }
+    private int WizardStep { get; set; } = 1;
+    private bool ShowProjectDialog { get; set; }
     private string? StatusMessage { get; set; }
 
     protected override async Task OnParametersSetAsync()
@@ -104,10 +220,10 @@
         {
             Customers = [];
             Projects = [];
+            CurrentProject = null;
             SelectedCustomerId = null;
             SelectedProjectId = null;
-            CurrentProject = null;
-            Details = new ProjectDetailsItem();
+            ShowProjectDialog = false;
             return;
         }
 
@@ -139,114 +255,208 @@
 
     private async Task LoadProjectsAsync()
     {
-        Projects = SelectedCustomerId.HasValue ? (await Api.GetProjectsAsync(SelectedCustomerId.Value)).OrderBy(x => x.Name).ToList() : [];
+        Projects = SelectedCustomerId.HasValue
+            ? (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: true)).OrderBy(x => x.Name).ToList()
+            : [];
+
         if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
         {
             SelectedProjectId = null;
         }
+
         if (!SelectedProjectId.HasValue && Projects.Count > 0)
         {
             SelectedProjectId = Projects[0].ProjectId;
         }
-        CurrentProject = SelectedProjectId.HasValue ? Projects.FirstOrDefault(x => x.ProjectId == SelectedProjectId.Value) : null;
     }
 
     private async Task LoadDetailsAsync()
     {
-        CurrentProject = SelectedProjectId.HasValue ? Projects.FirstOrDefault(x => x.ProjectId == SelectedProjectId.Value) : null;
-        if (!SelectedProjectId.HasValue)
+        CurrentProject = null;
+        if (SelectedProjectId.HasValue)
         {
-            Details = new ProjectDetailsItem();
-            return;
+            CurrentProject = await Api.GetProjectDetailsAsync(SelectedProjectId.Value);
         }
-
-        Details = await Api.GetProjectDetailsAsync(SelectedProjectId.Value);
     }
 
-    private async Task SaveAsync()
+    private void OpenCreateProjectDialog()
     {
-        if (!SelectedProjectId.HasValue)
+        EditingProjectId = null;
+        ProjectForm = new SaveProjectModel { ProjectStatus = "Active" };
+        WizardStep = 1;
+        ShowProjectDialog = true;
+    }
+
+    private void OpenEditProjectDialog()
+    {
+        if (CurrentProject is null)
         {
-            StatusMessage = "Bitte zuerst ein Projekt auswaehlen.";
             return;
         }
 
-        var payload = new SaveProjectDetailsModel
+        EditingProjectId = CurrentProject.ProjectId;
+        ProjectForm = new SaveProjectModel
         {
-            ConnectionUserSameAsCustomer = Details.ConnectionUserSameAsCustomer,
-            ConnectionUserFirstName = Details.ConnectionUserFirstName,
-            ConnectionUserLastName = Details.ConnectionUserLastName,
-            ConnectionUserStreet = Details.ConnectionUserStreet,
-            ConnectionUserHouseNumber = Details.ConnectionUserHouseNumber,
-            ConnectionUserPostalCode = Details.ConnectionUserPostalCode,
-            ConnectionUserCity = Details.ConnectionUserCity,
-            ConnectionUserParcelNumber = Details.ConnectionUserParcelNumber,
-            ConnectionUserEmailAddress = NormalizeOptional(Details.ConnectionUserEmailAddress),
-            ConnectionUserPhoneNumber = Details.ConnectionUserPhoneNumber,
-            PropertyOwnerSameAsCustomer = Details.PropertyOwnerSameAsCustomer,
-            PropertyOwnerFirstName = Details.PropertyOwnerFirstName,
-            PropertyOwnerLastName = Details.PropertyOwnerLastName,
-            PropertyOwnerStreet = Details.PropertyOwnerStreet,
-            PropertyOwnerHouseNumber = Details.PropertyOwnerHouseNumber,
-            PropertyOwnerPostalCode = Details.PropertyOwnerPostalCode,
-            PropertyOwnerCity = Details.PropertyOwnerCity,
-            PropertyOwnerEmailAddress = NormalizeOptional(Details.PropertyOwnerEmailAddress),
-            PropertyOwnerPhoneNumber = Details.PropertyOwnerPhoneNumber
+            Name = CurrentProject.Name,
+            ProjectStatus = CurrentProject.ProjectStatus,
+            ConnectionUserSameAsCustomer = CurrentProject.ConnectionUserSameAsCustomer,
+            ConnectionUserFirstName = CurrentProject.ConnectionUserFirstName,
+            ConnectionUserLastName = CurrentProject.ConnectionUserLastName,
+            ConnectionUserStreet = CurrentProject.ConnectionUserStreet,
+            ConnectionUserHouseNumber = CurrentProject.ConnectionUserHouseNumber,
+            ConnectionUserPostalCode = CurrentProject.ConnectionUserPostalCode,
+            ConnectionUserCity = CurrentProject.ConnectionUserCity,
+            ConnectionUserParcelNumber = CurrentProject.ConnectionUserParcelNumber,
+            ConnectionUserEmailAddress = CurrentProject.ConnectionUserEmailAddress,
+            ConnectionUserPhoneNumber = CurrentProject.ConnectionUserPhoneNumber,
+            PropertyOwnerSameAsCustomer = CurrentProject.PropertyOwnerSameAsCustomer,
+            PropertyOwnerFirstName = CurrentProject.PropertyOwnerFirstName,
+            PropertyOwnerLastName = CurrentProject.PropertyOwnerLastName,
+            PropertyOwnerStreet = CurrentProject.PropertyOwnerStreet,
+            PropertyOwnerHouseNumber = CurrentProject.PropertyOwnerHouseNumber,
+            PropertyOwnerPostalCode = CurrentProject.PropertyOwnerPostalCode,
+            PropertyOwnerCity = CurrentProject.PropertyOwnerCity,
+            PropertyOwnerEmailAddress = CurrentProject.PropertyOwnerEmailAddress,
+            PropertyOwnerPhoneNumber = CurrentProject.PropertyOwnerPhoneNumber
+        };
+        WizardStep = 1;
+        ShowProjectDialog = true;
+    }
+
+    private void CloseProjectDialog()
+    {
+        ShowProjectDialog = false;
+        EditingProjectId = null;
+        WizardStep = 1;
+    }
+
+    private void NextWizardStep()
+    {
+        WizardStep = Math.Min(3, WizardStep + 1);
+    }
+
+    private void PreviousWizardStep()
+    {
+        WizardStep = Math.Max(1, WizardStep - 1);
+    }
+
+    private async Task SaveProjectAsync()
+    {
+        if (!SelectedCustomerId.HasValue)
+        {
+            StatusMessage = "Bitte zuerst einen Kunden auswählen.";
+            return;
+        }
+
+        if (EditingProjectId.HasValue)
+        {
+            var updated = await Api.UpdateProjectAsync(EditingProjectId.Value, ProjectForm);
+            SelectedProjectId = updated.ProjectId;
+            StatusMessage = $"Projekt {updated.Name} gespeichert.";
+        }
+        else
+        {
+            var created = await Api.CreateProjectAsync(SelectedCustomerId.Value, ProjectForm);
+            SelectedProjectId = created.ProjectId;
+            StatusMessage = $"Projekt {created.Name} angelegt.";
+        }
+
+        CloseProjectDialog();
+        await ReloadAsync();
+    }
+
+    private async Task ChangeProjectStatusAsync(string projectStatus)
+    {
+        if (CurrentProject is null)
+        {
+            return;
+        }
+
+        CurrentProject = await Api.UpdateProjectStatusAsync(CurrentProject.ProjectId, projectStatus);
+        StatusMessage = $"Projektstatus auf {ProjectStatusLabel(CurrentProject.ProjectStatus)} gesetzt.";
+        await LoadProjectsAsync();
+    }
+
+    private async Task DeleteProjectAsync()
+    {
+        if (CurrentProject is null)
+        {
+            return;
+        }
+
+        await Api.DeleteProjectAsync(CurrentProject.ProjectId);
+        StatusMessage = "Projekt gelöscht.";
+        SelectedProjectId = null;
+        await ReloadAsync();
+    }
+
+    private void ApplyConnectionUserFromCustomer()
+    {
+        var customer = Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId);
+        if (customer is null)
+        {
+            return;
+        }
+
+        ProjectForm.ConnectionUserFirstName = customer.FirstName;
+        ProjectForm.ConnectionUserLastName = customer.LastName;
+        ProjectForm.ConnectionUserStreet = customer.Street;
+        ProjectForm.ConnectionUserHouseNumber = customer.HouseNumber;
+        ProjectForm.ConnectionUserPostalCode = customer.PostalCode;
+        ProjectForm.ConnectionUserCity = customer.City;
+        ProjectForm.ConnectionUserEmailAddress = customer.EmailAddress;
+        ProjectForm.ConnectionUserPhoneNumber = customer.PhoneNumber;
+    }
+
+    private void ApplyPropertyOwnerFromCustomer()
+    {
+        var customer = Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId);
+        if (customer is null)
+        {
+            return;
+        }
+
+        ProjectForm.PropertyOwnerFirstName = customer.FirstName;
+        ProjectForm.PropertyOwnerLastName = customer.LastName;
+        ProjectForm.PropertyOwnerStreet = customer.Street;
+        ProjectForm.PropertyOwnerHouseNumber = customer.HouseNumber;
+        ProjectForm.PropertyOwnerPostalCode = customer.PostalCode;
+        ProjectForm.PropertyOwnerCity = customer.City;
+        ProjectForm.PropertyOwnerEmailAddress = customer.EmailAddress;
+        ProjectForm.PropertyOwnerPhoneNumber = customer.PhoneNumber;
+    }
+
+    private void ApplyPropertyOwnerFromConnectionUser()
+    {
+        ProjectForm.PropertyOwnerFirstName = ProjectForm.ConnectionUserFirstName;
+        ProjectForm.PropertyOwnerLastName = ProjectForm.ConnectionUserLastName;
+        ProjectForm.PropertyOwnerStreet = ProjectForm.ConnectionUserStreet;
+        ProjectForm.PropertyOwnerHouseNumber = ProjectForm.ConnectionUserHouseNumber;
+        ProjectForm.PropertyOwnerPostalCode = ProjectForm.ConnectionUserPostalCode;
+        ProjectForm.PropertyOwnerCity = ProjectForm.ConnectionUserCity;
+        ProjectForm.PropertyOwnerEmailAddress = ProjectForm.ConnectionUserEmailAddress;
+        ProjectForm.PropertyOwnerPhoneNumber = ProjectForm.ConnectionUserPhoneNumber;
+    }
+
+    private static string ProjectStatusLabel(string? value)
+        => value switch
+        {
+            "Paused" => "Pausiert",
+            "Ended" => "Beendet",
+            _ => "Aktiv"
         };
 
-        Details = await Api.UpdateProjectDetailsAsync(SelectedProjectId.Value, payload);
-        StatusMessage = $"Projektdaten fuer {Details.Name} gespeichert.";
-    }
+    private static string DisplayName(string? firstName, string? lastName)
+        => string.IsNullOrWhiteSpace($"{firstName} {lastName}".Trim()) ? "Nicht hinterlegt" : $"{firstName} {lastName}".Trim();
 
-    private void ApplyConnectionUserSameAsCustomer()
+    private static string FormatAddress(string? street, string? houseNumber, string? postalCode, string? city)
     {
-        if (!Details.ConnectionUserSameAsCustomer || !SelectedCustomerId.HasValue)
-        {
-            return;
-        }
-
-        var customer = Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId.Value);
-        if (customer is null)
-        {
-            return;
-        }
-
-        Details.ConnectionUserFirstName = customer.FirstName;
-        Details.ConnectionUserLastName = customer.LastName;
-        Details.ConnectionUserStreet = customer.Street;
-        Details.ConnectionUserHouseNumber = customer.HouseNumber;
-        Details.ConnectionUserPostalCode = customer.PostalCode;
-        Details.ConnectionUserCity = customer.City;
-        Details.ConnectionUserParcelNumber = string.Empty;
-        Details.ConnectionUserEmailAddress = customer.EmailAddress;
-        Details.ConnectionUserPhoneNumber = customer.PhoneNumber;
+        var left = string.Join(" ", new[] { street, houseNumber }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        var right = string.Join(" ", new[] { postalCode, city }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+        var result = string.Join(", ", new[] { left, right }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.IsNullOrWhiteSpace(result) ? "Nicht hinterlegt" : result;
     }
 
-    private void ApplyPropertyOwnerSameAsCustomer()
-    {
-        if (!Details.PropertyOwnerSameAsCustomer || !SelectedCustomerId.HasValue)
-        {
-            return;
-        }
-
-        var customer = Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId.Value);
-        if (customer is null)
-        {
-            return;
-        }
-
-        Details.PropertyOwnerFirstName = customer.FirstName;
-        Details.PropertyOwnerLastName = customer.LastName;
-        Details.PropertyOwnerStreet = customer.Street;
-        Details.PropertyOwnerHouseNumber = customer.HouseNumber;
-        Details.PropertyOwnerPostalCode = customer.PostalCode;
-        Details.PropertyOwnerCity = customer.City;
-        Details.PropertyOwnerEmailAddress = customer.EmailAddress;
-        Details.PropertyOwnerPhoneNumber = customer.PhoneNumber;
-    }
-
-    private static string? NormalizeOptional(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string DisplayOrFallback(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "Nicht hinterlegt" : value;
 }
-
-

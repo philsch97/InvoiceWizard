@@ -4,11 +4,11 @@
 
 <PageTitle>Kalender</PageTitle>
 
-<section class="page-section">
+<section class="page-section calendar-page">
     <div class="section-heading">
         <div>
             <h2>Kalender</h2>
-            <p>Wechsle zwischen Tages- und Wochenansicht. Auf dem Smartphone bleibt der Editor nur als Dialog offen, wenn du ihn wirklich brauchst.</p>
+            <p>Zwischen Tag und Woche wechseln, Termine mobil prüfen und den Editor nur dann öffnen, wenn du ihn wirklich brauchst.</p>
         </div>
         <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
     </div>
@@ -19,7 +19,7 @@
     }
 
     <article class="feature-card">
-        <div class="form-grid">
+        <div class="form-grid selector-grid">
             <label>
                 <span>Kalender</span>
                 <select @bind="SelectedUserId" @bind:after="OnUserChangedAsync">
@@ -38,14 +38,33 @@
         <div class="row-actions wrap-mobile">
             <button class="ghost-button @(ViewMode == CalendarViewMode.Day ? "active-pill" : string.Empty)" @onclick="() => ChangeViewAsync(CalendarViewMode.Day)">Tag</button>
             <button class="ghost-button @(ViewMode == CalendarViewMode.Week ? "active-pill" : string.Empty)" @onclick="() => ChangeViewAsync(CalendarViewMode.Week)">Woche</button>
-            <button class="ghost-button" @onclick="MoveBackwardAsync">Zurueck</button>
+            <button class="ghost-button" @onclick="MoveBackwardAsync">Zurück</button>
             <button class="ghost-button" @onclick="MoveForwardAsync">Weiter</button>
             <button class="ghost-button" @onclick="GoToTodayAsync">Heute</button>
         </div>
 
+        <div class="compact-info-grid">
+            <div class="compact-info-card">
+                <span>Gewählter Kalender</span>
+                <strong>@(SelectedUser?.DisplayName ?? "Nicht gewählt")</strong>
+            </div>
+            <div class="compact-info-card">
+                <span>Ansicht</span>
+                <strong>@(ViewMode == CalendarViewMode.Day ? "Tag" : "Woche")</strong>
+            </div>
+            <div class="compact-info-card">
+                <span>Gewählter Tag</span>
+                <strong>@SelectedDate.ToString("dd.MM.yyyy")</strong>
+            </div>
+            <div class="compact-info-card">
+                <span>Bearbeitbar</span>
+                <strong>@(CanEditSelectedUser ? "Ja" : "Nein")</strong>
+            </div>
+        </div>
+
         <p class="empty-hint">
             @(CanEditSelectedUser
-                ? "Dein Kalender ist bearbeitbar. Ein Klick auf einen Tag oeffnet den Termin-Dialog."
+                ? "Dein Kalender ist bearbeitbar. Ein Klick auf einen Tag oder der Button rechts unten öffnet den Termin-Dialog."
                 : $"Du siehst den Kalender von {SelectedUser?.DisplayName ?? "dem Team"} im Lesemodus.")
         </p>
     </article>
@@ -62,20 +81,28 @@
                 @foreach (var day in WeekCards)
                 {
                     <button type="button" class="calendar-day-card @(day.Date.Date == SelectedDate.Date ? "selected-day" : string.Empty)" @onclick="() => SelectDayAsync(day.Date)">
-                        <strong>@day.Date.ToString("ddd")</strong>
-                        <span>@day.Date.ToString("dd.MM.")</span>
+                        <div class="calendar-day-header">
+                            <strong>@day.Date.ToString("ddd")</strong>
+                            <span>@day.Date.ToString("dd.MM.")</span>
+                        </div>
+
                         @if (day.Entries.Count == 0)
                         {
                             <span class="empty-hint">Keine Termine</span>
                         }
                         else
                         {
-                            @foreach (var entry in day.Entries.Take(3))
+                            @foreach (var entry in day.Entries.Take(4))
                             {
                                 <div class="calendar-chip" @onclick:stopPropagation="true" @onclick="() => OpenDetailsDialog(entry)">
                                     <strong>@entry.StartTime.ToString(@"hh\:mm")</strong>
                                     <span>@entry.Title</span>
                                 </div>
+                            }
+
+                            @if (day.Entries.Count > 4)
+                            {
+                                <span class="pill">@($"{day.Entries.Count - 4} weitere")</span>
                             }
                         }
                     </button>
@@ -88,7 +115,7 @@
         <div class="table-header">
             <div>
                 <h3>Termine am @SelectedDate.ToString("dd.MM.yyyy")</h3>
-                <p>@Entries.Count Eintraege</p>
+                <p>@Entries.Count Einträge</p>
             </div>
             @if (CanEditSelectedUser)
             {
@@ -98,7 +125,7 @@
 
         @if (Entries.Count == 0)
         {
-            <p class="empty-hint">Keine Termine fuer diesen Tag vorhanden.</p>
+            <p class="empty-hint">Keine Termine für diesen Tag vorhanden.</p>
         }
         else
         {
@@ -124,7 +151,7 @@
                     {
                         <div class="status-update">
                             <button class="ghost-button" @onclick:stopPropagation="true" @onclick="() => OpenEditDialog(entry)">Bearbeiten</button>
-                            <button class="ghost-button danger" @onclick:stopPropagation="true" @onclick="() => DeleteEntryAsync(entry.CalendarEntryId)">Loeschen</button>
+                            <button class="ghost-button danger" @onclick:stopPropagation="true" @onclick="() => DeleteEntryAsync(entry.CalendarEntryId)">Löschen</button>
                         </div>
                     }
                 </div>
@@ -142,7 +169,7 @@
                     <h3>@SelectedEntry.Title</h3>
                     <p>@SelectedEntry.EntryDate.ToString("dd.MM.yyyy") · @SelectedEntry.StartTime.ToString(@"hh\:mm") - @SelectedEntry.EndTime.ToString(@"hh\:mm")</p>
                 </div>
-                <button class="ghost-button" @onclick="CloseDetailsDialog">Schliessen</button>
+                <button class="ghost-button" @onclick="CloseDetailsDialog">Schließen</button>
             </div>
 
             <div class="compact-details">
@@ -162,7 +189,7 @@
             {
                 <div class="row-actions wrap-mobile modal-actions">
                     <button class="action-button" @onclick="OpenEditFromDetailsAsync">Bearbeiten</button>
-                    <button class="ghost-button danger" @onclick="() => DeleteEntryFromDetailsAsync(SelectedEntry.CalendarEntryId)">Loeschen</button>
+                    <button class="ghost-button danger" @onclick="() => DeleteEntryFromDetailsAsync(SelectedEntry.CalendarEntryId)">Löschen</button>
                 </div>
             }
         </div>
@@ -176,7 +203,7 @@
             <div class="table-header compact">
                 <div>
                     <h3>@(EditingEntryId.HasValue ? "Termin bearbeiten" : "Termin erstellen")</h3>
-                    <p>Speichert nur dann Platz, wenn du ihn wirklich brauchst.</p>
+                    <p>Der Termin-Dialog bleibt bewusst kompakt und mobil gut bedienbar.</p>
                 </div>
             </div>
 
@@ -319,7 +346,7 @@
         SelectedDate = day.Date;
         await ReloadEntriesAsync();
 
-        if (CanEditSelectedUser)
+        if (CanEditSelectedUser && ViewMode == CalendarViewMode.Day)
         {
             OpenCreateDialog(day);
         }
@@ -433,7 +460,7 @@
     {
         await Api.DeleteCalendarEntryAsync(calendarEntryId);
         CloseDetailsDialog();
-        SetStatus("Termin geloescht.", false);
+        SetStatus("Termin gelöscht.", false);
         await ReloadAsync();
     }
 

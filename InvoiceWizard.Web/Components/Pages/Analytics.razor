@@ -137,7 +137,7 @@
             return;
         }
 
-        Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
         await LoadProjectsAsync();
         await LoadAsync();
     }
@@ -151,7 +151,7 @@
     private async Task LoadProjectsAsync()
     {
         Projects = SelectedCustomerId.HasValue
-            ? (await Api.GetProjectsAsync(SelectedCustomerId.Value)).OrderBy(x => x.Name).ToList()
+            ? (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList()
             : [];
 
         if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))

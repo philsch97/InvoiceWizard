@@ -955,16 +955,17 @@ public class WorkTimeEntriesController(InvoiceWizardDbContext db, ICurrentTenant
     [HttpPut("{entryId:int}")]
     public async Task<ActionResult<WorkTimeEntryListItemDto>> UpdateEntry(int entryId, [FromBody] SaveWorkTimeEntryRequest request)
     {
-        if (!User.IsInRole(TenantRoles.Admin))
-        {
-            return Forbid();
-        }
-
         var tenantId = await tenantAccessor.GetTenantIdAsync(HttpContext.RequestAborted);
+        var currentUserId = GetCurrentUserId();
         var entry = await db.WorkTimeEntries.FirstOrDefaultAsync(x => x.WorkTimeEntryId == entryId && x.TenantId == tenantId);
         if (entry is null)
         {
             return NotFound();
+        }
+
+        if (!User.IsInRole(TenantRoles.Admin) && (!entry.AppUserId.HasValue || entry.AppUserId.Value != currentUserId))
+        {
+            return Forbid();
         }
 
         if (entry.IsClockActive)

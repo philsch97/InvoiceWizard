@@ -61,6 +61,18 @@ public partial class InvoiceArchivePage : Page
         };
         InvoiceDirectionFilterCombo.SelectedIndex = 0;
 
+        AccountingCategoryFilterCombo.ItemsSource = new[]
+        {
+            new ArchiveAccountingCategoryFilterItem { Value = string.Empty, Label = "Alle Kategorien" },
+            new ArchiveAccountingCategoryFilterItem { Value = "MaterialAndGoods", Label = "Material und Waren" },
+            new ArchiveAccountingCategoryFilterItem { Value = "Tools", Label = "Werkzeug" },
+            new ArchiveAccountingCategoryFilterItem { Value = "Services", Label = "Dienstleistungen" },
+            new ArchiveAccountingCategoryFilterItem { Value = "Office", Label = "Buero" },
+            new ArchiveAccountingCategoryFilterItem { Value = "Vehicle", Label = "Fahrzeug" },
+            new ArchiveAccountingCategoryFilterItem { Value = "Other", Label = "Sonstiges" }
+        };
+        AccountingCategoryFilterCombo.SelectedIndex = 0;
+
         var customers = new List<CustomerFilterItem> { new() { CustomerId = null, Name = "Alle Kunden" } };
         customers.AddRange((await App.Api.GetCustomersAsync())
             .OrderBy(x => x.Name)
@@ -72,6 +84,16 @@ public partial class InvoiceArchivePage : Page
     }
 
     private void ArchiveFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        ApplyFilters();
+    }
+
+    private void ArchiveDateFilter_Changed(object? sender, SelectionChangedEventArgs e)
     {
         if (!IsLoaded)
         {
@@ -95,6 +117,9 @@ public partial class InvoiceArchivePage : Page
     private async void ResetFilters_Click(object sender, RoutedEventArgs e)
     {
         InvoiceDirectionFilterCombo.SelectedIndex = 0;
+        AccountingCategoryFilterCombo.SelectedIndex = 0;
+        DateFromFilterPicker.SelectedDate = null;
+        DateToFilterPicker.SelectedDate = null;
         CustomerFilterCombo.SelectedIndex = 0;
         await UpdateProjectFilterItemsAsync();
         ProjectFilterCombo.SelectedIndex = 0;
@@ -119,17 +144,23 @@ public partial class InvoiceArchivePage : Page
 
     private void ApplyFilters()
     {
-        if (InvoiceDirectionFilterCombo is null || CustomerFilterCombo is null || ProjectFilterCombo is null)
+        if (InvoiceDirectionFilterCombo is null || AccountingCategoryFilterCombo is null || CustomerFilterCombo is null || ProjectFilterCombo is null)
         {
             return;
         }
 
         var selectedDirection = (InvoiceDirectionFilterCombo.SelectedItem as ArchiveDirectionFilterItem)?.Value;
+        var selectedAccountingCategory = (AccountingCategoryFilterCombo.SelectedItem as ArchiveAccountingCategoryFilterItem)?.Value;
         var selectedCustomerId = (CustomerFilterCombo.SelectedItem as CustomerFilterItem)?.CustomerId;
         var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
+        var dateFrom = DateFromFilterPicker.SelectedDate?.Date;
+        var dateTo = DateToFilterPicker.SelectedDate?.Date;
 
         var filtered = _storedInvoices
             .Where(x => string.IsNullOrWhiteSpace(selectedDirection) || string.Equals(x.InvoiceDirection, selectedDirection, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(selectedAccountingCategory) || string.Equals(x.AccountingCategory, selectedAccountingCategory, StringComparison.OrdinalIgnoreCase))
+            .Where(x => !dateFrom.HasValue || x.InvoiceDate.Date >= dateFrom.Value)
+            .Where(x => !dateTo.HasValue || x.InvoiceDate.Date <= dateTo.Value)
             .Where(x => !selectedCustomerId.HasValue || x.CustomerId == selectedCustomerId.Value || x.RelatedCustomerIds.Contains(selectedCustomerId.Value))
             .Where(x => !selectedProjectId.HasValue || x.RelatedProjectIds.Contains(selectedProjectId.Value))
             .ToList();
@@ -618,4 +649,10 @@ public sealed class CustomerFilterItem
 {
     public int? CustomerId { get; set; }
     public string Name { get; set; } = string.Empty;
+}
+
+public sealed class ArchiveAccountingCategoryFilterItem
+{
+    public string Value { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
 }

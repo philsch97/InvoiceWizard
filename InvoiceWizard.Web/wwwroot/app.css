@@ -115,6 +115,10 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
     .action-button, .ghost-button { width: 100%; justify-content: center; }
     .modal-backdrop { align-items: flex-end; padding: 0.75rem; }
     .modal-card { max-height: 85vh; overflow: auto; }
+    .compact-info-grid { grid-template-columns: 1fr; }
+    .calendar-week-grid { grid-template-columns: 1fr; }
+    .calendar-day-card { min-height: 0; }
+    .notes-layout, .split-grid.two-columns { grid-template-columns: 1fr; }
 }
 .auth-shell {
     display: grid;
@@ -136,4 +140,66 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .compact-details {
     display: grid;
     gap: 0.25rem;
+}
+
+.compact-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+}
+
+.compact-info-card {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    background: rgba(31, 38, 48, 0.85);
+    border: 1px solid var(--line);
+}
+
+.compact-info-card span {
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.compact-info-card strong {
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.detail-list-block,
+.section-divider {
+    margin-top: 1rem;
+}
+
+.selectable-list-row {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.selectable-list-row:hover {
+    border-radius: 18px;
+    background: rgba(79, 163, 255, 0.08);
+}
+
+.notes-layout,
+.calendar-page {
+    align-items: start;
+}
+
+.calendar-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+    .compact-info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
