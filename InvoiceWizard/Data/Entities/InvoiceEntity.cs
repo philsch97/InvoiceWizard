@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace InvoiceWizard.Data.Entities;
 
@@ -22,6 +23,11 @@ public class InvoiceEntity
     public DateTime? FinalizedAt { get; set; }
     public DateTime? CancelledAt { get; set; }
     public string CancellationReason { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public List<int> RelatedCustomerIds { get; set; } = new();
+    public List<string> RelatedCustomerNames { get; set; } = new();
+    public List<int> RelatedProjectIds { get; set; } = new();
+    public List<string> RelatedProjectNames { get; set; } = new();
     public decimal InvoiceTotalAmount { get; set; }
     public decimal ShippingCostNet { get; set; }
     public decimal ShippingCostGross { get; set; }
@@ -39,6 +45,11 @@ public class InvoiceEntity
         _ => "Ausgabe"
     };
     public string PartyLabel => IsCustomerDocument ? "Kunde / Auftraggeber" : "Lieferant";
+    public string ArchivePartyName => IsCustomerDocument
+        ? (!string.IsNullOrWhiteSpace(CustomerName)
+            ? CustomerName
+            : RelatedCustomerNames.FirstOrDefault() ?? SupplierName)
+        : SupplierName;
     public bool IsCustomerDocument => string.Equals(InvoiceDirection, "Revenue", StringComparison.OrdinalIgnoreCase)
         || string.Equals(InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase);
     public bool IsCreditNote => string.Equals(InvoiceDirection, "RevenueReduction", StringComparison.OrdinalIgnoreCase)

@@ -189,9 +189,99 @@ public partial class InvoicesController(InvoiceWizardDbContext db, ICurrentTenan
                 DraftSavedAt = x.DraftSavedAt,
                 FinalizedAt = x.FinalizedAt,
                 CancelledAt = x.CancelledAt,
-                CancellationReason = x.CancellationReason
+                CancellationReason = x.CancellationReason,
+                CustomerName = x.Customer != null ? x.Customer.Name : ""
             })
             .ToListAsync();
+
+        var invoiceIds = items.Select(x => x.InvoiceId).ToList();
+        if (invoiceIds.Count == 0)
+        {
+            return Ok(items);
+        }
+
+        var expenseLinks = await db.LineAllocations
+            .Where(x => x.TenantId == tenantId && invoiceIds.Contains(x.InvoiceLine.InvoiceId))
+            .Select(x => new
+            {
+                InvoiceId = x.InvoiceLine.InvoiceId,
+                x.CustomerId,
+                CustomerName = x.Customer.Name,
+                x.ProjectId,
+                ProjectName = x.Project != null ? x.Project.Name : null
+            })
+            .ToListAsync(HttpContext.RequestAborted);
+
+        var revenueAllocationLinks = await db.LineAllocations
+            .Where(x => x.TenantId == tenantId && x.RevenueInvoiceId.HasValue && invoiceIds.Contains(x.RevenueInvoiceId.Value))
+            .Select(x => new
+            {
+                InvoiceId = x.RevenueInvoiceId!.Value,
+                x.CustomerId,
+                CustomerName = x.Customer.Name,
+                x.ProjectId,
+                ProjectName = x.Project != null ? x.Project.Name : null
+            })
+            .ToListAsync(HttpContext.RequestAborted);
+
+        var revenueWorkLinks = await db.WorkTimeEntries
+            .Where(x => x.TenantId == tenantId && x.RevenueInvoiceId.HasValue && invoiceIds.Contains(x.RevenueInvoiceId.Value))
+            .Select(x => new
+            {
+                InvoiceId = x.RevenueInvoiceId!.Value,
+                x.CustomerId,
+                CustomerName = x.Customer.Name,
+                x.ProjectId,
+                ProjectName = x.Project != null ? x.Project.Name : null
+            })
+            .ToListAsync(HttpContext.RequestAborted);
+
+        var relatedLinks = expenseLinks
+            .Concat(revenueAllocationLinks)
+            .Concat(revenueWorkLinks)
+            .GroupBy(x => x.InvoiceId)
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    CustomerIds = g.Select(x => x.CustomerId).Distinct().OrderBy(x => x).ToList(),
+                    CustomerNames = g.Select(x => x.CustomerName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList(),
+                    ProjectIds = g.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId!.Value).Distinct().OrderBy(x => x).ToList(),
+                    ProjectNames = g.Select(x => x.ProjectName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).Cast<string>().ToList()
+                });
+
+        foreach (var item in items)
+        {
+            if (item.CustomerId.HasValue)
+            {
+                if (!item.RelatedCustomerIds.Contains(item.CustomerId.Value))
+                {
+                    item.RelatedCustomerIds.Add(item.CustomerId.Value);
+                }
+
+                if (!string.IsNullOrWhiteSpace(item.CustomerName) && !item.RelatedCustomerNames.Contains(item.CustomerName, StringComparer.Ordinal))
+                {
+                    item.RelatedCustomerNames.Add(item.CustomerName);
+                }
+            }
+
+            if (relatedLinks.TryGetValue(item.InvoiceId, out var related))
+            {
+                item.RelatedCustomerIds = item.RelatedCustomerIds
+                    .Concat(related.CustomerIds)
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .ToList();
+                item.RelatedCustomerNames = item.RelatedCustomerNames
+                    .Concat(related.CustomerNames)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .ToList();
+                item.RelatedProjectIds = related.ProjectIds;
+                item.RelatedProjectNames = related.ProjectNames;
+            }
+        }
 
         return Ok(items);
     }

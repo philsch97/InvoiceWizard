@@ -24,6 +24,7 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
@@ -43,8 +44,24 @@
                         <Button Width="180" Height="36" Style="{StaticResource SecondaryButtonStyle}" Content="PDFs in Ordner exportieren" Click="ExportStoredPdfs_Click"/>
                     </WrapPanel>
 
+                    <WrapPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="18,16,18,0">
+                        <StackPanel Width="230" Margin="0,0,14,12">
+                            <TextBlock Text="Rechnungsform" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="InvoiceDirectionFilterCombo" DisplayMemberPath="Label" SelectedValuePath="Value" SelectionChanged="ArchiveFilter_Changed"/>
+                        </StackPanel>
+                        <StackPanel Width="260" Margin="0,0,14,12">
+                            <TextBlock Text="Kunde" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="CustomerFilterCombo" DisplayMemberPath="Name" SelectedValuePath="CustomerId" SelectionChanged="CustomerFilterCombo_SelectionChanged"/>
+                        </StackPanel>
+                        <StackPanel Width="260" Margin="0,0,14,12">
+                            <TextBlock Text="Projekt" Style="{StaticResource MutedLabelStyle}"/>
+                            <ComboBox x:Name="ProjectFilterCombo" DisplayMemberPath="Name" SelectedValuePath="ProjectId" SelectionChanged="ArchiveFilter_Changed"/>
+                        </StackPanel>
+                        <Button Width="140" Height="40" Margin="0,24,0,12" Style="{StaticResource SecondaryButtonStyle}" Content="Filter reset" Click="ResetFilters_Click"/>
+                    </WrapPanel>
+
                     <DataGrid x:Name="InvoicesGrid"
-                              Grid.Row="1"
+                              Grid.Row="2"
                               Grid.ColumnSpan="2"
                               Margin="0,16,0,0"
                               AutoGenerateColumns="False"
@@ -56,7 +73,7 @@
                             <DataGridTextColumn Header="Art" Binding="{Binding InvoiceDirectionLabel}" Width="90"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding InvoiceStatusLabel}" Width="90"/>
                             <DataGridTextColumn Header="Datum" Binding="{Binding InvoiceDate, StringFormat=dd.MM.yyyy}" Width="110"/>
-                            <DataGridTextColumn Header="Partei" Binding="{Binding SupplierName}" Width="220"/>
+                            <DataGridTextColumn Header="Partei" Binding="{Binding ArchivePartyName}" Width="220"/>
                             <DataGridTextColumn Header="Kategorie" Binding="{Binding AccountingCategoryLabel}" Width="150"/>
                             <DataGridTextColumn Header="Beleg" Binding="{Binding ExpenseStatus}" Width="120"/>
                             <DataGridCheckBoxColumn Header="PDF" Binding="{Binding HasStoredPdf}" Width="70"/>

@@ -33,9 +33,10 @@
                 </StackPanel>
 
                 <WrapPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0">
+                    <Button x:Name="DocumentsButton" Width="130" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Belege" Click="Documents_Click"/>
                     <Button x:Name="MaterialButton" Width="130" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Material" Click="Material_Click"/>
                     <Button x:Name="MasterDataButton" Width="130" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Stammdaten" Click="MasterData_Click"/>
-                    <Button x:Name="OrganisationButton" Width="130" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Organisation" Click="Organisation_Click"/>
+                    <Button x:Name="OrganisationButton" Width="130" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Projekte" Click="Organisation_Click"/>
                     <Button x:Name="AdminButton" Width="110" Height="42" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Content="Admin" Click="Admin_Click" Visibility="Collapsed"/>
                     <Button x:Name="AnalyticsButton" Width="120" Height="42" Style="{StaticResource SecondaryButtonStyle}" Content="Auswertung" Click="Analytics_Click"/>
                 </WrapPanel>

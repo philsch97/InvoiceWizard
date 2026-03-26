@@ -17,17 +17,25 @@ namespace InvoiceWizard;
 
 public partial class InvoiceArchivePage : Page
 {
+    private readonly ObservableCollection<InvoiceEntity> _filteredInvoices = new();
     private readonly ObservableCollection<InvoiceEntity> _storedInvoices = new();
 
     public InvoiceArchivePage()
     {
         InitializeComponent();
-        InvoicesGrid.ItemsSource = _storedInvoices;
+        InvoicesGrid.ItemsSource = _filteredInvoices;
         Loaded += async (_, _) =>
         {
-            await LoadStoredInvoicesAsync();
+            await LoadFiltersAndInvoicesAsync();
             SetStatus("Rechnungsarchiv geladen.", StatusMessageType.Info);
         };
+    }
+
+    private async Task LoadFiltersAndInvoicesAsync()
+    {
+        await LoadStoredInvoicesAsync();
+        await LoadCustomerFiltersAsync();
+        ApplyFilters();
     }
 
     private async Task LoadStoredInvoicesAsync()
@@ -36,6 +44,100 @@ public partial class InvoiceArchivePage : Page
         foreach (var item in await App.Api.GetInvoicesAsync())
         {
             _storedInvoices.Add(item);
+        }
+
+        ApplyFilters();
+    }
+
+    private async Task LoadCustomerFiltersAsync()
+    {
+        InvoiceDirectionFilterCombo.ItemsSource = new[]
+        {
+            new ArchiveDirectionFilterItem { Value = string.Empty, Label = "Alle Rechnungsformen" },
+            new ArchiveDirectionFilterItem { Value = "Expense", Label = "Ausgaberechnung" },
+            new ArchiveDirectionFilterItem { Value = "ExpenseReduction", Label = "Ausgabenminderung" },
+            new ArchiveDirectionFilterItem { Value = "Revenue", Label = "Einnahmerechnung" },
+            new ArchiveDirectionFilterItem { Value = "RevenueReduction", Label = "Einnahmenminderung" }
+        };
+        InvoiceDirectionFilterCombo.SelectedIndex = 0;
+
+        var customers = new List<CustomerFilterItem> { new() { CustomerId = null, Name = "Alle Kunden" } };
+        customers.AddRange((await App.Api.GetCustomersAsync())
+            .OrderBy(x => x.Name)
+            .Select(x => new CustomerFilterItem { CustomerId = x.CustomerId, Name = x.Name }));
+        CustomerFilterCombo.ItemsSource = customers;
+        CustomerFilterCombo.SelectedIndex = 0;
+
+        await UpdateProjectFilterItemsAsync();
+    }
+
+    private void ArchiveFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        ApplyFilters();
+    }
+
+    private async void CustomerFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        await UpdateProjectFilterItemsAsync();
+        ApplyFilters();
+    }
+
+    private async void ResetFilters_Click(object sender, RoutedEventArgs e)
+    {
+        InvoiceDirectionFilterCombo.SelectedIndex = 0;
+        CustomerFilterCombo.SelectedIndex = 0;
+        await UpdateProjectFilterItemsAsync();
+        ProjectFilterCombo.SelectedIndex = 0;
+        ApplyFilters();
+    }
+
+    private async Task UpdateProjectFilterItemsAsync()
+    {
+        var selectedCustomerId = (CustomerFilterCombo.SelectedItem as CustomerFilterItem)?.CustomerId;
+        var items = new List<ProjectSelectionItem> { new() { ProjectId = null, Name = "Alle Projekte", ProjectStatus = "Active" } };
+        if (selectedCustomerId.HasValue)
+        {
+            items.AddRange(await App.Api.GetProjectSelectionsAsync(selectedCustomerId.Value, includeAll: false, includeInactive: true));
+        }
+
+        var currentProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
+        ProjectFilterCombo.ItemsSource = items;
+        ProjectFilterCombo.SelectedItem = currentProjectId.HasValue
+            ? items.FirstOrDefault(x => x.ProjectId == currentProjectId.Value) ?? items[0]
+            : items[0];
+    }
+
+    private void ApplyFilters()
+    {
+        if (InvoiceDirectionFilterCombo is null || CustomerFilterCombo is null || ProjectFilterCombo is null)
+        {
+            return;
+        }
+
+        var selectedDirection = (InvoiceDirectionFilterCombo.SelectedItem as ArchiveDirectionFilterItem)?.Value;
+        var selectedCustomerId = (CustomerFilterCombo.SelectedItem as CustomerFilterItem)?.CustomerId;
+        var selectedProjectId = (ProjectFilterCombo.SelectedItem as ProjectSelectionItem)?.ProjectId;
+
+        var filtered = _storedInvoices
+            .Where(x => string.IsNullOrWhiteSpace(selectedDirection) || string.Equals(x.InvoiceDirection, selectedDirection, StringComparison.OrdinalIgnoreCase))
+            .Where(x => !selectedCustomerId.HasValue || x.CustomerId == selectedCustomerId.Value || x.RelatedCustomerIds.Contains(selectedCustomerId.Value))
+            .Where(x => !selectedProjectId.HasValue || x.RelatedProjectIds.Contains(selectedProjectId.Value))
+            .ToList();
+
+        _filteredInvoices.Clear();
+        foreach (var item in filtered)
+        {
+            _filteredInvoices.Add(item);
         }
     }
 
@@ -504,4 +606,16 @@ public partial class InvoiceArchivePage : Page
 
         return $"Sollen {count} markierte Entwuerfe wirklich geloescht werden?\n\nDie Entwurfspositionen dieser Rechnungen werden dabei ebenfalls geloescht.";
     }
+}
+
+public sealed class ArchiveDirectionFilterItem
+{
+    public string Value { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+}
+
+public sealed class CustomerFilterItem
+{
+    public int? CustomerId { get; set; }
+    public string Name { get; set; } = string.Empty;
 }

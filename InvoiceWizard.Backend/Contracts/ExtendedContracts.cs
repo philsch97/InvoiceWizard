@@ -131,6 +131,11 @@ public class InvoiceListItemDto
     public DateTime? FinalizedAt { get; set; }
     public DateTime? CancelledAt { get; set; }
     public string CancellationReason { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public List<int> RelatedCustomerIds { get; set; } = new();
+    public List<string> RelatedCustomerNames { get; set; } = new();
+    public List<int> RelatedProjectIds { get; set; } = new();
+    public List<string> RelatedProjectNames { get; set; } = new();
 }
 
 public class InvoiceDetailDto : InvoiceListItemDto

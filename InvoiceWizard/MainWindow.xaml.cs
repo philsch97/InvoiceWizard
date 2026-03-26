@@ -17,7 +17,12 @@ public partial class MainWindow : Window
         MainFrame.Navigated += MainFrame_Navigated;
         BuildSections();
         ApplySessionInfo();
-        NavigateToSection(MaterialButton);
+        NavigateToSection(DocumentsButton);
+    }
+
+    private void Documents_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateToSection(DocumentsButton);
     }
 
     private void Material_Click(object sender, RoutedEventArgs e)
@@ -56,7 +61,7 @@ public partial class MainWindow : Window
         {
             ApplySessionInfo();
             Show();
-            NavigateToSection(MaterialButton);
+            NavigateToSection(DocumentsButton);
             return;
         }
 
@@ -65,18 +70,23 @@ public partial class MainWindow : Window
 
     private void BuildSections()
     {
+        _sections[DocumentsButton] = new SectionDefinition(
+            "Belege",
+            new[]
+            {
+                new SectionNavigationItem { Title = "Rechnungsimport", CreatePage = () => new Datenimport() },
+                new SectionNavigationItem { Title = "Rechnungsarchiv", CreatePage = () => new InvoiceArchivePage() },
+                new SectionNavigationItem { Title = "Abrechnung / Export", CreatePage = () => new BillingExportPage() },
+                new SectionNavigationItem { Title = "Angebote", CreatePage = () => new OfferPage() }
+            });
+
         _sections[MaterialButton] = new SectionDefinition(
             "Material",
             new[]
             {
-                new SectionNavigationItem { Title = "Rechnungsimport", CreatePage = () => new Datenimport() },
                 new SectionNavigationItem { Title = "Sonepar", CreatePage = () => new SoneparPage() },
-                new SectionNavigationItem { Title = "Rechnungsarchiv", CreatePage = () => new InvoiceArchivePage() },
                 new SectionNavigationItem { Title = "Positionen zuweisen", CreatePage = () => new DataHandling() },
-                new SectionNavigationItem { Title = "Bestand", CreatePage = () => new InventoryPage() },
-                new SectionNavigationItem { Title = "Abrechnung / Export", CreatePage = () => new BillingExportPage() },
-                new SectionNavigationItem { Title = "Angebote", CreatePage = () => new OfferPage() },
-                new SectionNavigationItem { Title = "Arbeitszeit", CreatePage = () => new WorkTimePage() }
+                new SectionNavigationItem { Title = "Bestand", CreatePage = () => new InventoryPage() }
             });
 
         _sections[MasterDataButton] = new SectionDefinition(
@@ -88,9 +98,10 @@ public partial class MainWindow : Window
             });
 
         _sections[OrganisationButton] = new SectionDefinition(
-            "Organisation",
+            "Projekte",
             new[]
             {
+                new SectionNavigationItem { Title = "Arbeitszeit", CreatePage = () => new WorkTimePage() },
                 new SectionNavigationItem { Title = "Kalender", CreatePage = () => new CalendarPage() },
                 new SectionNavigationItem { Title = "Notizen", CreatePage = () => new NotesPage() }
             });
@@ -175,7 +186,7 @@ public partial class MainWindow : Window
 
     private Button GetPrimaryButtonForActiveSection()
     {
-        return _sections.FirstOrDefault(pair => pair.Value == _activeSection).Key ?? MaterialButton;
+        return _sections.FirstOrDefault(pair => pair.Value == _activeSection).Key ?? DocumentsButton;
     }
 
     private void UpdateNavigationState(Button activeButton)
@@ -183,7 +194,7 @@ public partial class MainWindow : Window
         var primaryStyle = (Style)FindResource(typeof(Button));
         var secondaryStyle = (Style)FindResource("SecondaryButtonStyle");
 
-        foreach (var button in new[] { MaterialButton, MasterDataButton, OrganisationButton, AdminButton, AnalyticsButton })
+        foreach (var button in new[] { DocumentsButton, MaterialButton, MasterDataButton, OrganisationButton, AdminButton, AnalyticsButton })
         {
             if (button.Visibility != Visibility.Visible)
             {
