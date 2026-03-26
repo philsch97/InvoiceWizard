@@ -1263,6 +1263,11 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
                 : exportedNetAmount > 0m
                     ? exportedNetAmount
                     : currentNetAmount);
+        if (!isLinkedToCustomerDocument && allocation.ExportedMarkupPercent == 0m)
+        {
+            return GetAllocatedExpenseGross(allocation);
+        }
+
         return AddRevenueVatIfRequired(netAmount, allocation.RevenueInvoice?.ApplySmallBusinessRegulation ?? false);
     }
 
@@ -1279,11 +1284,43 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
     private static decimal GetAllocatedExpenseGross(LineAllocation allocation)
     {
+        var grossUnitPrice = GetAllocationGrossUnitPrice(allocation);
+        if (grossUnitPrice > 0m)
+        {
+            return allocation.AllocatedQuantity * grossUnitPrice;
+        }
+
         var purchaseUnitPrice = allocation.CustomerUnitPrice > 0m
             ? allocation.CustomerUnitPrice
             : GetPurchaseUnitPrice(allocation.InvoiceLine);
         var netAmount = allocation.AllocatedQuantity * purchaseUnitPrice;
         return netAmount * GetExpenseGrossFactor(allocation.InvoiceLine.Invoice);
+    }
+
+    private static decimal GetAllocationGrossUnitPrice(LineAllocation allocation)
+    {
+        var line = allocation.InvoiceLine;
+        if (line.Quantity > 0m && line.GrossLineTotal > 0m)
+        {
+            var grossPerUnit = line.GrossLineTotal / line.Quantity;
+            return decimal.Round(grossPerUnit, 4);
+        }
+
+        if (line.Quantity > 0m && line.LineTotal > 0m && line.GrossLineTotal > 0m)
+        {
+            var factor = line.GrossLineTotal / line.LineTotal;
+            var netPerUnit = allocation.CustomerUnitPrice > 0m
+                ? allocation.CustomerUnitPrice
+                : GetPurchaseUnitPrice(line);
+            return decimal.Round(netPerUnit * factor, 4);
+        }
+
+        if (line.GrossUnitPrice > 0m)
+        {
+            return line.GrossUnitPrice;
+        }
+
+        return 0m;
     }
 
     private static decimal GetWorkRevenueGross(WorkTimeEntry workEntry)
