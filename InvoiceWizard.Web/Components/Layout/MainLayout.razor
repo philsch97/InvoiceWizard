@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject WebAuthSession Auth
+@inject NavigationManager Navigation
 
 @if (!Auth.IsInitialized)
 {
@@ -63,6 +64,7 @@ else
     protected override void OnInitialized()
     {
         Auth.StateChanged += HandleAuthChanged;
+        Navigation.LocationChanged += HandleLocationChanged;
         IsNavigationOpen = true;
     }
 
@@ -91,5 +93,12 @@ else
     public void Dispose()
     {
         Auth.StateChanged -= HandleAuthChanged;
+        Navigation.LocationChanged -= HandleLocationChanged;
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        IsNavigationOpen = false;
+        _ = InvokeAsync(StateHasChanged);
     }
 }
