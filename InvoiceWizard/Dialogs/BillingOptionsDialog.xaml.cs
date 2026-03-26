@@ -6,11 +6,12 @@ namespace InvoiceWizard.Dialogs;
 
 public partial class BillingOptionsDialog : Window
 {
-    public BillingOptionsDialog(decimal initialMarkupPercent, string initialSmallMaterialMode, decimal initialSmallMaterialFlatFee, bool showSmallMaterialMode)
+    public BillingOptionsDialog(decimal initialMarkupPercent, string initialSmallMaterialMode, decimal initialSmallMaterialFlatFee, string initialSmallMaterialComment, bool showSmallMaterialMode)
     {
         InitializeComponent();
         MarkupPercentText.Text = initialMarkupPercent.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
         SmallMaterialFlatFeeText.Text = initialSmallMaterialFlatFee.ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
+        SmallMaterialCommentText.Text = initialSmallMaterialComment ?? string.Empty;
         SmallMaterialModePanel.Visibility = showSmallMaterialMode ? Visibility.Visible : Visibility.Collapsed;
         DialogHintText.Text = showSmallMaterialMode
             ? "Bitte Zuschlag und Kleinmaterial-Einstellungen fuer diesen Vorgang festlegen. Die Kleinmaterial-Pauschale wird netto erfasst."
@@ -48,7 +49,8 @@ public partial class BillingOptionsDialog : Window
             SmallMaterialMode = SmallMaterialModePanel.Visibility == Visibility.Visible
                 ? (SmallMaterialModeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Als Sammelposition"
                 : "Nicht berechnen",
-            SmallMaterialFlatFee = flatFee
+            SmallMaterialFlatFee = flatFee,
+            SmallMaterialComment = (SmallMaterialCommentText.Text ?? string.Empty).Trim()
         };
 
         DialogResult = true;
@@ -72,4 +74,5 @@ public sealed class BillingOptionsResult
     public decimal MarkupPercent { get; set; }
     public string SmallMaterialMode { get; set; } = "Als Sammelposition";
     public decimal SmallMaterialFlatFee { get; set; }
+    public string SmallMaterialComment { get; set; } = string.Empty;
 }

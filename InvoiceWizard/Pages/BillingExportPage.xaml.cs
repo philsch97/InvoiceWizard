@@ -17,6 +17,7 @@ public partial class BillingExportPage : Page
     private decimal _lastMarkupPercent;
     private string _lastSmallMaterialMode = "Als Sammelposition";
     private decimal _lastSmallMaterialFlatFee;
+    private string _lastSmallMaterialComment = string.Empty;
 
     public BillingExportPage()
     {
@@ -150,6 +151,7 @@ public partial class BillingExportPage : Page
         var markupPercent = billingOptions.MarkupPercent;
         var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
         var smallMaterialMode = billingOptions.SmallMaterialMode;
+        var smallMaterialComment = billingOptions.SmallMaterialComment;
 
         var projectSuffix = selectedProjectId.HasValue ? $"_{selectedProjectName}" : string.Empty;
         var saveDialog = new SaveFileDialog
@@ -175,7 +177,7 @@ public partial class BillingExportPage : Page
 
         if (smallMaterialFlatFee > 0m)
         {
-            ApplySmallMaterialFlatFee(rows, smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName);
+            ApplySmallMaterialFlatFee(rows, smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, smallMaterialComment);
             foreach (var allocation in smallMaterialAllocations)
             {
                 await App.Api.UpdateAllocationExportAsync(allocation.LineAllocationId, allocation.ExportedMarkupPercent, allocation.ExportedUnitPrice, allocation.ExportedLineTotal);
@@ -337,6 +339,7 @@ public partial class BillingExportPage : Page
                 billingOptions.MarkupPercent,
                 billingOptions.SmallMaterialFlatFee,
                 billingOptions.SmallMaterialMode,
+                billingOptions.SmallMaterialComment,
                 selectedProjectName,
                 draftDetail.ApplySmallBusinessRegulation,
                 isCreditNote);
@@ -496,6 +499,7 @@ public partial class BillingExportPage : Page
             var markupPercent = billingOptions.MarkupPercent;
             var smallMaterialFlatFee = billingOptions.SmallMaterialFlatFee;
             var smallMaterialMode = billingOptions.SmallMaterialMode;
+            var smallMaterialComment = billingOptions.SmallMaterialComment;
 
             var invoiceReservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId, "Revenue");
             var creditNoteReservation = await App.Api.ReserveRevenueInvoiceNumberAsync(customer.CustomerId, "RevenueReduction");
@@ -548,7 +552,7 @@ public partial class BillingExportPage : Page
             List<GeneratedInvoiceLine> invoiceLines;
             try
             {
-                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, smallMaterialMode, selectedProjectName, dialog.Result.ApplySmallBusinessRegulation, isCreditNote);
+                invoiceLines = BuildGeneratedInvoiceLines(allocations, workEntries, markupPercent, smallMaterialFlatFee, smallMaterialMode, smallMaterialComment, selectedProjectName, dialog.Result.ApplySmallBusinessRegulation, isCreditNote);
             }
             catch (Exception ex)
             {
@@ -779,7 +783,7 @@ public partial class BillingExportPage : Page
         }
     }
 
-    private void ApplySmallMaterialFlatFee(List<ExcelExportService.ExportRow> rows, IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName)
+    private void ApplySmallMaterialFlatFee(List<ExcelExportService.ExportRow> rows, IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, string? smallMaterialComment)
     {
         if (flatFee <= 0m)
         {
@@ -793,7 +797,7 @@ public partial class BillingExportPage : Page
                 SupplierInvoiceNumber = "Kleinmaterial",
                 ArticleNumber = "KM-PAUSCH",
                 Ean = string.Empty,
-                Description = $"[{ResolveSmallMaterialLabel(selectedProjectName, allocations)}] Kleinmaterial-Pauschale",
+                Description = BuildSmallMaterialFlatFeeDescription(ResolveSmallMaterialLabel(selectedProjectName, allocations), smallMaterialComment),
                 Quantity = 1m,
                 Unit = "Pauschale",
                 PurchaseUnitPrice = 0m,
@@ -822,7 +826,7 @@ public partial class BillingExportPage : Page
             SupplierInvoiceNumber = "Kleinmaterial",
             ArticleNumber = "KM-PAUSCH",
             Ean = string.Empty,
-            Description = $"[{label}] Kleinmaterial-Pauschale",
+            Description = BuildSmallMaterialFlatFeeDescription(label, smallMaterialComment),
             Quantity = 1m,
             Unit = "Pauschale",
             PurchaseUnitPrice = totalPurchase,
@@ -893,6 +897,7 @@ public partial class BillingExportPage : Page
         decimal markupPercent,
         decimal smallMaterialFlatFee,
         string smallMaterialMode,
+        string smallMaterialComment,
         string? selectedProjectName,
         bool applySmallBusinessRegulation,
         bool isCreditNote)
@@ -910,7 +915,7 @@ public partial class BillingExportPage : Page
 
         if (smallMaterialFlatFee > 0m)
         {
-            lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, position++, isCreditNote));
+            lines.Add(BuildSmallMaterialFlatFeeLine(smallMaterialAllocations, smallMaterialFlatFee, selectedProjectName, smallMaterialComment, position++, isCreditNote));
         }
         else if (smallMaterialAllocations.Count > 0)
         {
@@ -1059,7 +1064,7 @@ public partial class BillingExportPage : Page
         return lines;
     }
 
-    private GeneratedInvoiceLine BuildSmallMaterialFlatFeeLine(IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, int position, bool isCreditNote)
+    private GeneratedInvoiceLine BuildSmallMaterialFlatFeeLine(IReadOnlyList<LineAllocationEntity> allocations, decimal flatFee, string? selectedProjectName, string? smallMaterialComment, int position, bool isCreditNote)
     {
         if (allocations.Count > 0)
         {
@@ -1082,7 +1087,7 @@ public partial class BillingExportPage : Page
         {
             Position = position,
             AccountingCategory = "MaterialAndGoods",
-            Description = $"[{label}] Kleinmaterial-Pauschale",
+            Description = BuildSmallMaterialFlatFeeDescription(label, smallMaterialComment),
             Quantity = 1m,
             Unit = "Pauschale",
             UnitPrice = ApplyDocumentSign(flatFee, isCreditNote),
@@ -1139,6 +1144,14 @@ public partial class BillingExportPage : Page
         return projectNames.Count == 1 ? projectNames[0] : "Mehrere Projekte";
     }
 
+    private static string BuildSmallMaterialFlatFeeDescription(string label, string? smallMaterialComment)
+    {
+        var description = $"[{label}] Kleinmaterial-Pauschale";
+        return string.IsNullOrWhiteSpace(smallMaterialComment)
+            ? description
+            : $"{description}: {smallMaterialComment.Trim()}";
+    }
+
     private static DateTime GetAllocationInvoiceDate(LineAllocationEntity allocation)
     {
         return allocation.InvoiceLine?.Invoice?.InvoiceDate ?? allocation.AllocatedAt.Date;
@@ -1190,7 +1203,7 @@ public partial class BillingExportPage : Page
 
     private bool TryGetBillingOptions(bool showSmallMaterialMode, out BillingOptionsResult result)
     {
-        var dialog = new BillingOptionsDialog(_lastMarkupPercent, _lastSmallMaterialMode, _lastSmallMaterialFlatFee, showSmallMaterialMode)
+        var dialog = new BillingOptionsDialog(_lastMarkupPercent, _lastSmallMaterialMode, _lastSmallMaterialFlatFee, _lastSmallMaterialComment, showSmallMaterialMode)
         {
             Owner = Window.GetWindow(this)
         };
@@ -1206,6 +1219,7 @@ public partial class BillingExportPage : Page
         _lastMarkupPercent = result.MarkupPercent;
         _lastSmallMaterialMode = result.SmallMaterialMode;
         _lastSmallMaterialFlatFee = result.SmallMaterialFlatFee;
+        _lastSmallMaterialComment = result.SmallMaterialComment;
         return true;
     }
 
