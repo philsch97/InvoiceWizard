@@ -1247,9 +1247,22 @@ public class AnalyticsController(InvoiceWizardDbContext db, ICurrentTenantAccess
 
     private static decimal GetAllocationRevenueGross(LineAllocation allocation)
     {
-        var netAmount = allocation.ExportedLineTotal > 0m
+        var currentNetAmount = allocation.AllocatedQuantity * (allocation.CustomerUnitPrice > 0m
+            ? allocation.CustomerUnitPrice
+            : GetPurchaseUnitPrice(allocation.InvoiceLine));
+        var exportedNetAmount = allocation.ExportedLineTotal > 0m
             ? allocation.ExportedLineTotal
-            : allocation.AllocatedQuantity * allocation.CustomerUnitPrice;
+            : allocation.ExportedUnitPrice > 0m
+                ? allocation.AllocatedQuantity * allocation.ExportedUnitPrice
+                : 0m;
+        var isLinkedToCustomerDocument = allocation.RevenueInvoiceId.HasValue || !string.IsNullOrWhiteSpace(allocation.CustomerInvoiceNumber);
+        var netAmount = isLinkedToCustomerDocument
+            ? (exportedNetAmount > 0m ? exportedNetAmount : currentNetAmount)
+            : (allocation.ExportedMarkupPercent == 0m && currentNetAmount > exportedNetAmount
+                ? currentNetAmount
+                : exportedNetAmount > 0m
+                    ? exportedNetAmount
+                    : currentNetAmount);
         return AddRevenueVatIfRequired(netAmount, allocation.RevenueInvoice?.ApplySmallBusinessRegulation ?? false);
     }
 
