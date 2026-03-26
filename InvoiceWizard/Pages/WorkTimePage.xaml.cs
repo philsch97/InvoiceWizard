@@ -245,6 +245,63 @@ public partial class WorkTimePage : Page
         }
     }
 
+    private async void AddManualEntry_Click(object sender, RoutedEventArgs e)
+    {
+        var customers = await App.Api.GetCustomersAsync(activeProjectsOnly: true);
+        if (customers.Count == 0)
+        {
+            SetStatus("Es sind keine Kunden mit aktivem Projekt verfuegbar.", StatusMessageType.Warning);
+            return;
+        }
+
+        var projectMap = new Dictionary<int, List<ProjectSelectionItem>>();
+        foreach (var customer in customers)
+        {
+            projectMap[customer.CustomerId] = await App.Api.GetProjectSelectionsAsync(customer.CustomerId, includeAll: false);
+        }
+
+        var selectedCustomer = CustomerCombo.SelectedItem as CustomerEntity ?? customers.FirstOrDefault();
+        var selectedProject = ProjectCombo.SelectedItem as ProjectSelectionItem;
+        var defaultHourlyRate = TryParseDecimal(HourlyRateText.Text, out var hourlyRate) && hourlyRate > 0m ? hourlyRate : 65m;
+        var defaultTravelRate = TryParseDecimal(TravelRateText.Text, out var travelRate) && travelRate >= 0m ? travelRate : 0m;
+
+        var draftEntry = new WorkTimeEntryEntity
+        {
+            CustomerId = selectedCustomer?.CustomerId ?? customers[0].CustomerId,
+            ProjectId = selectedProject?.ProjectId,
+            WorkDate = DateTime.Today,
+            StartTime = new TimeSpan(8, 0, 0),
+            EndTime = new TimeSpan(16, 0, 0),
+            BreakMinutes = 30,
+            HourlyRate = defaultHourlyRate,
+            TravelKilometers = 0m,
+            TravelRatePerKilometer = defaultTravelRate,
+            Description = string.IsNullOrWhiteSpace(DescriptionText.Text) ? "Arbeitszeit" : DescriptionText.Text.Trim(),
+            Comment = string.Empty
+        };
+
+        var dialog = new WorkTimeEditDialog(draftEntry, customers, projectMap, isCreateMode: true)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await App.Api.SaveWorkTimeAsync(dialog.Result);
+            await ReloadAsync();
+            SetStatus("Arbeitszeit wurde nachtraeglich gespeichert.", StatusMessageType.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Arbeitszeit konnte nicht gespeichert werden: {ex.Message}", StatusMessageType.Error);
+        }
+    }
+
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         await ReloadAsync();
@@ -321,6 +378,7 @@ public partial class WorkTimePage : Page
         PauseButton.IsEnabled = hasActiveClock;
         StopButton.IsEnabled = hasActiveClock;
         EditSelectedButton.IsEnabled = IsAdmin;
+        AddManualEntryButton.IsEnabled = true;
 
         if (_activeClock is null)
         {

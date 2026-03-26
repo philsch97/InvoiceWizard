@@ -10,16 +10,19 @@ public partial class WorkTimeEditDialog : Window
 {
     private readonly List<CustomerEntity> _customers;
     private readonly Dictionary<int, List<ProjectSelectionItem>> _projectsByCustomer;
+    private readonly bool _isCreateMode;
 
     public WorkTimeEditDialog(
         WorkTimeEntryEntity entry,
         List<CustomerEntity> customers,
-        Dictionary<int, List<ProjectSelectionItem>> projectsByCustomer)
+        Dictionary<int, List<ProjectSelectionItem>> projectsByCustomer,
+        bool isCreateMode = false)
     {
         InitializeComponent();
         Entry = entry;
         _customers = customers;
         _projectsByCustomer = projectsByCustomer;
+        _isCreateMode = isCreateMode;
 
         CustomerCombo.ItemsSource = _customers;
         CustomerCombo.SelectedItem = _customers.FirstOrDefault(x => x.CustomerId == entry.CustomerId);
@@ -38,6 +41,12 @@ public partial class WorkTimeEditDialog : Window
 
     public WorkTimeEntryEntity Entry { get; }
     public WorkTimeEntryEntity? Result { get; private set; }
+    public string WindowTitle => _isCreateMode ? "Arbeitszeit nachtragen" : "Arbeitszeit bearbeiten";
+    public string DialogHeadline => _isCreateMode ? "Arbeitszeit nachtraeglich erfassen" : "Arbeitszeit bearbeiten";
+    public string DialogDescription => _isCreateMode
+        ? "Hier kannst du Arbeitszeit rueckwirkend manuell eintragen."
+        : "Admins koennen abgeschlossene Arbeitszeiten hier nachtraeglich korrigieren.";
+    public string ConfirmButtonText => _isCreateMode ? "Arbeitszeit speichern" : "Aenderungen speichern";
 
     private void CustomerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
