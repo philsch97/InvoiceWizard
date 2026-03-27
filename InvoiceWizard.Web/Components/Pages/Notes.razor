@@ -4,6 +4,7 @@
 @inject WebAuthSession Auth
 @inject IJSRuntime JS
 @inject WebUiSelectionState UiState
+@inject WebOfflineDataService Offline
 
 <PageTitle>Notizen &amp; ToDos</PageTitle>
 
@@ -257,7 +258,8 @@
             return;
         }
 
-        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
+        await Offline.SyncPendingAsync();
+        Customers = (await Offline.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
         if (UiState.SelectedCustomerId.HasValue && Customers.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
         {
             SelectedCustomerId = UiState.SelectedCustomerId.Value;
@@ -273,7 +275,7 @@
     private async Task OnCustomerChangedAsync()
     {
         UiState.SetSelectedCustomer(SelectedCustomerId);
-        Projects = SelectedCustomerId.HasValue ? (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList() : [];
+        Projects = SelectedCustomerId.HasValue ? (await Offline.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList() : [];
         if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
         {
             SelectedProjectId = null;
@@ -284,10 +286,11 @@
 
     private async Task ReloadAsync()
     {
-        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
+        await Offline.SyncPendingAsync();
+        Customers = (await Offline.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
         if (SelectedCustomerId.HasValue)
         {
-            Projects = (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList();
+            Projects = (await Offline.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList();
         }
 
         await ReloadListsAsync();
@@ -303,7 +306,7 @@
             return;
         }
 
-        Lists = (await Api.GetTodoListsAsync(SelectedCustomerId.Value, SelectedProjectId)).OrderByDescending(x => x.UpdatedAt).ToList();
+        Lists = (await Offline.GetTodoListsAsync(SelectedCustomerId.Value, SelectedProjectId)).OrderByDescending(x => x.UpdatedAt).ToList();
         if (SelectedList is not null)
         {
             SelectedList = Lists.FirstOrDefault(x => x.TodoListId == SelectedList.TodoListId);
@@ -340,10 +343,11 @@
             return;
         }
 
-        SelectedList = await Api.CreateTodoListAsync(SelectedCustomerId.Value, SelectedProjectId, NewListTitle.Trim());
+        Lists = await Offline.CreateTodoListAsync(SelectedCustomerId.Value, SelectedProjectId, NewListTitle.Trim());
+        SelectedList = Lists.OrderByDescending(x => x.UpdatedAt).FirstOrDefault();
         NewListTitle = string.Empty;
         ShowListDialog = true;
-        StatusMessage = $"Liste {SelectedList.Title} gespeichert.";
+        StatusMessage = SelectedList is null ? "Liste gespeichert." : $"Liste {SelectedList.Title} gespeichert.";
         await ReloadListsAsync();
     }
 
@@ -365,7 +369,7 @@
         }
 
         var todoListId = SelectedList.TodoListId;
-        await Api.DeleteTodoListAsync(todoListId);
+        Lists = await Offline.DeleteTodoListAsync(SelectedList.CustomerId, SelectedList.ProjectId, todoListId);
         SelectedList = null;
         SelectedItemId = null;
         ShowListDialog = false;
@@ -382,7 +386,8 @@
             return;
         }
 
-        SelectedList = await Api.CreateTodoItemAsync(SelectedList.TodoListId, NewItemText.Trim());
+        Lists = await Offline.CreateTodoItemAsync(SelectedList.CustomerId, SelectedList.ProjectId, SelectedList.TodoListId, NewItemText.Trim());
+        SelectedList = Lists.FirstOrDefault(x => x.TodoListId == SelectedList.TodoListId);
         NewItemText = string.Empty;
         StatusMessage = "Punkt angelegt.";
         await ReloadListsAsync();
@@ -396,7 +401,8 @@
             return;
         }
 
-        SelectedList = await Api.CreateTodoItemAsync(SelectedList.TodoListId, NewItemText.Trim(), SelectedItemId);
+        Lists = await Offline.CreateTodoItemAsync(SelectedList.CustomerId, SelectedList.ProjectId, SelectedList.TodoListId, NewItemText.Trim(), SelectedItemId);
+        SelectedList = Lists.FirstOrDefault(x => x.TodoListId == SelectedList.TodoListId);
         NewItemText = string.Empty;
         StatusMessage = "Unterpunkt angelegt.";
         await ReloadListsAsync();
@@ -409,7 +415,8 @@
             return;
         }
 
-        SelectedList = await Api.UpdateTodoItemStateAsync(item.TodoItemId, !item.IsCompleted);
+        Lists = await Offline.UpdateTodoItemStateAsync(SelectedList.CustomerId, SelectedList.ProjectId, item.TodoItemId, !item.IsCompleted);
+        SelectedList = Lists.FirstOrDefault(x => x.TodoListId == SelectedList.TodoListId);
         StatusMessage = item.IsCompleted ? "Punkt wieder geöffnet." : "Punkt als erledigt markiert.";
         await ReloadListsAsync();
     }
@@ -432,7 +439,8 @@
             return;
         }
 
-        SelectedList = await Api.DeleteTodoItemAsync(item.TodoItemId);
+        Lists = await Offline.DeleteTodoItemAsync(SelectedList.CustomerId, SelectedList.ProjectId, item.TodoItemId);
+        SelectedList = Lists.FirstOrDefault(x => x.TodoListId == SelectedList.TodoListId);
         if (SelectedItemId == item.TodoItemId)
         {
             SelectedItemId = null;
@@ -521,6 +529,12 @@
             return;
         }
 
+        if (!await Offline.IsOnlineAsync())
+        {
+            StatusMessage = "Bilder können aktuell nur mit Internetverbindung hochgeladen werden.";
+            return;
+        }
+
         SelectedList = await Api.UploadTodoAttachmentAsync(SelectedList.TodoListId, SelectedAttachmentFile, AttachmentCaption);
         AttachmentCaption = string.Empty;
         ResetAttachmentSelection();
@@ -530,6 +544,12 @@
 
     private async Task DeleteAttachmentAsync(int attachmentId)
     {
+        if (!await Offline.IsOnlineAsync())
+        {
+            StatusMessage = "Bilder können aktuell nur mit Internetverbindung gelöscht werden.";
+            return;
+        }
+
         SelectedList = await Api.DeleteTodoAttachmentAsync(attachmentId);
         StatusMessage = "Bild gelöscht.";
         await ReloadListsAsync();
@@ -537,6 +557,12 @@
 
     private async Task OpenAttachmentPreviewAsync(TodoAttachmentItem attachment)
     {
+        if (!await Offline.IsOnlineAsync())
+        {
+            StatusMessage = "Bildvorschau ist aktuell nur mit Internetverbindung verfügbar.";
+            return;
+        }
+
         var content = await Api.GetTodoAttachmentContentAsync(attachment.TodoAttachmentId);
         PreviewImageUrl = $"data:{content.ContentType};base64,{Convert.ToBase64String(content.Data)}";
         PreviewAttachmentName = string.IsNullOrWhiteSpace(content.FileName) ? attachment.FileName : content.FileName;

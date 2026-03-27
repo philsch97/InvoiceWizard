@@ -8,6 +8,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddScoped<WebAuthSession>();
 builder.Services.AddScoped<WebUiSelectionState>();
+builder.Services.AddScoped<WebOfflineDataService>();
 builder.Services.AddScoped<AuthHeaderHandler>();
 builder.Services.AddHttpClient("BackendAnonymous", client =>
 {

@@ -1,6 +1,7 @@
 @page "/calendar"
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
+@inject WebOfflineDataService Offline
 
 <PageTitle>Kalender</PageTitle>
 
@@ -264,7 +265,7 @@
 
     private async Task ReloadAsync()
     {
-        Users = (await Api.GetCalendarUsersAsync()).OrderByDescending(x => x.IsCurrentUser).ThenBy(x => x.DisplayName).ToList();
+        Users = (await Offline.GetCalendarUsersAsync()).OrderByDescending(x => x.IsCurrentUser).ThenBy(x => x.DisplayName).ToList();
         if (!SelectedUserId.HasValue || Users.All(x => x.AppUserId != SelectedUserId.Value))
         {
             SelectedUserId = Users.FirstOrDefault(x => x.IsCurrentUser)?.AppUserId ?? Users.FirstOrDefault()?.AppUserId;
@@ -282,7 +283,7 @@
             return;
         }
 
-        Entries = (await Api.GetCalendarEntriesAsync(SelectedUserId.Value, SelectedDate, SelectedDate))
+        Entries = (await Offline.GetCalendarEntriesAsync(SelectedUserId.Value, SelectedDate, SelectedDate))
             .OrderBy(x => x.StartTime)
             .ToList();
     }
@@ -295,7 +296,7 @@
             return;
         }
 
-        var entries = (await Api.GetCalendarEntriesAsync(SelectedUserId.Value, WeekStart, WeekStart.AddDays(6))).ToList();
+        var entries = (await Offline.GetCalendarEntriesAsync(SelectedUserId.Value, WeekStart, WeekStart.AddDays(6))).ToList();
         WeekCards = Enumerable.Range(0, 7)
             .Select(offset =>
             {

@@ -2,6 +2,7 @@
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
 @inject WebUiSelectionState UiState
+@inject WebOfflineDataService Offline
 
 <PageTitle>Kunden</PageTitle>
 
@@ -169,7 +170,7 @@
 
     private async Task LoadAsync()
     {
-        CustomerItems = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        CustomerItems = (await Offline.GetCustomersAsync(activeProjectsOnly: false)).OrderBy(x => x.Name).ToList();
         if (UiState.SelectedCustomerId.HasValue && CustomerItems.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
         {
             SelectedCustomer = CustomerItems.First(x => x.CustomerId == UiState.SelectedCustomerId.Value);
@@ -197,7 +198,7 @@
     {
         CustomerProjects = SelectedCustomer is null
             ? []
-            : (await Api.GetProjectsAsync(SelectedCustomer.CustomerId, includeInactive: true)).OrderBy(x => x.Name).ToList();
+            : (await Offline.GetProjectsAsync(SelectedCustomer.CustomerId, includeInactive: true)).OrderBy(x => x.Name).ToList();
     }
 
     private void OpenCreateCustomerDialog()

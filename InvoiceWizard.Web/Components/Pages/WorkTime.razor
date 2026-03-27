@@ -2,6 +2,7 @@
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
 @inject WebUiSelectionState UiState
+@inject WebOfflineDataService Offline
 
 <PageTitle>Arbeitszeit</PageTitle>
 
@@ -318,7 +319,8 @@
             return;
         }
 
-        Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).ToList();
+        await Offline.SyncPendingAsync();
+        Customers = (await Offline.GetCustomersAsync(activeProjectsOnly: true)).ToList();
         if (Customers.Count == 0)
         {
             AvailableProjects = [];
@@ -356,12 +358,12 @@
 
     private async Task ReloadActiveClockAsync()
     {
-        ActiveClock = await Api.GetActiveWorkTimeClockAsync();
+        ActiveClock = await (await Offline.IsOnlineAsync() ? Api.GetActiveWorkTimeClockAsync() : Task.FromResult<WorkTimeItem?>(null));
     }
 
     private async Task ReloadEntriesAsync()
     {
-        Entries = (await Api.GetWorkTimesAsync(FilterCustomerId, FilterProjectId))
+        Entries = (await Offline.GetWorkTimesAsync(FilterCustomerId, FilterProjectId))
             .OrderByDescending(x => x.WorkDate)
             .ThenByDescending(x => x.StartTime)
             .ToList();
@@ -371,7 +373,7 @@
     private async Task LoadProjectsForSelectedCustomerAsync()
     {
         UiState.SetSelectedCustomer(StartForm.CustomerId > 0 ? StartForm.CustomerId : null);
-        AvailableProjects = StartForm.CustomerId > 0 ? (await Api.GetProjectsAsync(StartForm.CustomerId, includeInactive: false)).ToList() : [];
+        AvailableProjects = StartForm.CustomerId > 0 ? (await Offline.GetProjectsAsync(StartForm.CustomerId, includeInactive: false)).ToList() : [];
         if (StartForm.ProjectId.HasValue && AvailableProjects.All(x => x.ProjectId != StartForm.ProjectId.Value))
         {
             StartForm.ProjectId = null;
@@ -385,7 +387,7 @@
         {
             StartForm.CustomerId = FilterCustomerId.Value;
         }
-        FilterProjects = FilterCustomerId.HasValue ? (await Api.GetProjectsAsync(FilterCustomerId.Value, includeInactive: false)).ToList() : [];
+        FilterProjects = FilterCustomerId.HasValue ? (await Offline.GetProjectsAsync(FilterCustomerId.Value, includeInactive: false)).ToList() : [];
         if (FilterProjectId.HasValue && FilterProjects.All(x => x.ProjectId != FilterProjectId.Value))
         {
             FilterProjectId = null;
@@ -396,6 +398,12 @@
 
     private async Task StartClockAsync()
     {
+        if (!await Offline.IsOnlineAsync())
+        {
+            SetStatus("Projekt stechen ist offline aktuell nicht verfügbar. Bitte Arbeitszeit nachtragen nutzen.", true);
+            return;
+        }
+
         if (StartForm.CustomerId <= 0)
         {
             SetStatus("Bitte zuerst einen Kunden wählen.", true);
@@ -474,7 +482,7 @@
 
     private async Task LoadProjectsForEditCustomerAsync()
     {
-        EditProjects = EditForm.CustomerId > 0 ? (await Api.GetProjectsAsync(EditForm.CustomerId, includeInactive: false)).ToList() : [];
+        EditProjects = EditForm.CustomerId > 0 ? (await Offline.GetProjectsAsync(EditForm.CustomerId, includeInactive: false)).ToList() : [];
         if (EditForm.ProjectId.HasValue && EditProjects.All(x => x.ProjectId != EditForm.ProjectId.Value))
         {
             EditForm.ProjectId = null;
@@ -562,11 +570,11 @@
 
         if (EditingWorkTimeEntryId.HasValue)
         {
-            await Api.UpdateWorkTimeAsync(EditingWorkTimeEntryId.Value, EditForm);
+            Entries = await Offline.SaveWorkTimeAsync(EditForm, EditingWorkTimeEntryId.Value, FilterCustomerId, FilterProjectId);
         }
         else
         {
-            await Api.CreateWorkTimeAsync(EditForm);
+            Entries = await Offline.SaveWorkTimeAsync(EditForm, null, FilterCustomerId, FilterProjectId);
         }
 
         CloseEditDialog();
@@ -603,6 +611,12 @@
 
     private async Task MarkInvoicedAsync(int id)
     {
+        if (!await Offline.IsOnlineAsync())
+        {
+            SetStatus("Faktura-Status kann aktuell nur online geändert werden.", true);
+            return;
+        }
+
         await Api.UpdateWorkTimeStatusAsync(id, new UpdateWorkTimeStatusModel { CustomerInvoiceNumber = InvoiceNumbers.GetValueOrDefault(id), MarkInvoiced = true });
         SetStatus("Eintrag als fakturiert markiert.", false);
         await ReloadEntriesAsync();
@@ -610,6 +624,12 @@
 
     private async Task MarkPaidAsync(int id)
     {
+        if (!await Offline.IsOnlineAsync())
+        {
+            SetStatus("Bezahlstatus kann aktuell nur online geändert werden.", true);
+            return;
+        }
+
         await Api.UpdateWorkTimeStatusAsync(id, new UpdateWorkTimeStatusModel { CustomerInvoiceNumber = InvoiceNumbers.GetValueOrDefault(id), MarkPaid = true });
         SetStatus("Eintrag als bezahlt markiert.", false);
         await ReloadEntriesAsync();
@@ -617,7 +637,7 @@
 
     private async Task DeleteAsync(int id)
     {
-        await Api.DeleteWorkTimeAsync(id);
+        Entries = await Offline.DeleteWorkTimeAsync(id, FilterCustomerId, FilterProjectId);
         SetStatus("Eintrag gelöscht.", false);
         await ReloadAsync();
     }

@@ -43,15 +43,23 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                 var stored = JsonSerializer.Deserialize<AuthSessionModel>(storedJson, _jsonOptions);
                 if (stored is not null)
                 {
-                    var refreshed = await TryGetCurrentUserAsync(stored.AccessToken);
-                    if (refreshed is not null)
+                    if (!await IsOnlineAsync())
                     {
-                        CurrentSession = refreshed;
+                        CurrentSession = stored;
                         await PersistSessionAsync();
                     }
                     else
                     {
-                        await ClearStoredSessionAsync();
+                        var refreshed = await TryGetCurrentUserAsync(stored.AccessToken);
+                        if (refreshed is not null)
+                        {
+                            CurrentSession = refreshed;
+                            await PersistSessionAsync();
+                        }
+                        else
+                        {
+                            await ClearStoredSessionAsync();
+                        }
                     }
                 }
             }
@@ -231,6 +239,9 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         IsBusy = value;
         await Task.Yield();
     }
+
+    private async Task<bool> IsOnlineAsync()
+        => await jsRuntime.InvokeAsync<bool>("invoiceWizardStorage.isOnline");
 
     private void NotifyStateChanged() => StateChanged?.Invoke();
 }

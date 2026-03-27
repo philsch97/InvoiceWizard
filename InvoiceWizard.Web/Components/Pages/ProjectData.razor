@@ -2,6 +2,7 @@
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
 @inject WebUiSelectionState UiState
+@inject WebOfflineDataService Offline
 
 <PageTitle>Projektdaten</PageTitle>
 
@@ -243,7 +244,7 @@
 
     private async Task ReloadAsync()
     {
-        Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
+        Customers = (await Offline.GetCustomersAsync(activeProjectsOnly: false)).OrderBy(x => x.Name).ToList();
         if (UiState.SelectedCustomerId.HasValue && Customers.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
         {
             SelectedCustomerId = UiState.SelectedCustomerId.Value;
@@ -272,7 +273,7 @@
     private async Task LoadProjectsAsync()
     {
         Projects = SelectedCustomerId.HasValue
-            ? (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: true)).OrderBy(x => x.Name).ToList()
+            ? (await Offline.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: true)).OrderBy(x => x.Name).ToList()
             : [];
 
         if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
@@ -291,7 +292,7 @@
         CurrentProject = null;
         if (SelectedProjectId.HasValue)
         {
-            CurrentProject = await Api.GetProjectDetailsAsync(SelectedProjectId.Value);
+            CurrentProject = await Offline.GetProjectDetailsAsync(SelectedProjectId.Value);
         }
     }
 
