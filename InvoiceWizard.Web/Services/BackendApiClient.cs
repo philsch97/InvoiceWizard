@@ -58,7 +58,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     public async Task<ProjectItem> CreateProjectAsync(int customerId, SaveProjectModel model, CancellationToken cancellationToken = default)
     {
         ApplyAuthorizationHeader();
-        var response = await httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", model, cancellationToken);
+        var response = await httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", NormalizeProjectModel(model), cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<ProjectItem>(cancellationToken: cancellationToken))!;
     }
@@ -66,7 +66,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     public async Task<ProjectDetailsItem> UpdateProjectAsync(int projectId, SaveProjectModel model, CancellationToken cancellationToken = default)
     {
         ApplyAuthorizationHeader();
-        var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}", model, cancellationToken);
+        var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}", NormalizeProjectModel(model), cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
     }
@@ -92,7 +92,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     public async Task<ProjectDetailsItem> UpdateProjectDetailsAsync(int projectId, SaveProjectDetailsModel model, CancellationToken cancellationToken = default)
     {
         ApplyAuthorizationHeader();
-        var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}/details", model, cancellationToken);
+        var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}/details", NormalizeProjectDetailsModel(model), cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
     }
@@ -430,4 +430,21 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
 
         return trimmed;
     }
+
+    private static SaveProjectModel NormalizeProjectModel(SaveProjectModel model)
+    {
+        model.ConnectionUserEmailAddress = NormalizeOptionalString(model.ConnectionUserEmailAddress);
+        model.PropertyOwnerEmailAddress = NormalizeOptionalString(model.PropertyOwnerEmailAddress);
+        return model;
+    }
+
+    private static SaveProjectDetailsModel NormalizeProjectDetailsModel(SaveProjectDetailsModel model)
+    {
+        model.ConnectionUserEmailAddress = NormalizeOptionalString(model.ConnectionUserEmailAddress);
+        model.PropertyOwnerEmailAddress = NormalizeOptionalString(model.PropertyOwnerEmailAddress);
+        return model;
+    }
+
+    private static string? NormalizeOptionalString(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
