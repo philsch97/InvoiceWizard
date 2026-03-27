@@ -401,11 +401,6 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
                 return detail.GetString();
             }
 
-            if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
-            {
-                return title.GetString();
-            }
-
             if (root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
             {
                 foreach (var property in errors.EnumerateObject())
@@ -421,6 +416,11 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
                         }
                     }
                 }
+            }
+
+            if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+            {
+                return title.GetString();
             }
         }
         catch

@@ -103,7 +103,7 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
     align-items: flex-end;
     justify-content: center;
     overflow-y: auto;
-    padding: max(1rem, env(safe-area-inset-top)) 1rem max(4rem, calc(env(safe-area-inset-bottom) + 3rem)) 1rem;
+    padding: max(1rem, env(safe-area-inset-top)) 1rem max(5.5rem, calc(env(safe-area-inset-bottom) + 4.5rem)) 1rem;
     z-index: 1000;
 }
 
@@ -117,7 +117,8 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
     background: var(--panel);
     border: 1px solid var(--line);
     box-shadow: var(--shadow);
-    padding: 1rem 1rem calc(4rem + env(safe-area-inset-bottom)) 1rem;
+    padding: 1rem 1rem calc(6rem + env(safe-area-inset-bottom)) 1rem;
+    scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
 .calendar-week-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.9rem; }
 .calendar-day-card { display: grid; gap: 0.55rem; align-content: start; text-align: left; min-height: 180px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-alt); color: var(--text-strong); padding: 1rem; }
@@ -130,7 +131,9 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .wizard-modal,
 .worktime-start-modal {
     width: min(760px, 100%);
-    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 3rem);
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem);
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom));
 }
 .modal-actions { margin-top: 1rem; }
 .split-action-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
@@ -171,10 +174,10 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
     .todo-item-row, .inline-editor { align-items: stretch; }
     .field-with-action { grid-template-columns: 1fr; }
     .action-button, .ghost-button { width: 100%; justify-content: center; }
-    .modal-backdrop { align-items: flex-start; padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(4.5rem, calc(env(safe-area-inset-bottom) + 3.5rem)) 0.75rem; }
-    .modal-card { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem); padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+    .modal-backdrop { align-items: flex-start; padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(6.5rem, calc(env(safe-area-inset-bottom) + 5.5rem)) 0.75rem; }
+    .modal-card { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem); padding-bottom: calc(7rem + env(safe-area-inset-bottom)); scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom)); }
     .wizard-modal,
-    .worktime-start-modal { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem); }
+    .worktime-start-modal { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 0.5rem); padding-bottom: calc(8rem + env(safe-area-inset-bottom)); scroll-padding-bottom: calc(8rem + env(safe-area-inset-bottom)); }
     .compact-info-grid { grid-template-columns: 1fr; }
     .calendar-week-grid { grid-template-columns: 1fr; }
     .calendar-day-card { min-height: 0; }
