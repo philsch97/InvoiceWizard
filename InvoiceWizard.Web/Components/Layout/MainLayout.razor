@@ -1,7 +1,9 @@
+@using Microsoft.JSInterop
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject WebAuthSession Auth
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 @if (!Auth.IsInitialized)
 {
@@ -47,7 +49,7 @@ else
                 <button type="button" class="nav-overlay" @onclick="CloseNavigationAsync" aria-label="Navigation schließen"></button>
             }
 
-            <NavMenu IsOpen="@IsNavigationOpen" />
+            <NavMenu IsOpen="@IsNavigationOpen" OnNavigate="CloseNavigationAsync" />
 
             <main class="shell-content app-main-content">
                 <article class="panel" @key="Auth.CurrentSession?.AccessToken">
@@ -65,13 +67,14 @@ else
     {
         Auth.StateChanged += HandleAuthChanged;
         Navigation.LocationChanged += HandleLocationChanged;
-        IsNavigationOpen = true;
+        IsNavigationOpen = false;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            await JS.InvokeVoidAsync("invoiceWizardUi.ensureInitialized");
             await Auth.EnsureInitializedAsync();
         }
     }
@@ -86,7 +89,10 @@ else
 
     private Task CloseNavigationAsync()
     {
-        IsNavigationOpen = false;
+        if (IsNavigationOpen)
+        {
+            IsNavigationOpen = false;
+        }
         return Task.CompletedTask;
     }
 

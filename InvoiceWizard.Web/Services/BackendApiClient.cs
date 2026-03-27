@@ -313,6 +313,21 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         return (await response.Content.ReadFromJsonAsync<TodoListItem>(cancellationToken: cancellationToken))!;
     }
 
+    public async Task<TodoAttachmentContentItem> GetTodoAttachmentContentAsync(int todoAttachmentId, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthorizationHeader();
+        var response = await httpClient.GetAsync($"api/todoattachments/{todoAttachmentId}/content", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return new TodoAttachmentContentItem
+        {
+            Data = await response.Content.ReadAsByteArrayAsync(cancellationToken),
+            ContentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
+            FileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+                ?? string.Empty
+        };
+    }
+
     public async Task<List<TenantUserModel>> GetTenantUsersAsync(CancellationToken cancellationToken = default)
         => await TryGetListAsync<TenantUserModel>("api/tenant-users", cancellationToken);
 

@@ -95,8 +95,29 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .analytics-stats .stat-card strong { font-size: clamp(1.5rem, 6vw, 2.2rem); }
 .active-clock-card { display: grid; gap: 0.45rem; margin-bottom: 1rem; padding: 1rem; border-radius: 16px; background: rgba(79, 163, 255, 0.12); border: 1px solid rgba(79, 163, 255, 0.24); }
 .active-pill { border-color: rgba(79, 163, 255, 0.35); color: var(--accent-strong); }
-.modal-backdrop { position: fixed; inset: 0; background: rgba(8, 12, 18, 0.76); display: flex; align-items: flex-end; justify-content: center; padding: 1rem; z-index: 1000; }
-.modal-card { width: min(640px, 100%); border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); padding: 1rem; }
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 12, 18, 0.76);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom)) 1rem;
+    z-index: 1000;
+}
+
+.modal-card {
+    width: min(640px, 100%);
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 22px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom)) 1rem;
+}
 .calendar-week-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.9rem; }
 .calendar-day-card { display: grid; gap: 0.55rem; align-content: start; text-align: left; min-height: 180px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-alt); color: var(--text-strong); padding: 1rem; }
 .calendar-day-card.selected-day { border-color: rgba(79, 163, 255, 0.45); background: rgba(79, 163, 255, 0.14); }
@@ -104,8 +125,37 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
 .calendar-chip span { color: var(--muted); font-size: 0.9rem; }
 .clickable-card { cursor: pointer; transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease; }
 .clickable-card:hover { transform: translateY(-1px); border-color: rgba(79, 163, 255, 0.35); background: rgba(79, 163, 255, 0.06); }
-.list-editor-modal { width: min(860px, 100%); max-height: min(88vh, 920px); overflow: auto; }
+.list-editor-modal { width: min(860px, 100%); max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem); overflow: auto; }
 .modal-actions { margin-top: 1rem; }
+.split-action-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.half-width-button { width: 100%; white-space: nowrap; }
+.todo-checkbox { width: 1.2rem; height: 1.2rem; margin-top: 0.15rem; flex: 0 0 auto; }
+.todo-text-button {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    color: var(--text-strong);
+    padding: 0.1rem 0;
+}
+.todo-delete-button { flex: 0 0 auto; width: auto; }
+.attachment-pick-status {
+    padding: 0.82rem 0.9rem;
+    border-radius: 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--line);
+    color: var(--muted);
+}
+.hidden-file-input { display: none; }
+.image-preview-modal { width: min(920px, 100%); }
+.attachment-preview-image {
+    width: 100%;
+    max-height: calc(100dvh - 12rem);
+    object-fit: contain;
+    border-radius: 16px;
+    background: rgba(10, 14, 19, 0.82);
+}
 
 @media (max-width: 720px) {
     .section-heading, .table-header, .entry-header, .list-row, .status-update { align-items: flex-start; flex-direction: column; }
@@ -113,12 +163,15 @@ input, select, textarea { width: 100%; border: 1px solid var(--line); border-rad
     .todo-item-row, .inline-editor { align-items: stretch; }
     .field-with-action { grid-template-columns: 1fr; }
     .action-button, .ghost-button { width: 100%; justify-content: center; }
-    .modal-backdrop { align-items: flex-end; padding: 0.75rem; }
-    .modal-card { max-height: 85vh; overflow: auto; }
+    .modal-backdrop { align-items: flex-end; padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom)) 0.75rem; }
+    .modal-card { max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1.5rem); }
     .compact-info-grid { grid-template-columns: 1fr; }
     .calendar-week-grid { grid-template-columns: 1fr; }
     .calendar-day-card { min-height: 0; }
     .notes-layout, .split-grid.two-columns { grid-template-columns: 1fr; }
+    .split-action-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .todo-item-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; }
+    .todo-delete-button { width: auto; }
 }
 .auth-shell {
     display: grid;

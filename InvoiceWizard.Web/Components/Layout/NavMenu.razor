@@ -15,21 +15,21 @@
 
         <div class="nav-group">
             <span class="nav-group-label">Übersicht</span>
-            <NavLink href="/" Match="NavLinkMatch.All" class="nav-pill-button" ActiveClass="active">Status</NavLink>
-            <NavLink href="/analytics" class="nav-pill-button" ActiveClass="active">Auswertung</NavLink>
+            <button type="button" class="@GetNavButtonClass("/")" @onclick='() => NavigateToAsync("/")'>Status</button>
+            <button type="button" class="@GetNavButtonClass("/analytics")" @onclick='() => NavigateToAsync("/analytics")'>Auswertung</button>
         </div>
 
         <div class="nav-group">
             <span class="nav-group-label">Tagesgeschäft</span>
-            <NavLink href="/worktime" class="nav-pill-button" ActiveClass="active">Arbeitszeit</NavLink>
-            <NavLink href="/calendar" class="nav-pill-button" ActiveClass="active">Kalender</NavLink>
-            <NavLink href="/notes" class="nav-pill-button" ActiveClass="active">Notizen</NavLink>
+            <button type="button" class="@GetNavButtonClass("/worktime")" @onclick='() => NavigateToAsync("/worktime")'>Arbeitszeit</button>
+            <button type="button" class="@GetNavButtonClass("/calendar")" @onclick='() => NavigateToAsync("/calendar")'>Kalender</button>
+            <button type="button" class="@GetNavButtonClass("/notes")" @onclick='() => NavigateToAsync("/notes")'>Notizen</button>
         </div>
 
         <div class="nav-group">
             <span class="nav-group-label">Stammdaten</span>
-            <NavLink href="/customers" class="nav-pill-button" ActiveClass="active">Kunden</NavLink>
-            <NavLink href="/projectdata" class="nav-pill-button" ActiveClass="active">Projektdaten</NavLink>
+            <button type="button" class="@GetNavButtonClass("/customers")" @onclick='() => NavigateToAsync("/customers")'>Kunden</button>
+            <button type="button" class="@GetNavButtonClass("/projectdata")" @onclick='() => NavigateToAsync("/projectdata")'>Projektdaten</button>
         </div>
 
         <button type="button" class="ghost-button nav-logout-button" @onclick="LogoutAndNavigateAsync">Abmelden</button>
@@ -38,9 +38,29 @@
 
 @code {
     [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnNavigate { get; set; }
+
+    private async Task NavigateToAsync(string href)
+    {
+        await OnNavigate.InvokeAsync();
+        Navigation.NavigateTo(href);
+    }
+
     private async Task LogoutAndNavigateAsync()
     {
         await Auth.LogoutAsync();
         Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private string GetNavButtonClass(string href)
+        => $"nav-pill-button{(IsActive(href) ? " active" : string.Empty)}";
+
+    private bool IsActive(string href)
+    {
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var normalizedCurrent = string.IsNullOrWhiteSpace(currentPath) ? "/" : "/" + currentPath.Trim('/');
+        return href == "/"
+            ? normalizedCurrent == "/"
+            : normalizedCurrent.StartsWith(href, StringComparison.OrdinalIgnoreCase);
     }
 }

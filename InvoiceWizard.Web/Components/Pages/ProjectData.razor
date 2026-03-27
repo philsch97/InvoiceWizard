@@ -348,21 +348,28 @@
             return;
         }
 
-        if (EditingProjectId.HasValue)
+        try
         {
-            var updated = await Api.UpdateProjectAsync(EditingProjectId.Value, ProjectForm);
-            SelectedProjectId = updated.ProjectId;
-            StatusMessage = $"Projekt {updated.Name} gespeichert.";
-        }
-        else
-        {
-            var created = await Api.CreateProjectAsync(SelectedCustomerId.Value, ProjectForm);
-            SelectedProjectId = created.ProjectId;
-            StatusMessage = $"Projekt {created.Name} angelegt.";
-        }
+            if (EditingProjectId.HasValue)
+            {
+                var updated = await Api.UpdateProjectAsync(EditingProjectId.Value, ProjectForm);
+                SelectedProjectId = updated.ProjectId;
+                StatusMessage = $"Projekt {updated.Name} gespeichert.";
+            }
+            else
+            {
+                var created = await Api.CreateProjectAsync(SelectedCustomerId.Value, ProjectForm);
+                SelectedProjectId = created.ProjectId;
+                StatusMessage = $"Projekt {created.Name} angelegt.";
+            }
 
-        CloseProjectDialog();
-        await ReloadAsync();
+            CloseProjectDialog();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
     }
 
     private async Task ChangeProjectStatusAsync(string projectStatus)

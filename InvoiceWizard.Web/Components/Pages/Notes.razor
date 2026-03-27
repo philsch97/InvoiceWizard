@@ -1,14 +1,16 @@
 @page "/notes"
+@using Microsoft.JSInterop
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
+@inject IJSRuntime JS
 
-<PageTitle>Notizen & ToDos</PageTitle>
+<PageTitle>Notizen &amp; ToDos</PageTitle>
 
 <section class="page-section notes-page">
     <div class="section-heading">
         <div>
-            <h2>Notizen & ToDos</h2>
-            <p>Listen mobil übersichtlich pflegen. Tippe auf eine Liste, um sie zu öffnen. Halte einen Punkt gedrückt, um ihn zu markieren, abzuhaken oder zu löschen.</p>
+            <h2>Notizen &amp; ToDos</h2>
+            <p>Listen mobil übersichtlich pflegen. Tippe auf eine Liste, um sie zu öffnen.</p>
         </div>
         <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
     </div>
@@ -47,25 +49,6 @@
                     <button class="action-button" @onclick="CreateListAsync" disabled="@(!SelectedCustomerId.HasValue)">Liste anlegen</button>
                 </div>
             </label>
-        </div>
-
-        <div class="compact-info-grid">
-            <div class="compact-info-card">
-                <span>Gewählter Kunde</span>
-                <strong>@SelectedCustomerName</strong>
-            </div>
-            <div class="compact-info-card">
-                <span>Gewähltes Projekt</span>
-                <strong>@SelectedProjectName</strong>
-            </div>
-            <div class="compact-info-card">
-                <span>Listen</span>
-                <strong>@Lists.Count</strong>
-            </div>
-            <div class="compact-info-card">
-                <span>Offene Punkte</span>
-                <strong>@Lists.Sum(x => x.OpenItemCount)</strong>
-            </div>
         </div>
     </article>
 
@@ -109,31 +92,24 @@
                 </div>
                 <div class="row-actions wrap-mobile">
                     <span class="pill">@SelectedList.OpenItemCount offen</span>
-                    <button class="ghost-button danger" @onclick="() => DeleteListAsync(SelectedList.TodoListId)">Liste löschen</button>
+                    <button class="ghost-button danger" @onclick="ConfirmDeleteList">Liste löschen</button>
                 </div>
             </div>
 
-            <div class="form-grid compact-grid">
-                <label class="wide">
-                    <span>Neuer Punkt</span>
-                    <div class="inline-editor">
-                        <input @bind="NewItemText" placeholder="z. B. Steckdosenabdeckung nachbestellen" />
-                        <button class="action-button" @onclick="CreateRootItemAsync">Punkt anlegen</button>
-                    </div>
-                </label>
-                <label class="wide">
-                    <span>Unterpunkt für markierten Eintrag</span>
-                    <div class="inline-editor">
-                        <input @bind="NewChildItemText" placeholder="z. B. beim nächsten Termin mitbringen" />
-                        <button class="ghost-button" @onclick="CreateChildItemAsync" disabled="@(SelectedItemId is null)">Unterpunkt</button>
-                    </div>
-                </label>
+            <label class="wide">
+                <span>Neuer Punkt / Unterpunkt</span>
+                <input @bind="NewItemText" placeholder="z. B. Steckdosenabdeckung nachbestellen" />
+            </label>
+
+            <div class="split-action-row">
+                <button class="action-button half-width-button" @onclick="CreateRootItemAsync">Punkt anlegen</button>
+                <button class="ghost-button half-width-button" @onclick="CreateChildItemAsync" disabled="@(SelectedItemId is null)">Unterpunkt</button>
             </div>
 
             @if (SelectedItemId.HasValue)
             {
                 <div class="inline-status">
-                    Punkt markiert für Unterpunkt: @SelectedItemText
+                    Ausgewählter Punkt für Unterpunkt: @SelectedItemText
                 </div>
             }
 
@@ -149,29 +125,29 @@
                     <h3>Bilder</h3>
                     <span>@SelectedList.Attachments.Count Einträge</span>
                 </div>
+
                 <div class="form-grid compact-grid">
                     <label class="wide">
                         <span>Beschriftung</span>
                         <input @bind="AttachmentCaption" />
                     </label>
-                    <label class="wide">
-                        <span>Foto direkt aufnehmen</span>
-                        <InputFile OnChange="HandleFileSelected" accept="image/*" capture="environment" />
-                    </label>
-                    <label class="wide">
-                        <span>Bild aus Dateien wählen</span>
-                        <InputFile OnChange="HandleFileSelected" accept="image/*" />
-                    </label>
-                    <div class="status-update">
-                        <button class="action-button" @onclick="UploadAttachmentAsync" disabled="@(SelectedAttachmentFile is null)">Bild hochladen</button>
-                        @if (SelectedAttachmentFile is not null)
-                        {
-                            <span class="pill">@SelectedAttachmentFile.Name</span>
-                        }
+
+                    <div class="attachment-pick-status wide">
+                        <span>@SelectedAttachmentFileName</span>
                     </div>
+
+                    <InputFile id="@CameraInputId" @key="@CameraInputKey" class="hidden-file-input" OnChange="HandleFileSelected" accept="image/*" capture="environment" />
+                    <InputFile id="@FileInputId" @key="@FileInputKey" class="hidden-file-input" OnChange="HandleFileSelected" accept="image/*" />
+
+                    <div class="split-action-row wide">
+                        <button type="button" class="action-button half-width-button" @onclick="TriggerCameraPickerAsync">Foto aufnehmen</button>
+                        <button type="button" class="ghost-button half-width-button" @onclick="TriggerFilePickerAsync">Datei auswählen</button>
+                    </div>
+
+                    <button class="action-button wide" @onclick="UploadAttachmentAsync" disabled="@(SelectedAttachmentFile is null)">Bild hochladen</button>
                 </div>
 
-                @foreach (var attachment in SelectedList.Attachments)
+                @foreach (var attachment in SelectedList.Attachments.OrderByDescending(x => x.UploadedAt))
                 {
                     <div class="list-row stacked-mobile">
                         <div>
@@ -179,10 +155,7 @@
                             <p>@(string.IsNullOrWhiteSpace(attachment.Caption) ? "Ohne Beschriftung" : attachment.Caption)</p>
                         </div>
                         <div class="row-actions wrap-mobile">
-                            @if (!string.IsNullOrWhiteSpace(attachment.DownloadUrl))
-                            {
-                                <a class="ghost-button link-button" href="@attachment.DownloadUrl" target="_blank">Öffnen</a>
-                            }
+                            <button class="ghost-button" @onclick="() => OpenAttachmentPreviewAsync(attachment)">Ansehen</button>
                             <button class="ghost-button danger" @onclick="() => DeleteAttachmentAsync(attachment.TodoAttachmentId)">Löschen</button>
                         </div>
                     </div>
@@ -196,23 +169,36 @@
     </div>
 }
 
-@if (ShowItemActionsDialog && ActionItem is not null)
+@if (ShowDeleteListDialog && SelectedList is not null)
 {
-    <div class="modal-backdrop" @onclick="CloseItemActionsDialog">
+    <div class="modal-backdrop" @onclick="CloseDeleteListDialog">
         <div class="modal-card" @onclick:stopPropagation="true">
             <div class="table-header compact">
                 <div>
-                    <h3>Punkt-Aktionen</h3>
-                    <p>@ActionItem.Text</p>
+                    <h3>Liste löschen</h3>
+                    <p>Soll die Liste „@SelectedList.Title“ wirklich gelöscht werden?</p>
                 </div>
             </div>
-
             <div class="row-actions wrap-mobile">
-                <button class="action-button" @onclick="ToggleActionItemAsync">@(ActionItem.IsCompleted ? "Wieder öffnen" : "Als erledigt markieren")</button>
-                <button class="ghost-button" @onclick="SelectActionItem">Für Unterpunkt markieren</button>
-                <button class="ghost-button danger" @onclick="DeleteActionItemAsync">Löschen</button>
-                <button class="ghost-button" @onclick="CloseItemActionsDialog">Abbrechen</button>
+                <button class="ghost-button danger" @onclick="DeleteSelectedListAsync">Ja, löschen</button>
+                <button class="ghost-button" @onclick="CloseDeleteListDialog">Abbrechen</button>
             </div>
+        </div>
+    </div>
+}
+
+@if (ShowAttachmentPreview && !string.IsNullOrWhiteSpace(PreviewImageUrl))
+{
+    <div class="modal-backdrop" @onclick="CloseAttachmentPreview">
+        <div class="modal-card image-preview-modal" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>@PreviewAttachmentName</h3>
+                    <p>Bildvorschau</p>
+                </div>
+                <button class="ghost-button" @onclick="CloseAttachmentPreview">Schließen</button>
+            </div>
+            <img src="@PreviewImageUrl" alt="@PreviewAttachmentName" class="attachment-preview-image" />
         </div>
     </div>
 }
@@ -222,25 +208,25 @@
     private List<ProjectItem> Projects { get; set; } = [];
     private List<TodoListItem> Lists { get; set; } = [];
     private TodoListItem? SelectedList { get; set; }
-    private TodoItem? ActionItem { get; set; }
-    private CancellationTokenSource? LongPressCts { get; set; }
     private int? SelectedCustomerId { get; set; }
     private int? SelectedProjectId { get; set; }
     private int? SelectedItemId { get; set; }
     private string NewListTitle { get; set; } = string.Empty;
     private string NewItemText { get; set; } = string.Empty;
-    private string NewChildItemText { get; set; } = string.Empty;
     private string AttachmentCaption { get; set; } = string.Empty;
     private IBrowserFile? SelectedAttachmentFile { get; set; }
     private string? StatusMessage { get; set; }
     private bool ShowListDialog { get; set; }
-    private bool ShowItemActionsDialog { get; set; }
-
-    private string SelectedCustomerName
-        => SelectedCustomerId.HasValue ? Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId.Value)?.Name ?? "Nicht gefunden" : "Nicht gewählt";
-
-    private string SelectedProjectName
-        => SelectedProjectId.HasValue ? Projects.FirstOrDefault(x => x.ProjectId == SelectedProjectId.Value)?.Name ?? "Nicht gefunden" : "Alle Projekte";
+    private bool ShowDeleteListDialog { get; set; }
+    private bool ShowAttachmentPreview { get; set; }
+    private string? PreviewImageUrl { get; set; }
+    private string PreviewAttachmentName { get; set; } = string.Empty;
+    private int AttachmentInputVersion { get; set; }
+    private string CameraInputId => $"todo-camera-{AttachmentInputVersion}";
+    private string FileInputId => $"todo-file-{AttachmentInputVersion}";
+    private string CameraInputKey => $"camera-{AttachmentInputVersion}";
+    private string FileInputKey => $"file-{AttachmentInputVersion}";
+    private string SelectedAttachmentFileName => SelectedAttachmentFile?.Name ?? "Keine ausgewählt";
 
     private string SelectedItemText
         => SelectedList?.Items.SelectMany(FlattenTodoItems).FirstOrDefault(x => x.TodoItemId == SelectedItemId)?.Text ?? "Nicht gefunden";
@@ -324,7 +310,7 @@
     {
         ShowListDialog = false;
         SelectedItemId = null;
-        SelectedAttachmentFile = null;
+        ResetAttachmentSelection();
     }
 
     private async Task CreateListAsync()
@@ -342,16 +328,29 @@
         await ReloadListsAsync();
     }
 
-    private async Task DeleteListAsync(int todoListId)
+    private void ConfirmDeleteList()
     {
-        await Api.DeleteTodoListAsync(todoListId);
-        if (SelectedList?.TodoListId == todoListId)
+        ShowDeleteListDialog = true;
+    }
+
+    private void CloseDeleteListDialog()
+    {
+        ShowDeleteListDialog = false;
+    }
+
+    private async Task DeleteSelectedListAsync()
+    {
+        if (SelectedList is null)
         {
-            SelectedList = null;
-            SelectedItemId = null;
-            ShowListDialog = false;
+            return;
         }
 
+        var todoListId = SelectedList.TodoListId;
+        await Api.DeleteTodoListAsync(todoListId);
+        SelectedList = null;
+        SelectedItemId = null;
+        ShowListDialog = false;
+        ShowDeleteListDialog = false;
         StatusMessage = "Liste gelöscht.";
         await ReloadListsAsync();
     }
@@ -372,21 +371,66 @@
 
     private async Task CreateChildItemAsync()
     {
-        if (SelectedList is null || SelectedItemId is null || string.IsNullOrWhiteSpace(NewChildItemText))
+        if (SelectedList is null || SelectedItemId is null || string.IsNullOrWhiteSpace(NewItemText))
         {
-            StatusMessage = "Bitte einen markierten Punkt und den Text für den Unterpunkt angeben.";
+            StatusMessage = "Bitte einen ausgewählten Punkt und einen Text für den Unterpunkt angeben.";
             return;
         }
 
-        SelectedList = await Api.CreateTodoItemAsync(SelectedList.TodoListId, NewChildItemText.Trim(), SelectedItemId);
-        NewChildItemText = string.Empty;
+        SelectedList = await Api.CreateTodoItemAsync(SelectedList.TodoListId, NewItemText.Trim(), SelectedItemId);
+        NewItemText = string.Empty;
         StatusMessage = "Unterpunkt angelegt.";
+        await ReloadListsAsync();
+    }
+
+    private async Task ToggleItemAsync(TodoItem item)
+    {
+        if (SelectedList is null)
+        {
+            return;
+        }
+
+        SelectedList = await Api.UpdateTodoItemStateAsync(item.TodoItemId, !item.IsCompleted);
+        StatusMessage = item.IsCompleted ? "Punkt wieder geöffnet." : "Punkt als erledigt markiert.";
+        await ReloadListsAsync();
+    }
+
+    private void SelectItem(TodoItem item)
+    {
+        SelectedItemId = item.TodoItemId;
+        StatusMessage = "Punkt für Unterpunkt ausgewählt.";
+    }
+
+    private async Task DeleteItemAsync(TodoItem item)
+    {
+        if (SelectedList is null)
+        {
+            return;
+        }
+
+        SelectedList = await Api.DeleteTodoItemAsync(item.TodoItemId);
+        if (SelectedItemId == item.TodoItemId)
+        {
+            SelectedItemId = null;
+        }
+
+        StatusMessage = "Punkt gelöscht.";
         await ReloadListsAsync();
     }
 
     private void HandleFileSelected(InputFileChangeEventArgs args)
     {
         SelectedAttachmentFile = args.File;
+    }
+
+    private async Task TriggerCameraPickerAsync()
+    {
+        await JS.InvokeVoidAsync("invoiceWizardUi.clickById", CameraInputId);
+    }
+
+    private async Task TriggerFilePickerAsync()
+    {
+        await JS.InvokeVoidAsync("invoiceWizardUi.clickById", FileInputId);
     }
 
     private async Task UploadAttachmentAsync()
@@ -399,7 +443,7 @@
 
         SelectedList = await Api.UploadTodoAttachmentAsync(SelectedList.TodoListId, SelectedAttachmentFile, AttachmentCaption);
         AttachmentCaption = string.Empty;
-        SelectedAttachmentFile = null;
+        ResetAttachmentSelection();
         StatusMessage = "Bild hochgeladen.";
         await ReloadListsAsync();
     }
@@ -411,84 +455,25 @@
         await ReloadListsAsync();
     }
 
-    private void StartLongPress(TodoItem item)
+    private async Task OpenAttachmentPreviewAsync(TodoAttachmentItem attachment)
     {
-        LongPressCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        LongPressCts = cts;
-        _ = HandleLongPressAsync(item, cts.Token);
+        var content = await Api.GetTodoAttachmentContentAsync(attachment.TodoAttachmentId);
+        PreviewImageUrl = $"data:{content.ContentType};base64,{Convert.ToBase64String(content.Data)}";
+        PreviewAttachmentName = string.IsNullOrWhiteSpace(content.FileName) ? attachment.FileName : content.FileName;
+        ShowAttachmentPreview = true;
     }
 
-    private void CancelLongPress()
+    private void CloseAttachmentPreview()
     {
-        LongPressCts?.Cancel();
-        LongPressCts = null;
+        PreviewImageUrl = null;
+        PreviewAttachmentName = string.Empty;
+        ShowAttachmentPreview = false;
     }
 
-    private async Task HandleLongPressAsync(TodoItem item, CancellationToken cancellationToken)
+    private void ResetAttachmentSelection()
     {
-        try
-        {
-            await Task.Delay(650, cancellationToken);
-            await InvokeAsync(() =>
-            {
-                ActionItem = item;
-                ShowItemActionsDialog = true;
-                StateHasChanged();
-            });
-        }
-        catch (TaskCanceledException)
-        {
-        }
-    }
-
-    private void CloseItemActionsDialog()
-    {
-        ShowItemActionsDialog = false;
-        ActionItem = null;
-    }
-
-    private async Task ToggleActionItemAsync()
-    {
-        if (ActionItem is null || SelectedList is null)
-        {
-            return;
-        }
-
-        SelectedList = await Api.UpdateTodoItemStateAsync(ActionItem.TodoItemId, !ActionItem.IsCompleted);
-        StatusMessage = ActionItem.IsCompleted ? "Punkt wieder geöffnet." : "Punkt als erledigt markiert.";
-        CloseItemActionsDialog();
-        await ReloadListsAsync();
-    }
-
-    private void SelectActionItem()
-    {
-        if (ActionItem is null)
-        {
-            return;
-        }
-
-        SelectedItemId = ActionItem.TodoItemId;
-        StatusMessage = "Punkt für Unterpunkt markiert.";
-        CloseItemActionsDialog();
-    }
-
-    private async Task DeleteActionItemAsync()
-    {
-        if (ActionItem is null || SelectedList is null)
-        {
-            return;
-        }
-
-        SelectedList = await Api.DeleteTodoItemAsync(ActionItem.TodoItemId);
-        if (SelectedItemId == ActionItem.TodoItemId)
-        {
-            SelectedItemId = null;
-        }
-
-        StatusMessage = "Punkt gelöscht.";
-        CloseItemActionsDialog();
-        await ReloadListsAsync();
+        SelectedAttachmentFile = null;
+        AttachmentInputVersion++;
     }
 
     private IEnumerable<TodoItem> FlattenTodoItems(TodoItem item)
@@ -509,26 +494,26 @@
 
         builder.OpenElement(sequence++, "div");
         builder.AddAttribute(sequence++, "class", "todo-item-row");
-        builder.AddAttribute(sequence++, "onpointerdown", EventCallback.Factory.Create<PointerEventArgs>(this, () => StartLongPress(item)));
-        builder.AddAttribute(sequence++, "onpointerup", EventCallback.Factory.Create<PointerEventArgs>(this, CancelLongPress));
-        builder.AddAttribute(sequence++, "onpointerleave", EventCallback.Factory.Create<PointerEventArgs>(this, CancelLongPress));
-        builder.AddAttribute(sequence++, "onpointercancel", EventCallback.Factory.Create<PointerEventArgs>(this, CancelLongPress));
 
-        builder.OpenElement(sequence++, "div");
-        builder.AddAttribute(sequence++, "class", "checkbox-line");
         builder.OpenElement(sequence++, "input");
+        builder.AddAttribute(sequence++, "class", "todo-checkbox");
         builder.AddAttribute(sequence++, "type", "checkbox");
         builder.AddAttribute(sequence++, "checked", item.IsCompleted);
-        builder.AddAttribute(sequence++, "disabled", true);
-        builder.CloseElement();
-        builder.OpenElement(sequence++, "span");
-        builder.AddContent(sequence++, item.Text);
-        builder.CloseElement();
+        builder.AddAttribute(sequence++, "onchange", EventCallback.Factory.Create(this, () => ToggleItemAsync(item)));
         builder.CloseElement();
 
-        builder.OpenElement(sequence++, "span");
-        builder.AddAttribute(sequence++, "class", "pill");
-        builder.AddContent(sequence++, "Lang drücken");
+        builder.OpenElement(sequence++, "button");
+        builder.AddAttribute(sequence++, "type", "button");
+        builder.AddAttribute(sequence++, "class", "todo-text-button");
+        builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => SelectItem(item)));
+        builder.AddContent(sequence++, item.Text);
+        builder.CloseElement();
+
+        builder.OpenElement(sequence++, "button");
+        builder.AddAttribute(sequence++, "type", "button");
+        builder.AddAttribute(sequence++, "class", "ghost-button danger todo-delete-button");
+        builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DeleteItemAsync(item)));
+        builder.AddContent(sequence++, "Löschen");
         builder.CloseElement();
 
         builder.CloseElement();

@@ -1,10 +1,11 @@
 .nav-drawer {
     position: fixed;
-    top: 1rem;
+    top: 4.75rem;
     left: 1rem;
     width: 280px;
-    opacity: 1;
-    transform: none;
+    opacity: 0;
+    transform: translateX(-120%);
+    pointer-events: none;
     transition: opacity 0.2s ease, transform 0.2s ease;
     z-index: 60;
 }
@@ -12,6 +13,7 @@
 .nav-drawer.open {
     opacity: 1;
     transform: translateX(0);
+    pointer-events: auto;
 }
 
 .nav-menu {
@@ -69,6 +71,7 @@
     border: 1px solid var(--line);
     font-weight: 600;
     text-align: center;
+    cursor: pointer;
 }
 
 .nav-pill-button.active {

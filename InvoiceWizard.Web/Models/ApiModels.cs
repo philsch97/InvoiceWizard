@@ -245,6 +245,13 @@ public class TodoAttachmentItem
     public string DownloadUrl { get; set; } = "";
 }
 
+public class TodoAttachmentContentItem
+{
+    public byte[] Data { get; set; } = [];
+    public string ContentType { get; set; } = "application/octet-stream";
+    public string FileName { get; set; } = "";
+}
+
 public class CalendarUserItem
 {
     public int AppUserId { get; set; }
