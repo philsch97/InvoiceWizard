@@ -1,7 +1,7 @@
 @using InvoiceWizard.Web.Models
 @inject WebAuthSession Auth
 
-@if (!Auth.BootstrapState.HasUsers)
+@if (Auth.IsBootstrapStateKnown && !Auth.BootstrapState.HasUsers && !Auth.BootstrapState.HasTenants)
 {
     <section class="auth-shell panel">
         <div class="section-heading compact">

@@ -17,6 +17,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
     public event Action? StateChanged;
 
     public bool IsInitialized { get; private set; }
+    public bool IsBootstrapStateKnown { get; private set; }
     public bool IsBusy { get; private set; }
     public string? ErrorMessage { get; private set; }
     public BootstrapStateModel BootstrapState { get; private set; } = new();
@@ -44,6 +45,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                 if (storedBootstrap is not null)
                 {
                     BootstrapState = storedBootstrap;
+                    IsBootstrapStateKnown = true;
                 }
             }
 
@@ -105,13 +107,13 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                         }
                         catch
                         {
-                            await ClearStoredCredentialsAsync();
                         }
                     }
                 }
             }
 
             BootstrapState = await GetBootstrapStateAsync();
+            IsBootstrapStateKnown = true;
             await PersistBootstrapStateAsync();
         }
         catch (Exception ex)
@@ -124,6 +126,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                     HasUsers = true,
                     HasTenants = true
                 };
+                IsBootstrapStateKnown = true;
             }
         }
         finally
@@ -184,6 +187,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         CurrentSession = null;
         ErrorMessage = null;
         BootstrapState = await GetBootstrapStateAsync();
+        IsBootstrapStateKnown = true;
         await ClearStoredSessionAsync();
         await ClearStoredCredentialsAsync();
         await PersistBootstrapStateAsync();
