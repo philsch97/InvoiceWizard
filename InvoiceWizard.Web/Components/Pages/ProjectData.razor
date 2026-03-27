@@ -125,7 +125,7 @@
 
 @if (ShowProjectDialog)
 {
-    <div class="modal-backdrop" @onclick="CloseProjectDialog">
+        <div class="modal-backdrop" @onclick="CloseProjectDialog">
         <div class="modal-card wizard-modal" @onclick:stopPropagation="true">
             <div class="table-header compact">
                 <div>
@@ -134,10 +134,14 @@
                 </div>
             </div>
 
+            <div class="inline-status warning">
+                Pflichtfelder sind mit * markiert. Ein neues Projekt braucht mindestens einen Kunden und einen Projektnamen mit dreistelliger Nummer, z. B. 001 Musterprojekt.
+            </div>
+
             @if (WizardStep == 1)
             {
                 <div class="form-grid compact-grid">
-                    <label class="wide"><span>Projektname</span><input @bind="ProjectForm.Name" /></label>
+                    <label class="wide"><span>Projektname *</span><input @bind="ProjectForm.Name" placeholder="z. B. 001 Renovierung Haus" /></label>
                     <label>
                         <span>Status</span>
                         <select @bind="ProjectForm.ProjectStatus">
@@ -147,7 +151,7 @@
                         </select>
                     </label>
                 </div>
-                <p class="empty-hint">Der Projektname muss wie in der WPF mit einer dreistelligen Nummer beginnen, z. B. 001 Renovierung Haus.</p>
+                <p class="empty-hint">Gewählter Kunde: @(Customers.FirstOrDefault(x => x.CustomerId == SelectedCustomerId)?.Name ?? "Nicht gewählt")</p>
             }
             else if (WizardStep == 2)
             {

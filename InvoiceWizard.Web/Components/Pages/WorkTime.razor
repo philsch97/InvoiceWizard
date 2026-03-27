@@ -12,6 +12,7 @@
             <p>Starte Projektzeiten direkt wie an einer Stechuhr oder trage Zeiten nachträglich manuell ein.</p>
         </div>
         <div class="row-actions wrap-mobile">
+            <button class="action-button" @onclick="OpenStartDialog" disabled="@(ActiveClock is not null)">Projekt stechen</button>
             <button class="action-button" @onclick="OpenCreateEntryDialog">Arbeitszeit nachtragen</button>
             <button class="action-button secondary" @onclick="ReloadAsync">Aktualisieren</button>
         </div>
@@ -27,7 +28,7 @@
             <div class="table-header compact">
                 <div>
                     <h3>Projekt stechen</h3>
-                    <p>Projekt wählen und direkt loslegen.</p>
+                    <p>Projektzeiten direkt starten, pausieren und beenden.</p>
                 </div>
                 @if (ActiveClock is not null)
                 {
@@ -37,46 +38,9 @@
                 }
             </div>
 
-            <div class="form-grid">
-                <label>
-                    <span>Kunde</span>
-                    <select @bind="StartForm.CustomerId" @bind:after="LoadProjectsForSelectedCustomerAsync" disabled="@(ActiveClock is not null)">
-                        <option value="0">Bitte wählen</option>
-                        @foreach (var customer in Customers)
-                        {
-                            <option value="@customer.CustomerId">@customer.Name</option>
-                        }
-                    </select>
-                </label>
-                <label>
-                    <span>Projekt</span>
-                    <select @bind="StartForm.ProjectId" disabled="@(ActiveClock is not null)">
-                        <option value="">Bitte wählen</option>
-                        @foreach (var project in AvailableProjects)
-                        {
-                            <option value="@project.ProjectId">@project.Name</option>
-                        }
-                    </select>
-                </label>
-                <label>
-                    <span>Stundensatz</span>
-                    <input type="number" step="0.01" @bind="StartForm.HourlyRate" disabled="@(ActiveClock is not null)" />
-                </label>
-                <label>
-                    <span>Preis / km</span>
-                    <input type="number" step="0.01" @bind="StartForm.TravelRatePerKilometer" disabled="@(ActiveClock is not null)" />
-                </label>
-                <label class="wide">
-                    <span>Beschreibung</span>
-                    <input @bind="StartForm.Description" disabled="@(ActiveClock is not null)" />
-                </label>
-            </div>
-
             @if (ActiveClock is null)
             {
-                <div class="row-actions wrap-mobile">
-                    <button class="action-button" @onclick="StartClockAsync">Projektstart</button>
-                </div>
+                <p class="empty-hint">Aktuell läuft keine Projektzeit. Starte eine neue Zeit über den Button oben.</p>
             }
             else
             {
@@ -183,6 +147,60 @@
     </div>
 </section>
 
+@if (ShowStartDialog)
+{
+    <div class="modal-backdrop" @onclick="CloseStartDialog">
+        <div class="modal-card worktime-start-modal" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>Projekt stechen</h3>
+                    <p>Pflichtfelder sind mit * markiert.</p>
+                </div>
+            </div>
+
+            <div class="form-grid compact-grid">
+                <label>
+                    <span>Kunde *</span>
+                    <select @bind="StartForm.CustomerId" @bind:after="LoadProjectsForSelectedCustomerAsync">
+                        <option value="0">Bitte wählen</option>
+                        @foreach (var customer in Customers)
+                        {
+                            <option value="@customer.CustomerId">@customer.Name</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Projekt *</span>
+                    <select @bind="StartForm.ProjectId">
+                        <option value="">Bitte wählen</option>
+                        @foreach (var project in AvailableProjects)
+                        {
+                            <option value="@project.ProjectId">@project.Name</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    <span>Stundensatz</span>
+                    <input type="number" step="0.01" @bind="StartForm.HourlyRate" />
+                </label>
+                <label>
+                    <span>Preis / km</span>
+                    <input type="number" step="0.01" @bind="StartForm.TravelRatePerKilometer" />
+                </label>
+                <label class="wide">
+                    <span>Beschreibung *</span>
+                    <input @bind="StartForm.Description" />
+                </label>
+            </div>
+
+            <div class="row-actions wrap-mobile">
+                <button class="action-button" @onclick="ConfirmStartClockAsync">Projektstart</button>
+                <button class="ghost-button" @onclick="CloseStartDialog">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (ShowStopDialog)
 {
     <div class="modal-backdrop" @onclick="CloseStopDialog">
@@ -276,6 +294,7 @@
     private int? FilterCustomerId { get; set; }
     private int? FilterProjectId { get; set; }
     private bool ShowStopDialog { get; set; }
+    private bool ShowStartDialog { get; set; }
     private bool ShowEditDialog { get; set; }
     private int? EditingWorkTimeEntryId { get; set; }
     private string StopComment { get; set; } = "";
@@ -399,6 +418,30 @@
         ActiveClock = await Api.StartWorkTimeClockAsync(StartForm);
         SetStatus($"Projektzeit für {ActiveClock.ProjectName} gestartet.", false);
         await ReloadEntriesAsync();
+    }
+
+    private void OpenStartDialog()
+    {
+        if (ActiveClock is not null)
+        {
+            return;
+        }
+
+        ShowStartDialog = true;
+    }
+
+    private void CloseStartDialog()
+    {
+        ShowStartDialog = false;
+    }
+
+    private async Task ConfirmStartClockAsync()
+    {
+        await StartClockAsync();
+        if (ActiveClock is not null)
+        {
+            ShowStartDialog = false;
+        }
     }
 
     private async Task TogglePauseAsync()
