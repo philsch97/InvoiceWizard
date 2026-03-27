@@ -138,6 +138,11 @@
                 Pflichtfelder sind mit * markiert. Ein neues Projekt braucht mindestens einen Kunden und einen Projektnamen mit dreistelliger Nummer, z. B. 001 Musterprojekt.
             </div>
 
+            @if (!string.IsNullOrWhiteSpace(ProjectDialogStatusMessage))
+            {
+                <div class="inline-status">@ProjectDialogStatusMessage</div>
+            }
+
             @if (WizardStep == 1)
             {
                 <div class="form-grid compact-grid">
@@ -218,6 +223,7 @@
     private int WizardStep { get; set; } = 1;
     private bool ShowProjectDialog { get; set; }
     private string? StatusMessage { get; set; }
+    private string? ProjectDialogStatusMessage { get; set; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -294,6 +300,7 @@
         EditingProjectId = null;
         ProjectForm = new SaveProjectModel { ProjectStatus = "Active" };
         WizardStep = 1;
+        ProjectDialogStatusMessage = null;
         ShowProjectDialog = true;
     }
 
@@ -330,6 +337,7 @@
             PropertyOwnerPhoneNumber = CurrentProject.PropertyOwnerPhoneNumber
         };
         WizardStep = 1;
+        ProjectDialogStatusMessage = null;
         ShowProjectDialog = true;
     }
 
@@ -338,28 +346,52 @@
         ShowProjectDialog = false;
         EditingProjectId = null;
         WizardStep = 1;
+        ProjectDialogStatusMessage = null;
     }
 
     private void NextWizardStep()
     {
+        ProjectDialogStatusMessage = null;
         WizardStep = Math.Min(3, WizardStep + 1);
     }
 
     private void PreviousWizardStep()
     {
+        ProjectDialogStatusMessage = null;
         WizardStep = Math.Max(1, WizardStep - 1);
     }
 
     private async Task SaveProjectAsync()
     {
+        ProjectDialogStatusMessage = null;
         if (!SelectedCustomerId.HasValue)
         {
-            StatusMessage = "Bitte zuerst einen Kunden auswählen.";
+            ProjectDialogStatusMessage = "Bitte zuerst einen Kunden auswählen.";
+            StatusMessage = ProjectDialogStatusMessage;
+            return;
+        }
+
+        var trimmedProjectName = (ProjectForm.Name ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(trimmedProjectName))
+        {
+            ProjectDialogStatusMessage = "Bitte einen Projektnamen eingeben.";
+            StatusMessage = ProjectDialogStatusMessage;
+            return;
+        }
+
+        if (trimmedProjectName.Length < 3
+            || !char.IsDigit(trimmedProjectName[0])
+            || !char.IsDigit(trimmedProjectName[1])
+            || !char.IsDigit(trimmedProjectName[2]))
+        {
+            ProjectDialogStatusMessage = "Der Projektname muss mit einer dreistelligen Nummer beginnen, z. B. 001 Musterprojekt.";
+            StatusMessage = ProjectDialogStatusMessage;
             return;
         }
 
         try
         {
+            ProjectForm.Name = trimmedProjectName;
             if (EditingProjectId.HasValue)
             {
                 var updated = await Api.UpdateProjectAsync(EditingProjectId.Value, ProjectForm);
@@ -378,6 +410,7 @@
         }
         catch (Exception ex)
         {
+            ProjectDialogStatusMessage = ex.Message;
             StatusMessage = ex.Message;
         }
     }
