@@ -58,6 +58,7 @@ h1 {
     z-index: 70;
     display: flex;
     justify-content: flex-start;
+    pointer-events: auto;
 }
 
 .compact-web-topbar {
@@ -70,6 +71,11 @@ h1 {
 
 .nav-toggle {
     min-width: 92px;
+    position: relative;
+    z-index: 80;
+    background: rgba(22, 27, 34, 0.96);
+    border-color: rgba(78, 92, 110, 0.7);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
 }
 
 .app-body {

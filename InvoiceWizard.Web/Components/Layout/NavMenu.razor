@@ -3,7 +3,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<aside class="nav-drawer @(IsOpen ? "open" : string.Empty)">
+<aside id="app-nav-drawer" class="nav-drawer @(IsOpen ? "open" : string.Empty)">
     <nav class="nav-menu">
         <div class="nav-brand-block">
             <strong class="nav-brand-title">@Auth.CurrentSession?.Tenant.Name</strong>

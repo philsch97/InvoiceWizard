@@ -40,7 +40,7 @@ else
 {
     <div class="shell app-shell">
         <header class="app-topbar compact-web-topbar">
-            <button class="ghost-button nav-toggle" @onclick="ToggleNavigationAsync">Menü</button>
+            <button type="button" class="ghost-button nav-toggle" @onclick="ToggleNavigationAsync" aria-expanded="@IsNavigationOpen" aria-controls="app-nav-drawer">Menü</button>
         </header>
 
         <div class="app-body">
@@ -84,6 +84,7 @@ else
     private Task ToggleNavigationAsync()
     {
         IsNavigationOpen = !IsNavigationOpen;
+        StateHasChanged();
         return Task.CompletedTask;
     }
 
@@ -92,6 +93,7 @@ else
         if (IsNavigationOpen)
         {
             IsNavigationOpen = false;
+            StateHasChanged();
         }
         return Task.CompletedTask;
     }
