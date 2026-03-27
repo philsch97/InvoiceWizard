@@ -1,6 +1,7 @@
 @page "/analytics"
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
+@inject WebUiSelectionState UiState
 
 <PageTitle>Auswertung</PageTitle>
 
@@ -138,12 +139,17 @@
         }
 
         Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
+        if (UiState.SelectedCustomerId.HasValue && Customers.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
+        {
+            SelectedCustomerId = UiState.SelectedCustomerId.Value;
+        }
         await LoadProjectsAsync();
         await LoadAsync();
     }
 
     private async Task OnCustomerChangedAsync()
     {
+        UiState.SetSelectedCustomer(SelectedCustomerId);
         await LoadProjectsAsync();
         await LoadAsync();
     }

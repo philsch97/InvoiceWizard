@@ -1,6 +1,7 @@
 @page "/worktime"
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
+@inject WebUiSelectionState UiState
 
 <PageTitle>Arbeitszeit</PageTitle>
 
@@ -308,7 +309,12 @@
             return;
         }
 
-        if (StartForm.CustomerId <= 0 || Customers.All(x => x.CustomerId != StartForm.CustomerId))
+        if (UiState.SelectedCustomerId.HasValue && Customers.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
+        {
+            StartForm.CustomerId = UiState.SelectedCustomerId.Value;
+            FilterCustomerId = UiState.SelectedCustomerId.Value;
+        }
+        else if (StartForm.CustomerId <= 0 || Customers.All(x => x.CustomerId != StartForm.CustomerId))
         {
             StartForm.CustomerId = Customers[0].CustomerId;
         }
@@ -345,6 +351,7 @@
 
     private async Task LoadProjectsForSelectedCustomerAsync()
     {
+        UiState.SetSelectedCustomer(StartForm.CustomerId > 0 ? StartForm.CustomerId : null);
         AvailableProjects = StartForm.CustomerId > 0 ? (await Api.GetProjectsAsync(StartForm.CustomerId, includeInactive: false)).ToList() : [];
         if (StartForm.ProjectId.HasValue && AvailableProjects.All(x => x.ProjectId != StartForm.ProjectId.Value))
         {
@@ -354,6 +361,11 @@
 
     private async Task HandleFilterCustomerChangedAsync()
     {
+        UiState.SetSelectedCustomer(FilterCustomerId);
+        if (FilterCustomerId.HasValue)
+        {
+            StartForm.CustomerId = FilterCustomerId.Value;
+        }
         FilterProjects = FilterCustomerId.HasValue ? (await Api.GetProjectsAsync(FilterCustomerId.Value, includeInactive: false)).ToList() : [];
         if (FilterProjectId.HasValue && FilterProjects.All(x => x.ProjectId != FilterProjectId.Value))
         {

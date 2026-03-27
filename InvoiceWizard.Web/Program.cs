@@ -7,6 +7,7 @@ var baseUrl = builder.Configuration["Backend:BaseUrl"] ?? "https://localhost:721
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddScoped<WebAuthSession>();
+builder.Services.AddScoped<WebUiSelectionState>();
 builder.Services.AddScoped<AuthHeaderHandler>();
 builder.Services.AddHttpClient("BackendAnonymous", client =>
 {

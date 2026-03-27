@@ -1,6 +1,7 @@
 @page "/projectdata"
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
+@inject WebUiSelectionState UiState
 
 <PageTitle>Projektdaten</PageTitle>
 
@@ -233,7 +234,11 @@
     private async Task ReloadAsync()
     {
         Customers = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
-        if (!SelectedCustomerId.HasValue && Customers.Count > 0)
+        if (UiState.SelectedCustomerId.HasValue && Customers.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
+        {
+            SelectedCustomerId = UiState.SelectedCustomerId.Value;
+        }
+        else if (!SelectedCustomerId.HasValue && Customers.Count > 0)
         {
             SelectedCustomerId = Customers[0].CustomerId;
         }
@@ -244,6 +249,7 @@
 
     private async Task OnCustomerChangedAsync()
     {
+        UiState.SetSelectedCustomer(SelectedCustomerId);
         await LoadProjectsAsync();
         await LoadDetailsAsync();
     }

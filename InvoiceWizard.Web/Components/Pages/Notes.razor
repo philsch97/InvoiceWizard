@@ -3,6 +3,7 @@
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
 @inject IJSRuntime JS
+@inject WebUiSelectionState UiState
 
 <PageTitle>Notizen &amp; ToDos</PageTitle>
 
@@ -162,6 +163,24 @@
     </div>
 }
 
+@if (ShowItemActionsDialog && ActionItem is not null)
+{
+    <div class="modal-backdrop" @onclick="CloseItemActionsDialog">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div class="table-header compact">
+                <div>
+                    <h3>Punkt-Aktionen</h3>
+                    <p>@ActionItem.Text</p>
+                </div>
+            </div>
+            <div class="row-actions wrap-mobile">
+                <button class="ghost-button danger" @onclick="DeleteActionItemAsync">Löschen</button>
+                <button class="ghost-button" @onclick="CloseItemActionsDialog">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (ShowDeleteListDialog && SelectedList is not null)
 {
     <div class="modal-backdrop" @onclick="CloseDeleteListDialog">
@@ -211,9 +230,13 @@
     private string? StatusMessage { get; set; }
     private bool ShowListDialog { get; set; }
     private bool ShowDeleteListDialog { get; set; }
+    private bool ShowItemActionsDialog { get; set; }
     private bool ShowAttachmentPreview { get; set; }
     private string? PreviewImageUrl { get; set; }
     private string PreviewAttachmentName { get; set; } = string.Empty;
+    private TodoItem? ActionItem { get; set; }
+    private CancellationTokenSource? ItemPressCancellation { get; set; }
+    private bool SuppressNextSelection { get; set; }
     private int AttachmentInputVersion { get; set; }
     private string CameraInputId => $"todo-camera-{AttachmentInputVersion}";
     private string FileInputId => $"todo-file-{AttachmentInputVersion}";
@@ -235,7 +258,11 @@
         }
 
         Customers = (await Api.GetCustomersAsync(activeProjectsOnly: true)).OrderBy(x => x.Name).ToList();
-        if (!SelectedCustomerId.HasValue && Customers.Count > 0)
+        if (UiState.SelectedCustomerId.HasValue && Customers.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
+        {
+            SelectedCustomerId = UiState.SelectedCustomerId.Value;
+        }
+        else if (!SelectedCustomerId.HasValue && Customers.Count > 0)
         {
             SelectedCustomerId = Customers[0].CustomerId;
         }
@@ -245,6 +272,7 @@
 
     private async Task OnCustomerChangedAsync()
     {
+        UiState.SetSelectedCustomer(SelectedCustomerId);
         Projects = SelectedCustomerId.HasValue ? (await Api.GetProjectsAsync(SelectedCustomerId.Value, includeInactive: false)).OrderBy(x => x.Name).ToList() : [];
         if (SelectedProjectId.HasValue && Projects.All(x => x.ProjectId != SelectedProjectId.Value))
         {
@@ -300,6 +328,7 @@
     {
         ShowListDialog = false;
         SelectedItemId = null;
+        CloseItemActionsDialog();
         ResetAttachmentSelection();
     }
 
@@ -387,6 +416,12 @@
 
     private void SelectItem(TodoItem item)
     {
+        if (SuppressNextSelection && ActionItem?.TodoItemId == item.TodoItemId)
+        {
+            SuppressNextSelection = false;
+            return;
+        }
+
         SelectedItemId = item.TodoItemId;
     }
 
@@ -405,6 +440,62 @@
 
         StatusMessage = "Punkt gelöscht.";
         await ReloadListsAsync();
+    }
+
+    private async Task StartItemPressAsync(TodoItem item)
+    {
+        CancelItemPress();
+        var cancellation = new CancellationTokenSource();
+        ItemPressCancellation = cancellation;
+
+        try
+        {
+            await Task.Delay(650, cancellation.Token);
+            ActionItem = item;
+            ShowItemActionsDialog = true;
+            SuppressNextSelection = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private void EndItemPress()
+    {
+        CancelItemPress();
+    }
+
+    private void CloseItemActionsDialog()
+    {
+        ShowItemActionsDialog = false;
+        ActionItem = null;
+        SuppressNextSelection = false;
+        CancelItemPress();
+    }
+
+    private async Task DeleteActionItemAsync()
+    {
+        if (ActionItem is null)
+        {
+            return;
+        }
+
+        var item = ActionItem;
+        CloseItemActionsDialog();
+        await DeleteItemAsync(item);
+    }
+
+    private void CancelItemPress()
+    {
+        if (ItemPressCancellation is null)
+        {
+            return;
+        }
+
+        ItemPressCancellation.Cancel();
+        ItemPressCancellation.Dispose();
+        ItemPressCancellation = null;
     }
 
     private void HandleFileSelected(InputFileChangeEventArgs args)
@@ -494,15 +585,12 @@
         builder.OpenElement(sequence++, "button");
         builder.AddAttribute(sequence++, "type", "button");
         builder.AddAttribute(sequence++, "class", "todo-text-button");
+        builder.AddAttribute(sequence++, "onpointerdown", EventCallback.Factory.Create<PointerEventArgs>(this, () => StartItemPressAsync(item)));
+        builder.AddAttribute(sequence++, "onpointerup", EventCallback.Factory.Create<PointerEventArgs>(this, _ => EndItemPress()));
+        builder.AddAttribute(sequence++, "onpointerleave", EventCallback.Factory.Create<PointerEventArgs>(this, _ => EndItemPress()));
+        builder.AddAttribute(sequence++, "onpointercancel", EventCallback.Factory.Create<PointerEventArgs>(this, _ => EndItemPress()));
         builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => SelectItem(item)));
         builder.AddContent(sequence++, item.Text);
-        builder.CloseElement();
-
-        builder.OpenElement(sequence++, "button");
-        builder.AddAttribute(sequence++, "type", "button");
-        builder.AddAttribute(sequence++, "class", "ghost-button danger todo-delete-button");
-        builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DeleteItemAsync(item)));
-        builder.AddContent(sequence++, "Löschen");
         builder.CloseElement();
 
         builder.CloseElement();

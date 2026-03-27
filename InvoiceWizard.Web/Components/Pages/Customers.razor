@@ -1,6 +1,7 @@
 @page "/customers"
 @inject BackendApiClient Api
 @inject WebAuthSession Auth
+@inject WebUiSelectionState UiState
 
 <PageTitle>Kunden</PageTitle>
 
@@ -169,7 +170,11 @@
     private async Task LoadAsync()
     {
         CustomerItems = (await Api.GetCustomersAsync()).OrderBy(x => x.Name).ToList();
-        if (SelectedCustomer is null && CustomerItems.Count > 0)
+        if (UiState.SelectedCustomerId.HasValue && CustomerItems.Any(x => x.CustomerId == UiState.SelectedCustomerId.Value))
+        {
+            SelectedCustomer = CustomerItems.First(x => x.CustomerId == UiState.SelectedCustomerId.Value);
+        }
+        else if (SelectedCustomer is null && CustomerItems.Count > 0)
         {
             SelectedCustomer = CustomerItems[0];
         }
@@ -184,6 +189,7 @@
     private async Task SelectCustomerAsync(int customerId)
     {
         SelectedCustomer = CustomerItems.FirstOrDefault(x => x.CustomerId == customerId);
+        UiState.SetSelectedCustomer(SelectedCustomer?.CustomerId);
         await LoadSelectedCustomerProjectsAsync();
     }
 
@@ -245,6 +251,7 @@
             CustomerForm.Name = displayName;
             var saved = await Api.SaveCustomerAsync(CustomerForm, EditingCustomerId);
             SelectedCustomer = saved;
+            UiState.SetSelectedCustomer(saved.CustomerId);
             CloseCustomerDialog();
             StatusMessage = $"Kunde {saved.Name} gespeichert.";
             await LoadAsync();
