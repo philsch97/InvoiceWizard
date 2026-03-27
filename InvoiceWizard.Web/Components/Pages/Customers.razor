@@ -240,12 +240,19 @@
             return;
         }
 
-        CustomerForm.Name = displayName;
-        var saved = await Api.SaveCustomerAsync(CustomerForm, EditingCustomerId);
-        SelectedCustomer = saved;
-        CloseCustomerDialog();
-        StatusMessage = $"Kunde {saved.Name} gespeichert.";
-        await LoadAsync();
+        try
+        {
+            CustomerForm.Name = displayName;
+            var saved = await Api.SaveCustomerAsync(CustomerForm, EditingCustomerId);
+            SelectedCustomer = saved;
+            CloseCustomerDialog();
+            StatusMessage = $"Kunde {saved.Name} gespeichert.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
     }
 
     private async Task DeleteSelectedCustomerAsync()

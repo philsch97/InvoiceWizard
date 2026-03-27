@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using InvoiceWizard.Web.Models;
 using Microsoft.AspNetCore.Components.Forms;
+using System.Text.Json;
 
 namespace InvoiceWizard.Web.Services;
 
@@ -26,7 +27,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
         var response = customerId.HasValue
             ? await httpClient.PutAsJsonAsync($"api/customers/{customerId.Value}", model, cancellationToken)
             : await httpClient.PostAsJsonAsync("api/customers", model, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<CustomerItem>(cancellationToken: cancellationToken))!;
     }
 
@@ -58,7 +59,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     {
         ApplyAuthorizationHeader();
         var response = await httpClient.PostAsJsonAsync($"api/customers/{customerId}/projects", model, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<ProjectItem>(cancellationToken: cancellationToken))!;
     }
 
@@ -66,7 +67,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     {
         ApplyAuthorizationHeader();
         var response = await httpClient.PutAsJsonAsync($"api/projects/{projectId}", model, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<ProjectDetailsItem>(cancellationToken: cancellationToken))!;
     }
 
@@ -351,7 +352,7 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     {
         ApplyAuthorizationHeader();
         var response = await httpClient.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken) ?? fallback;
     }
 
@@ -359,7 +360,74 @@ public class BackendApiClient(HttpClient httpClient, WebAuthSession authSession)
     {
         ApplyAuthorizationHeader();
         var response = await httpClient.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<List<T>>(cancellationToken: cancellationToken) ?? [];
+    }
+
+    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var message = ExtractMessage(body);
+        throw new HttpRequestException(string.IsNullOrWhiteSpace(message)
+            ? $"Response status code does not indicate success: {(int)response.StatusCode} {response.ReasonPhrase}"
+            : message);
+    }
+
+    private static string? ExtractMessage(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return null;
+        }
+
+        var trimmed = body.Trim();
+        if (!trimmed.StartsWith("{", StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            var root = document.RootElement;
+
+            if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+            {
+                return detail.GetString();
+            }
+
+            if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+            {
+                return title.GetString();
+            }
+
+            if (root.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in errors.EnumerateObject())
+                {
+                    if (property.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in property.Value.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
+                            {
+                                return item.GetString();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            return trimmed;
+        }
+
+        return trimmed;
     }
 }

@@ -106,13 +106,6 @@
                 <button class="ghost-button half-width-button" @onclick="CreateChildItemAsync" disabled="@(SelectedItemId is null)">Unterpunkt</button>
             </div>
 
-            @if (SelectedItemId.HasValue)
-            {
-                <div class="inline-status">
-                    Ausgewählter Punkt für Unterpunkt: @SelectedItemText
-                </div>
-            }
-
             <div class="todo-tree">
                 @foreach (var item in SelectedList.Items.OrderBy(x => x.SortOrder))
                 {
@@ -227,9 +220,6 @@
     private string CameraInputKey => $"camera-{AttachmentInputVersion}";
     private string FileInputKey => $"file-{AttachmentInputVersion}";
     private string SelectedAttachmentFileName => SelectedAttachmentFile?.Name ?? "Keine ausgewählt";
-
-    private string SelectedItemText
-        => SelectedList?.Items.SelectMany(FlattenTodoItems).FirstOrDefault(x => x.TodoItemId == SelectedItemId)?.Text ?? "Nicht gefunden";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -398,7 +388,6 @@
     private void SelectItem(TodoItem item)
     {
         SelectedItemId = item.TodoItemId;
-        StatusMessage = "Punkt für Unterpunkt ausgewählt.";
     }
 
     private async Task DeleteItemAsync(TodoItem item)
