@@ -37,6 +37,16 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         await SetBusyAsync(true);
         try
         {
+            var storedBootstrapJson = await jsRuntime.InvokeAsync<string?>("invoiceWizardAuth.getBootstrapState");
+            if (!string.IsNullOrWhiteSpace(storedBootstrapJson))
+            {
+                var storedBootstrap = JsonSerializer.Deserialize<BootstrapStateModel>(storedBootstrapJson, _jsonOptions);
+                if (storedBootstrap is not null)
+                {
+                    BootstrapState = storedBootstrap;
+                }
+            }
+
             var storedJson = await jsRuntime.InvokeAsync<string?>("invoiceWizardAuth.getSession");
             if (!string.IsNullOrWhiteSpace(storedJson))
             {
@@ -102,10 +112,19 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
             }
 
             BootstrapState = await GetBootstrapStateAsync();
+            await PersistBootstrapStateAsync();
         }
         catch (Exception ex)
         {
             ErrorMessage = ex.Message;
+            if (CurrentSession is not null)
+            {
+                BootstrapState = new BootstrapStateModel
+                {
+                    HasUsers = true,
+                    HasTenants = true
+                };
+            }
         }
         finally
         {
@@ -128,6 +147,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                 ?? throw new InvalidOperationException("Die Anmeldedaten konnten nicht gelesen werden.");
             BootstrapState = await GetBootstrapStateAsync();
             await PersistSessionAsync();
+            await PersistBootstrapStateAsync();
             await PersistCredentialsAsync(request);
         }
         finally
@@ -150,6 +170,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
                 ?? throw new InvalidOperationException("Die Setup-Antwort konnte nicht gelesen werden.");
             BootstrapState = await GetBootstrapStateAsync();
             await PersistSessionAsync();
+            await PersistBootstrapStateAsync();
         }
         finally
         {
@@ -165,6 +186,7 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
         BootstrapState = await GetBootstrapStateAsync();
         await ClearStoredSessionAsync();
         await ClearStoredCredentialsAsync();
+        await PersistBootstrapStateAsync();
         NotifyStateChanged();
     }
 
@@ -204,6 +226,12 @@ public class WebAuthSession(IHttpClientFactory httpClientFactory, IJSRuntime jsR
 
         var json = JsonSerializer.Serialize(CurrentSession, _jsonOptions);
         await jsRuntime.InvokeVoidAsync("invoiceWizardAuth.setSession", json);
+    }
+
+    private async Task PersistBootstrapStateAsync()
+    {
+        var json = JsonSerializer.Serialize(BootstrapState, _jsonOptions);
+        await jsRuntime.InvokeVoidAsync("invoiceWizardAuth.setBootstrapState", json);
     }
 
     private async Task PersistCredentialsAsync(LoginRequestModel request)

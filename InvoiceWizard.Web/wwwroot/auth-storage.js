@@ -16,6 +16,15 @@ window.invoiceWizardAuth = {
     },
     clearCredentials: function () {
         window.localStorage.removeItem("invoicewizard.auth.credentials");
+    },
+    getBootstrapState: function () {
+        return window.localStorage.getItem("invoicewizard.auth.bootstrap");
+    },
+    setBootstrapState: function (value) {
+        window.localStorage.setItem("invoicewizard.auth.bootstrap", value);
+    },
+    clearBootstrapState: function () {
+        window.localStorage.removeItem("invoicewizard.auth.bootstrap");
     }
 };
 
