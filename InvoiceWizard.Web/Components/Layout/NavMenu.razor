@@ -1,5 +1,7 @@
+@using Microsoft.JSInterop
 @inject WebAuthSession Auth
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <aside class="nav-drawer @(IsOpen ? "open" : string.Empty)">
     <nav class="nav-menu">
@@ -32,6 +34,15 @@
             <button type="button" class="@GetNavButtonClass("/projectdata")" @onclick='() => NavigateToAsync("/projectdata")'>Projektdaten</button>
         </div>
 
+        <div class="nav-group">
+            <span class="nav-group-label">App</span>
+            <button type="button" class="ghost-button nav-utility-button" @onclick="InstallAppAsync">App installieren</button>
+            @if (!string.IsNullOrWhiteSpace(InstallMessage))
+            {
+                <span class="nav-install-hint">@InstallMessage</span>
+            }
+        </div>
+
         <button type="button" class="ghost-button nav-logout-button" @onclick="LogoutAndNavigateAsync">Abmelden</button>
     </nav>
 </aside>
@@ -39,6 +50,7 @@
 @code {
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback OnNavigate { get; set; }
+    private string? InstallMessage { get; set; }
 
     private async Task NavigateToAsync(string href)
     {
@@ -50,6 +62,19 @@
     {
         await Auth.LogoutAsync();
         Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private async Task InstallAppAsync()
+    {
+        var result = await JS.InvokeAsync<string>("invoiceWizardPwa.install");
+        InstallMessage = result switch
+        {
+            "prompted" => "Installationsdialog geöffnet.",
+            "accepted" => "App wird installiert.",
+            "installed" => "Die App ist bereits installiert.",
+            "ios" => "Auf iPhone/iPad bitte im Browser auf Teilen und dann Zum Home-Bildschirm tippen.",
+            _ => "Installation aktuell nicht verfügbar. Bitte Seite einmal normal im Browser öffnen und erneut versuchen."
+        };
     }
 
     private string GetNavButtonClass(string href)
